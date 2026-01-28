@@ -156,7 +156,10 @@ fun BrowserScreen(
                 FloatingActionButton(
                     onClick = {
                         val extension = state.defaultFileExtension.ifBlank { "txt" }
-                        onNewFile(state.currentDirUri, extension)
+                        val dir = state.currentDirUri
+                        if (dir != null) {
+                            onNewFile(dir, extension)
+                        }
                     }
                 ) {
                     Icon(
