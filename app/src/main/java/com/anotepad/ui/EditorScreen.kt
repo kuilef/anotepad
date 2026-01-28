@@ -1,5 +1,6 @@
 package com.anotepad.ui
 
+import androidx.compose.material3.ExperimentalMaterial3Api
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
@@ -34,6 +35,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.util.LinkifyCompat
 import com.anotepad.R
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(
     viewModel: EditorViewModel,
@@ -72,12 +74,18 @@ fun EditorScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(id = R.string.action_back))
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = stringResource(id = R.string.action_back)
+                        )
                     }
                 },
                 actions = {
                     IconButton(onClick = onOpenTemplates) {
-                        Icon(Icons.Default.List, contentDescription = stringResource(id = R.string.action_templates))
+                        Icon(
+                            Icons.Default.List,
+                            contentDescription = stringResource(id = R.string.action_templates)
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

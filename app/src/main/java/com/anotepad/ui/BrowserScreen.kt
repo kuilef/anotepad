@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Refresh
@@ -22,6 +21,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.anotepad.R
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowserScreen(
     viewModel: BrowserViewModel,
@@ -57,30 +58,44 @@ fun BrowserScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(text = stringResource(id = R.string.app_name))
-                },
-                navigationIcon = if (state.dirStack.size > 1) {
-                    {
+                title = { Text(text = stringResource(id = R.string.app_name)) },
+                navigationIcon = {
+                    // Никакого null: просто условно рисуем кнопку внутри composable-лямбды
+                    if (state.dirStack.size > 1) {
                         IconButton(onClick = { viewModel.navigateUp() }) {
-                            Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(id = R.string.action_back))
+                            Icon(
+                                Icons.Default.ArrowUpward,
+                                contentDescription = stringResource(id = R.string.action_back)
+                            )
                         }
                     }
-                } else null,
+                },
                 actions = {
                     IconButton(onClick = onPickDirectory) {
-                        Icon(Icons.Default.FolderOpen, contentDescription = stringResource(id = R.string.action_pick_folder))
+                        Icon(
+                            Icons.Default.FolderOpen,
+                            contentDescription = stringResource(id = R.string.action_pick_folder)
+                        )
                     }
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = stringResource(id = R.string.action_refresh))
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = stringResource(id = R.string.action_refresh)
+                        )
                     }
                     state.currentDirUri?.let { dir ->
                         IconButton(onClick = { onSearch(dir) }) {
-                            Icon(Icons.Default.Search, contentDescription = stringResource(id = R.string.action_search))
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = stringResource(id = R.string.action_search)
+                            )
                         }
                     }
                     IconButton(onClick = onSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = stringResource(id = R.string.action_settings))
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = stringResource(id = R.string.action_settings)
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -91,7 +106,10 @@ fun BrowserScreen(
         floatingActionButton = {
             if (state.currentDirUri != null) {
                 FloatingActionButton(onClick = { showNewDialog = true }) {
-                    Icon(Icons.Default.Create, contentDescription = stringResource(id = R.string.action_new_note))
+                    Icon(
+                        Icons.Default.Create,
+                        contentDescription = stringResource(id = R.string.action_new_note)
+                    )
                 }
             }
         }
@@ -107,6 +125,7 @@ fun BrowserScreen(
                     onAction = onPickDirectory
                 )
             }
+
             state.isLoading -> {
                 Box(
                     modifier = Modifier
@@ -117,6 +136,7 @@ fun BrowserScreen(
                     Text(text = stringResource(id = R.string.label_searching))
                 }
             }
+
             state.entries.isEmpty() -> {
                 EmptyState(
                     modifier = Modifier
@@ -127,6 +147,7 @@ fun BrowserScreen(
                     onAction = onPickDirectory
                 )
             }
+
             else -> {
                 Column(modifier = Modifier.padding(padding)) {
                     state.currentDirUri?.let {
@@ -145,7 +166,9 @@ fun BrowserScreen(
                                         if (entry.isDirectory) {
                                             viewModel.navigateInto(entry.uri)
                                         } else {
-                                            state.currentDirUri?.let { dir -> onOpenFile(entry.uri, dir) }
+                                            state.currentDirUri?.let { dir ->
+                                                onOpenFile(entry.uri, dir)
+                                            }
                                         }
                                     }
                                     .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -153,10 +176,17 @@ fun BrowserScreen(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Icon(
-                                    imageVector = if (entry.isDirectory) Icons.Default.Folder else Icons.Default.InsertDriveFile,
+                                    imageVector = if (entry.isDirectory) {
+                                        Icons.Default.FolderOpen // или Folder, если хотите отдельную иконку
+                                    } else {
+                                        Icons.Default.InsertDriveFile
+                                    },
                                     contentDescription = null
                                 )
-                                Text(text = entry.name, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    text = entry.name,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
                             }
                         }
                     }
