@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 
@@ -27,7 +29,8 @@ data class EditorState(
     val autoLinkEmail: Boolean = false,
     val autoLinkTel: Boolean = false,
     val syncTitle: Boolean = false,
-    val newFileExtension: String = "txt"
+    val newFileExtension: String = "txt",
+    val editorFontSizeSp: Float = 16f
 )
 
 class EditorViewModel(
@@ -45,17 +48,24 @@ class EditorViewModel(
     private var isLoaded = false
     private var lastSavedText = ""
     private var debounceMs = 1200L
+    private var autoSaveEnabled = true
+    private var autoInsertTemplateEnabled = true
+    private var autoInsertTemplate = "yyyy-MM-dd"
 
     init {
         viewModelScope.launch {
             preferencesRepository.preferencesFlow.collectLatest { prefs ->
                 debounceMs = prefs.autoSaveDebounceMs
+                autoSaveEnabled = prefs.autoSaveEnabled
+                autoInsertTemplateEnabled = prefs.autoInsertTemplateEnabled
+                autoInsertTemplate = prefs.autoInsertTemplate
                 _state.update {
                     it.copy(
                         autoLinkWeb = prefs.autoLinkWeb,
                         autoLinkEmail = prefs.autoLinkEmail,
                         autoLinkTel = prefs.autoLinkTel,
-                        syncTitle = prefs.syncTitle
+                        syncTitle = prefs.syncTitle,
+                        editorFontSizeSp = prefs.editorFontSizeSp
                     )
                 }
                 restartAutosave()
@@ -76,17 +86,27 @@ class EditorViewModel(
             } else {
                 dirUri
             }
+            val autoInsertedText = if (fileUri == null && text.isBlank()) {
+                resolveAutoInsertText()
+            } else {
+                ""
+            }
+            val initialText = if (autoInsertedText.isNotBlank()) {
+                if (autoInsertedText.endsWith("\n")) autoInsertedText else "$autoInsertedText\n"
+            } else {
+                text
+            }
             _state.update {
                 it.copy(
                     fileUri = fileUri,
                     dirUri = resolvedDir,
                     fileName = fileName,
-                    text = text,
+                    text = initialText,
                     newFileExtension = newFileExtension
                 )
             }
-            lastSavedText = text
-            textChanges.value = text
+            lastSavedText = if (fileUri == null) "" else initialText
+            textChanges.value = initialText
             isLoaded = true
         }
     }
@@ -112,10 +132,25 @@ class EditorViewModel(
 
     private fun restartAutosave() {
         autosaveJob?.cancel()
+        if (!autoSaveEnabled) {
+            autosaveJob = null
+            return
+        }
         autosaveJob = viewModelScope.launch {
             textChanges.debounce(debounceMs).collectLatest { text ->
                 saveIfNeeded(text)
             }
+        }
+    }
+
+    private fun resolveAutoInsertText(): String {
+        if (!autoInsertTemplateEnabled) return ""
+        val pattern = autoInsertTemplate.trim()
+        if (pattern.isBlank()) return ""
+        return runCatching {
+            SimpleDateFormat(pattern, Locale.getDefault()).format(Date())
+        }.getOrElse {
+            pattern
         }
     }
 
@@ -126,7 +161,8 @@ class EditorViewModel(
         var fileUri = _state.value.fileUri
         if (fileUri == null) {
             if (dirUri == null || text.isBlank()) return
-            val extension = ".${_state.value.newFileExtension.lowercase(Locale.getDefault())}"
+            val rawExtension = _state.value.newFileExtension.ifBlank { "txt" }
+            val extension = ".${rawExtension.lowercase(Locale.getDefault())}"
             val desiredName = buildNameFromText(text, extension)
             val uniqueName = ensureUniqueName(dirUri, desiredName, null)
             fileUri = fileRepository.createFile(dirUri, uniqueName, fileRepository.guessMimeType(uniqueName))

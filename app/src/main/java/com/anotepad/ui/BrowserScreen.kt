@@ -29,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -44,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.anotepad.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -184,6 +186,9 @@ fun BrowserScreen(
                         }
 
                         else -> {
+                            val entryTextStyle = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = state.fileListFontSizeSp.sp
+                            )
                             LazyColumn(modifier = Modifier.fillMaxSize()) {
                                 items(state.entries) { entry ->
                                     Row(
@@ -213,7 +218,7 @@ fun BrowserScreen(
                                         )
                                         Text(
                                             text = entry.name,
-                                            style = MaterialTheme.typography.bodyMedium
+                                            style = entryTextStyle
                                         )
                                     }
                                 }
@@ -227,6 +232,7 @@ fun BrowserScreen(
 
     if (showNewDialog) {
         NewFileDialog(
+            defaultExtension = state.defaultFileExtension,
             onDismiss = { showNewDialog = false },
             onSelect = { extension ->
                 state.currentDirUri?.let { onNewFile(it, extension) }
@@ -267,24 +273,62 @@ private fun EmptyState(
 
 @Composable
 private fun NewFileDialog(
+    defaultExtension: String,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
+    var selected by remember(defaultExtension) {
+        mutableStateOf(defaultExtension.ifBlank { "txt" })
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = {},
+        confirmButton = {
+            Button(onClick = { onSelect(selected) }) {
+                Text(text = stringResource(id = android.R.string.ok))
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.action_cancel))
+            }
+        },
         title = { Text(text = stringResource(id = R.string.label_create_note)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onSelect("txt") }) {
-                    Text(text = stringResource(id = R.string.action_new_note))
-                }
-                Button(onClick = { onSelect("md") }) {
-                    Text(text = stringResource(id = R.string.action_new_markdown))
-                }
+                Text(text = stringResource(id = R.string.label_extension))
+                ExtensionOption(
+                    label = stringResource(id = R.string.label_extension_txt),
+                    value = "txt",
+                    selected = selected == "txt",
+                    onSelect = { selected = it }
+                )
+                ExtensionOption(
+                    label = stringResource(id = R.string.label_extension_md),
+                    value = "md",
+                    selected = selected == "md",
+                    onSelect = { selected = it }
+                )
             }
         }
     )
+}
+
+@Composable
+private fun ExtensionOption(
+    label: String,
+    value: String,
+    selected: Boolean,
+    onSelect: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect(value) },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = { onSelect(value) })
+        Text(text = label)
+    }
 }
 
 @Composable

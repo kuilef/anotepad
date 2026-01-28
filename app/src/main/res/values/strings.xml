@@ -35,11 +35,23 @@
     <string name="label_unsaved">Unsaved</string>
     <string name="label_saving">Saving...</string>
     <string name="label_saved">Saved</string>
-    <string name="label_autosave">Autosave (debounced)</string>
+    <string name="label_autosave">Autosave</string>
+    <string name="label_autosave_hint">Save when app is closed or minimized</string>
     <string name="label_pick_template">Pick a template</string>
     <string name="label_template_number">Number</string>
     <string name="label_create_note">Create note</string>
     <string name="label_extension">Extension</string>
+    <string name="label_extension_txt">.txt</string>
+    <string name="label_extension_md">.md</string>
     <string name="label_new_folder">New folder</string>
     <string name="hint_folder_name">Folder name</string>
+    <string name="label_settings_section_browser">File browser</string>
+    <string name="label_settings_section_editor">Editor</string>
+    <string name="label_settings_section_new_note">New note</string>
+    <string name="label_file_list_font_size">File list font size</string>
+    <string name="label_editor_font_size">Editor font size</string>
+    <string name="label_auto_insert_template">Auto-insert template</string>
+    <string name="label_auto_insert_template_format">Template format (e.g., yyyy-MM-dd)</string>
+    <string name="label_default_extension">Default file extension</string>
+    <string name="label_none">None</string>
 </resources>

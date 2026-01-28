@@ -19,7 +19,9 @@ data class BrowserState(
     val currentDirLabel: String? = null,
     val dirStack: List<Uri> = emptyList(),
     val entries: List<DocumentNode> = emptyList(),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val fileListFontSizeSp: Float = 14f,
+    val defaultFileExtension: String = "txt"
 )
 
 class BrowserViewModel(
@@ -34,7 +36,13 @@ class BrowserViewModel(
             preferencesRepository.preferencesFlow.collectLatest { prefs ->
                 val root = prefs.rootTreeUri?.let(Uri::parse)
                 val prevRoot = _state.value.rootUri
-                _state.update { it.copy(rootUri = root) }
+                _state.update {
+                    it.copy(
+                        rootUri = root,
+                        fileListFontSizeSp = prefs.browserFontSizeSp,
+                        defaultFileExtension = prefs.defaultFileExtension
+                    )
+                }
                 val currentDir = _state.value.currentDirUri
                 if (root == null) {
                     _state.update { state ->

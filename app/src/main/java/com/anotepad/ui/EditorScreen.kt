@@ -5,6 +5,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
 import android.text.util.Linkify
+import android.util.TypedValue
 import android.view.Gravity
 import android.widget.EditText
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,10 +33,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.util.LinkifyCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.anotepad.R
 import kotlin.math.roundToInt
 
@@ -51,6 +56,17 @@ fun EditorScreen(
     var ignoreChanges by remember { mutableStateOf(false) }
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val backgroundColor = MaterialTheme.colorScheme.surface.toArgb()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                viewModel.saveNow()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(pendingTemplate) {
         val textToInsert = pendingTemplate
@@ -117,6 +133,7 @@ fun EditorScreen(
                         setText(state.text)
                         setBackgroundColor(backgroundColor)
                         setTextColor(textColor)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
                         setPadding(12, 12, 12, 12)
                         gravity = Gravity.TOP or Gravity.START
                         setSingleLine(false)
@@ -148,6 +165,7 @@ fun EditorScreen(
                     if (editText.currentTextColor != textColor) {
                         editText.setTextColor(textColor)
                     }
+                    editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
                     editText.setBackgroundColor(backgroundColor)
                     val availableHeight = editText.height - editText.paddingTop - editText.paddingBottom
                     val contentHeight = editText.lineCount * editText.lineHeight
