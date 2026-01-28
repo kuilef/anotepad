@@ -379,10 +379,14 @@ private fun FeedList(
         initialFirstVisibleItemIndex = initialIndex,
         initialFirstVisibleItemScrollOffset = initialOffset
     )
+    var lastResetSignal by remember { mutableStateOf(resetSignal) }
     val textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = fontSizeSp.sp)
 
     LaunchedEffect(resetSignal) {
-        listState.scrollToItem(0, 0)
+        if (lastResetSignal != resetSignal) {
+            listState.scrollToItem(0, 0)
+            lastResetSignal = resetSignal
+        }
     }
 
     LaunchedEffect(listState) {
