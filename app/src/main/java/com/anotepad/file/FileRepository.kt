@@ -18,12 +18,10 @@ class FileRepository(private val context: Context) {
 
     suspend fun listChildren(dirTreeUri: Uri, sortOrder: FileSortOrder): List<DocumentNode> =
         withContext(Dispatchers.IO) {
-        val dir = DocumentFile.fromTreeUri(context, dirTreeUri) ?: return@withContext emptyList()
+        val dir = resolveDirDocumentFile(dirTreeUri) ?: return@withContext emptyList()
         val children = dir.listFiles().mapNotNull { file ->
             val name = file.name ?: return@mapNotNull null
-            val isDir = file.isDirectory
-            val uri = if (isDir) toTreeUri(file.uri) else file.uri
-            DocumentNode(name = name, uri = uri, isDirectory = isDir)
+            DocumentNode(name = name, uri = file.uri, isDirectory = file.isDirectory)
         }
         val (dirs, files) = children.partition { it.isDirectory }
         val filteredFiles = files.filter { isSupportedExtension(it.name) }
@@ -33,12 +31,12 @@ class FileRepository(private val context: Context) {
     }
 
     suspend fun listNamesInDirectory(dirTreeUri: Uri): Set<String> = withContext(Dispatchers.IO) {
-        val dir = DocumentFile.fromTreeUri(context, dirTreeUri) ?: return@withContext emptySet()
+        val dir = resolveDirDocumentFile(dirTreeUri) ?: return@withContext emptySet()
         dir.listFiles().mapNotNull { it.name }.toSet()
     }
 
     suspend fun listFilesRecursive(dirTreeUri: Uri): List<DocumentNode> = withContext(Dispatchers.IO) {
-        val root = DocumentFile.fromTreeUri(context, dirTreeUri) ?: return@withContext emptyList()
+        val root = resolveDirDocumentFile(dirTreeUri) ?: return@withContext emptyList()
         val results = mutableListOf<DocumentNode>()
         val stack = ArrayDeque<DocumentFile>()
         stack.add(root)
@@ -72,13 +70,13 @@ class FileRepository(private val context: Context) {
 
     suspend fun createFile(dirTreeUri: Uri, displayName: String, mimeType: String): Uri? =
         withContext(Dispatchers.IO) {
-            val dir = DocumentFile.fromTreeUri(context, dirTreeUri) ?: return@withContext null
+            val dir = resolveDirDocumentFile(dirTreeUri) ?: return@withContext null
             dir.createFile(mimeType, displayName)?.uri
         }
 
     suspend fun createDirectory(dirTreeUri: Uri, displayName: String): Uri? =
         withContext(Dispatchers.IO) {
-            val dir = DocumentFile.fromTreeUri(context, dirTreeUri) ?: return@withContext null
+            val dir = resolveDirDocumentFile(dirTreeUri) ?: return@withContext null
             dir.createDirectory(displayName)?.uri
         }
 
@@ -105,12 +103,15 @@ class FileRepository(private val context: Context) {
         val docId = runCatching { DocumentsContract.getDocumentId(fileUri) }.getOrNull() ?: return null
         val parentId = docId.substringBeforeLast('/', docId)
         if (parentId == docId) return null
-        return DocumentsContract.buildTreeDocumentUri(authority, parentId)
+        val treeDocId = runCatching { DocumentsContract.getTreeDocumentId(fileUri) }.getOrNull()
+            ?: return DocumentsContract.buildTreeDocumentUri(authority, parentId)
+        val treeUri = DocumentsContract.buildTreeDocumentUri(authority, treeDocId)
+        return DocumentsContract.buildDocumentUriUsingTree(treeUri, parentId)
     }
 
     fun getTreeDisplayPath(treeUri: Uri): String {
-        if (!DocumentsContract.isTreeUri(treeUri)) return treeUri.toString()
-        val docId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull()
+        val docId = runCatching { DocumentsContract.getDocumentId(treeUri) }.getOrNull()
+            ?: runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull()
             ?: return treeUri.toString()
         val parts = docId.split(":", limit = 2)
         val volume = parts.getOrNull(0)?.ifBlank { "primary" } ?: "primary"
@@ -119,10 +120,11 @@ class FileRepository(private val context: Context) {
         return if (relative.isBlank()) base else "$base/$relative"
     }
 
-    private fun toTreeUri(uri: Uri): Uri {
-        val authority = uri.authority ?: return uri
-        val docId = DocumentsContract.getDocumentId(uri)
-        return DocumentsContract.buildTreeDocumentUri(authority, docId)
+    private fun resolveDirDocumentFile(dirUri: Uri): DocumentFile? {
+        val dir = DocumentFile.fromTreeUri(context, dirUri)
+            ?: DocumentFile.fromSingleUri(context, dirUri)
+            ?: return null
+        return if (dir.isDirectory) dir else null
     }
 
     private fun sortByName(entries: List<DocumentNode>, order: FileSortOrder): List<DocumentNode> {
