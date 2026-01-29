@@ -40,9 +40,11 @@ class DriveSyncWorker(
                 }
             }
         } catch (error: DriveNetworkException) {
-            val detail = error.detail
-            val message = detail?.let { "Network error: $it" } ?: "Network error, will retry"
-            logger.log("sync_retry network_error detail=${detail ?: "none"}")
+            val description = error.description
+            val message = description?.let { "Network error: $it" } ?: "Network error, will retry"
+            logger.log(
+                "sync_retry network_error type=${error.type ?: "unknown"} detail=${error.detail ?: "none"}"
+            )
             syncRepository.setSyncStatus(SyncState.ERROR, message)
             Result.retry()
         } catch (error: DriveApiException) {

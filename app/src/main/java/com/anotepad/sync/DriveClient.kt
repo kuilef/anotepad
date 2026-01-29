@@ -329,4 +329,11 @@ fun DriveApiException.userMessage(): String? {
 
 class DriveNetworkException(cause: IOException) : IOException(cause) {
     val detail: String? = cause.message?.ifBlank { null }
+    val type: String? = cause::class.java.simpleName?.ifBlank { null }
+    val description: String? = when {
+        type != null && detail != null -> "$type: $detail"
+        type != null -> type
+        detail != null -> detail
+        else -> null
+    }
 }
