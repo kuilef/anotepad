@@ -37,20 +37,27 @@ class FileRepository(private val context: Context) {
     fun listChildrenBatched(
         dirTreeUri: Uri,
         sortOrder: FileSortOrder,
-        batchSize: Int = 50
+        batchSize: Int = 50,
+        firstBatchSize: Int = batchSize
     ): Flow<ChildBatch> = flow {
         val (treeUri, parentDocId) = resolveTreeAndDocumentId(dirTreeUri) ?: run {
             emit(ChildBatch(emptyList(), true))
             return@flow
         }
         val safeBatchSize = batchSize.coerceAtLeast(1)
+        var currentBatchLimit = firstBatchSize.coerceAtLeast(1)
+        var firstBatchEmitted = false
         val batch = mutableListOf<DocumentNode>()
         val sort = buildSortOrder(sortOrder)
 
         suspend fun emitBatch(force: Boolean) {
-            if (batch.isNotEmpty() && (force || batch.size >= safeBatchSize)) {
+            if (batch.isNotEmpty() && (force || batch.size >= currentBatchLimit)) {
                 emit(ChildBatch(batch.toList(), false))
                 batch.clear()
+                if (!firstBatchEmitted) {
+                    firstBatchEmitted = true
+                    currentBatchLimit = safeBatchSize
+                }
             }
         }
 

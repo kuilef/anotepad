@@ -47,6 +47,8 @@ class BrowserViewModel(
     private val preferencesRepository: PreferencesRepository,
     private val fileRepository: FileRepository
 ) : ViewModel() {
+    private val listBatchSize = 50
+    private val listFirstBatchSize = 10
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
     private var feedFiles: List<DocumentNode> = emptyList()
@@ -122,7 +124,12 @@ class BrowserViewModel(
         refreshJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true, isLoadingMore = false, entries = emptyList()) }
             val collected = mutableListOf<DocumentNode>()
-            fileRepository.listChildrenBatched(dirUri, _state.value.fileSortOrder).collect { batch: ChildBatch ->
+            fileRepository.listChildrenBatched(
+                dirUri,
+                _state.value.fileSortOrder,
+                batchSize = listBatchSize,
+                firstBatchSize = listFirstBatchSize
+            ).collect { batch: ChildBatch ->
                 if (batch.entries.isNotEmpty()) {
                     collected.addAll(batch.entries)
                     _state.update {

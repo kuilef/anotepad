@@ -266,48 +266,57 @@ fun BrowserScreen(
                                     }
                                 }
                             } else {
-                                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                    items(state.entries) { entry ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable {
-                                                    if (entry.isDirectory) {
-                                                        viewModel.navigateInto(entry.uri)
-                                                    } else {
-                                                        state.currentDirUri?.let { dir ->
-                                                            onOpenFile(entry.uri, dir)
-                                                        }
-                                                    }
-                                                }
-                                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = if (entry.isDirectory) {
-                                                    Icons.Default.FolderOpen // или Folder, если хотите отдельную иконку
-                                                } else {
-                                                    Icons.Default.InsertDriveFile
-                                                },
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Text(
-                                                text = entry.name,
-                                                style = entryTextStyle
-                                            )
-                                        }
-                                    }
+                                Column(modifier = Modifier.fillMaxSize()) {
                                     if (state.isLoadingMore) {
-                                        item {
-                                            Box(
+                                        Text(
+                                            text = stringResource(id = R.string.label_loading_more),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                        items(state.entries) { entry ->
+                                            Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .padding(16.dp),
-                                                contentAlignment = Alignment.Center
+                                                    .clickable {
+                                                        if (entry.isDirectory) {
+                                                            viewModel.navigateInto(entry.uri)
+                                                        } else {
+                                                            state.currentDirUri?.let { dir ->
+                                                                onOpenFile(entry.uri, dir)
+                                                            }
+                                                        }
+                                                    }
+                                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                                             ) {
-                                                Text(text = stringResource(id = R.string.label_loading_more))
+                                                Icon(
+                                                    imageVector = if (entry.isDirectory) {
+                                                        Icons.Default.FolderOpen // или Folder, если хотите отдельную иконку
+                                                    } else {
+                                                        Icons.Default.InsertDriveFile
+                                                    },
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Text(
+                                                    text = entry.name,
+                                                    style = entryTextStyle
+                                                )
+                                            }
+                                        }
+                                        if (state.isLoadingMore) {
+                                            item {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(16.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(text = stringResource(id = R.string.label_loading_more))
+                                                }
                                             }
                                         }
                                     }
