@@ -19,6 +19,7 @@ import com.anotepad.ui.BrowserScreen
 import com.anotepad.ui.EditorScreen
 import com.anotepad.ui.SearchScreen
 import com.anotepad.ui.SettingsScreen
+import com.anotepad.ui.SyncScreen
 import com.anotepad.ui.TemplatesScreen
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -28,6 +29,7 @@ private const val ROUTE_EDITOR = "editor"
 private const val ROUTE_SEARCH = "search"
 private const val ROUTE_TEMPLATES = "templates"
 private const val ROUTE_SETTINGS = "settings"
+private const val ROUTE_SYNC = "sync"
 private const val RESULT_EDITED_ORIGINAL_URI = "edited_original_uri"
 private const val RESULT_EDITED_CURRENT_URI = "edited_current_uri"
 private const val RESULT_EDITED_DIR_URI = "edited_dir_uri"
@@ -175,7 +177,15 @@ fun AppNav(deps: AppDependencies) {
         }
         composable(ROUTE_SETTINGS) {
             val viewModel: com.anotepad.ui.SettingsViewModel = viewModel(factory = factory)
-            SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            SettingsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onOpenSync = { navController.navigate(ROUTE_SYNC) }
+            )
+        }
+        composable(ROUTE_SYNC) {
+            val viewModel: com.anotepad.ui.SyncViewModel = viewModel(factory = factory)
+            SyncScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
     }
 }

@@ -14,5 +14,11 @@ data class AppPreferences(
     val editorFontSizeSp: Float = 16f,
     val autoInsertTemplateEnabled: Boolean = true,
     val autoInsertTemplate: String = "yyyy-MM-dd",
-    val defaultFileExtension: String = "txt"
+    val defaultFileExtension: String = "txt",
+    val driveSyncEnabled: Boolean = false,
+    val driveSyncWifiOnly: Boolean = true,
+    val driveSyncChargingOnly: Boolean = false,
+    val driveSyncPaused: Boolean = false,
+    val driveSyncIgnoreRemoteDeletes: Boolean = false,
+    val driveSyncFolderName: String = "MiniNoteViewer"
 )

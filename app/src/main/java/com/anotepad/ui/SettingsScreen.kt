@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,7 +39,7 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
+fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onOpenSync: () -> Unit) {
     val prefs by viewModel.state.collectAsState()
 
     Scaffold(
@@ -84,6 +85,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     onSelect = { viewModel.setFileSortOrder(FileSortOrder.NAME_ASC) }
                 )
             }
+
+            SectionHeader(text = stringResource(id = R.string.label_settings_section_sync))
+            NavigationRow(
+                title = stringResource(id = R.string.label_drive_sync_title),
+                onClick = onOpenSync
+            )
 
             SectionHeader(text = stringResource(id = R.string.label_settings_section_editor))
             SettingRow(
@@ -253,5 +260,25 @@ private fun SortOption(
     ) {
         RadioButton(selected = selected, onClick = onSelect)
         Text(text = label)
+    }
+}
+
+@Composable
+private fun NavigationRow(
+    title: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = title, modifier = Modifier.weight(1f))
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null
+        )
     }
 }

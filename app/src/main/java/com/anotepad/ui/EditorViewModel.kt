@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
+import com.anotepad.sync.SyncScheduler
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +43,8 @@ data class EditorSaveResult(
 
 class EditorViewModel(
     private val preferencesRepository: PreferencesRepository,
-    private val fileRepository: FileRepository
+    private val fileRepository: FileRepository,
+    private val syncScheduler: SyncScheduler
 ) : ViewModel() {
     private val _state = MutableStateFlow(EditorState())
     val state: StateFlow<EditorState> = _state.asStateFlow()
@@ -212,6 +214,7 @@ class EditorViewModel(
         }
 
         _state.update { it.copy(isSaving = false, lastSavedAt = System.currentTimeMillis()) }
+        syncScheduler.scheduleDebounced()
     }
 
     private suspend fun ensureUniqueName(dirUri: Uri, desiredName: String, currentName: String?): String {

@@ -279,6 +279,74 @@ class FileRepository(private val context: Context) {
         return DocumentFile.fromSingleUri(context, uri)?.name
     }
 
+    fun getLastModified(uri: Uri): Long? {
+        return DocumentFile.fromSingleUri(context, uri)?.lastModified()?.takeIf { it > 0 }
+    }
+
+    fun getSize(uri: Uri): Long? {
+        return DocumentFile.fromSingleUri(context, uri)?.length()?.takeIf { it >= 0 }
+    }
+
+    fun getRelativePath(rootTreeUri: Uri, fileUri: Uri): String? {
+        val rootDocId = runCatching { DocumentsContract.getTreeDocumentId(rootTreeUri) }.getOrNull()
+            ?: runCatching { DocumentsContract.getDocumentId(rootTreeUri) }.getOrNull()
+            ?: return null
+        val fileDocId = runCatching { DocumentsContract.getDocumentId(fileUri) }.getOrNull() ?: return null
+        if (!fileDocId.startsWith(rootDocId)) return null
+        val suffix = fileDocId.removePrefix(rootDocId).trimStart('/')
+        return suffix.ifBlank { getDisplayName(fileUri) }
+    }
+
+    suspend fun resolveDirByRelativePath(rootTreeUri: Uri, relativePath: String, create: Boolean): Uri? =
+        withContext(Dispatchers.IO) {
+            val root = resolveDirDocumentFile(rootTreeUri) ?: return@withContext null
+            val segments = relativePath.split('/').filter { it.isNotBlank() }
+            var current = root
+            for (segment in segments) {
+                val existing = current.findFile(segment)
+                if (existing != null && existing.isDirectory) {
+                    current = existing
+                } else if (create) {
+                    val created = current.createDirectory(segment) ?: return@withContext null
+                    current = created
+                } else {
+                    return@withContext null
+                }
+            }
+            current.uri
+        }
+
+    suspend fun findFileByRelativePath(rootTreeUri: Uri, relativePath: String): Uri? =
+        withContext(Dispatchers.IO) {
+            val root = resolveDirDocumentFile(rootTreeUri) ?: return@withContext null
+            val segments = relativePath.split('/').filter { it.isNotBlank() }
+            if (segments.isEmpty()) return@withContext null
+            var current = root
+            for (segment in segments.dropLast(1)) {
+                val next = current.findFile(segment) ?: return@withContext null
+                if (!next.isDirectory) return@withContext null
+                current = next
+            }
+            val fileName = segments.last()
+            current.findFile(fileName)?.uri
+        }
+
+    suspend fun createFileByRelativePath(rootTreeUri: Uri, relativePath: String, mimeType: String): Uri? =
+        withContext(Dispatchers.IO) {
+            val segments = relativePath.split('/').filter { it.isNotBlank() }
+            if (segments.isEmpty()) return@withContext null
+            val dirSegments = segments.dropLast(1)
+            val fileName = segments.last()
+            val dirUri = resolveDirByRelativePath(rootTreeUri, dirSegments.joinToString("/"), create = true)
+                ?: return@withContext null
+            val dir = resolveDirDocumentFile(dirUri) ?: return@withContext null
+            val created = dir.createFile(mimeType, fileName)?.uri
+            if (created != null) {
+                invalidateListCache(rootTreeUri)
+            }
+            created
+        }
+
     fun parentTreeUri(fileUri: Uri): Uri? {
         val authority = fileUri.authority ?: return null
         val docId = runCatching { DocumentsContract.getDocumentId(fileUri) }.getOrNull() ?: return null

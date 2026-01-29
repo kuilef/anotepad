@@ -30,6 +30,12 @@ class PreferencesRepository(private val context: Context) {
         val DEFAULT_FILE_EXTENSION = stringPreferencesKey("default_file_extension")
         val FILE_SORT_ORDER = stringPreferencesKey("file_sort_order")
         val BROWSER_VIEW_MODE = stringPreferencesKey("browser_view_mode")
+        val DRIVE_SYNC_ENABLED = booleanPreferencesKey("drive_sync_enabled")
+        val DRIVE_SYNC_WIFI_ONLY = booleanPreferencesKey("drive_sync_wifi_only")
+        val DRIVE_SYNC_CHARGING_ONLY = booleanPreferencesKey("drive_sync_charging_only")
+        val DRIVE_SYNC_PAUSED = booleanPreferencesKey("drive_sync_paused")
+        val DRIVE_SYNC_IGNORE_REMOTE_DELETES = booleanPreferencesKey("drive_sync_ignore_remote_deletes")
+        val DRIVE_SYNC_FOLDER_NAME = stringPreferencesKey("drive_sync_folder_name")
     }
 
     val preferencesFlow: Flow<AppPreferences> = context.dataStore.data.map { prefs ->
@@ -54,7 +60,13 @@ class PreferencesRepository(private val context: Context) {
             editorFontSizeSp = prefs[Keys.EDITOR_FONT_SIZE_SP] ?: 16f,
             autoInsertTemplateEnabled = prefs[Keys.AUTO_INSERT_TEMPLATE_ENABLED] ?: true,
             autoInsertTemplate = prefs[Keys.AUTO_INSERT_TEMPLATE] ?: "yyyy-MM-dd",
-            defaultFileExtension = defaultExt
+            defaultFileExtension = defaultExt,
+            driveSyncEnabled = prefs[Keys.DRIVE_SYNC_ENABLED] ?: false,
+            driveSyncWifiOnly = prefs[Keys.DRIVE_SYNC_WIFI_ONLY] ?: true,
+            driveSyncChargingOnly = prefs[Keys.DRIVE_SYNC_CHARGING_ONLY] ?: false,
+            driveSyncPaused = prefs[Keys.DRIVE_SYNC_PAUSED] ?: false,
+            driveSyncIgnoreRemoteDeletes = prefs[Keys.DRIVE_SYNC_IGNORE_REMOTE_DELETES] ?: false,
+            driveSyncFolderName = prefs[Keys.DRIVE_SYNC_FOLDER_NAME] ?: "MiniNoteViewer"
         )
     }
 
@@ -119,6 +131,30 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setBrowserViewMode(mode: BrowserViewMode) {
         context.dataStore.edit { it[Keys.BROWSER_VIEW_MODE] = mode.id }
+    }
+
+    suspend fun setDriveSyncEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.DRIVE_SYNC_ENABLED] = enabled }
+    }
+
+    suspend fun setDriveSyncWifiOnly(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.DRIVE_SYNC_WIFI_ONLY] = enabled }
+    }
+
+    suspend fun setDriveSyncChargingOnly(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.DRIVE_SYNC_CHARGING_ONLY] = enabled }
+    }
+
+    suspend fun setDriveSyncPaused(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.DRIVE_SYNC_PAUSED] = enabled }
+    }
+
+    suspend fun setDriveSyncIgnoreRemoteDeletes(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.DRIVE_SYNC_IGNORE_REMOTE_DELETES] = enabled }
+    }
+
+    suspend fun setDriveSyncFolderName(name: String) {
+        context.dataStore.edit { it[Keys.DRIVE_SYNC_FOLDER_NAME] = name }
     }
 
     internal val dataStore = context.dataStore
