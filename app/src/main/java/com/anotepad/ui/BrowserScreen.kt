@@ -207,7 +207,7 @@ fun BrowserScreen(
                         }
                     }
                     when {
-                        state.isLoading -> {
+                        state.isLoading && state.entries.isEmpty() -> {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
@@ -230,31 +230,40 @@ fun BrowserScreen(
                                 fontSize = state.fileListFontSizeSp.sp
                             )
                             if (state.viewMode == BrowserViewMode.FEED) {
-                                val hasFiles = state.entries.any { !it.isDirectory }
-                                if (!hasFiles) {
+                                if ((state.isLoading || state.isLoadingMore) && state.feedItems.isEmpty()) {
                                     Box(
                                         modifier = Modifier.fillMaxSize(),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text(text = stringResource(id = R.string.label_no_notes))
+                                        Text(text = stringResource(id = R.string.label_searching))
                                     }
                                 } else {
-                                    FeedList(
-                                        items = state.feedItems,
-                                        hasMore = state.feedHasMore,
-                                        loading = state.feedLoading,
-                                        fontSizeSp = state.fileListFontSizeSp,
-                                        initialIndex = state.feedScrollIndex,
-                                        initialOffset = state.feedScrollOffset,
-                                        resetSignal = state.feedResetSignal,
-                                        onLoadMore = viewModel::loadMoreFeed,
-                                        onScrollChange = viewModel::updateFeedScroll,
-                                        onOpenFile = { node ->
-                                            state.currentDirUri?.let { dir ->
-                                                onOpenFile(node.uri, dir)
-                                            }
+                                    val hasFiles = state.entries.any { !it.isDirectory }
+                                    if (!hasFiles) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(text = stringResource(id = R.string.label_no_notes))
                                         }
-                                    )
+                                    } else {
+                                        FeedList(
+                                            items = state.feedItems,
+                                            hasMore = state.feedHasMore,
+                                            loading = state.feedLoading,
+                                            fontSizeSp = state.fileListFontSizeSp,
+                                            initialIndex = state.feedScrollIndex,
+                                            initialOffset = state.feedScrollOffset,
+                                            resetSignal = state.feedResetSignal,
+                                            onLoadMore = viewModel::loadMoreFeed,
+                                            onScrollChange = viewModel::updateFeedScroll,
+                                            onOpenFile = { node ->
+                                                state.currentDirUri?.let { dir ->
+                                                    onOpenFile(node.uri, dir)
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             } else {
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -288,6 +297,18 @@ fun BrowserScreen(
                                                 text = entry.name,
                                                 style = entryTextStyle
                                             )
+                                        }
+                                    }
+                                    if (state.isLoadingMore) {
+                                        item {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(text = stringResource(id = R.string.label_loading_more))
+                                            }
                                         }
                                     }
                                 }

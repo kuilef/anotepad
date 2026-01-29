@@ -6,6 +6,10 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import com.anotepad.data.FileSortOrder
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -13,22 +17,126 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.util.Locale
 
+data class ChildBatch(
+    val entries: List<DocumentNode>,
+    val done: Boolean
+)
+
 class FileRepository(private val context: Context) {
     private val resolver: ContentResolver = context.contentResolver
 
     suspend fun listChildren(dirTreeUri: Uri, sortOrder: FileSortOrder): List<DocumentNode> =
         withContext(Dispatchers.IO) {
-        val dir = resolveDirDocumentFile(dirTreeUri) ?: return@withContext emptyList()
-        val children = dir.listFiles().mapNotNull { file ->
-            val name = file.name ?: return@mapNotNull null
-            DocumentNode(name = name, uri = file.uri, isDirectory = file.isDirectory)
+            val results = mutableListOf<DocumentNode>()
+            listChildrenBatched(dirTreeUri, sortOrder).collect { batch ->
+                results.addAll(batch.entries)
+            }
+            results
         }
-        val (dirs, files) = children.partition { it.isDirectory }
-        val filteredFiles = files.filter { isSupportedExtension(it.name) }
-        val sortedDirs = sortByName(dirs, sortOrder)
-        val sortedFiles = sortByName(filteredFiles, sortOrder)
-        sortedDirs + sortedFiles
-    }
+
+    fun listChildrenBatched(
+        dirTreeUri: Uri,
+        sortOrder: FileSortOrder,
+        batchSize: Int = 50
+    ): Flow<ChildBatch> = flow {
+        val (treeUri, parentDocId) = resolveTreeAndDocumentId(dirTreeUri) ?: run {
+            emit(ChildBatch(emptyList(), true))
+            return@flow
+        }
+        val safeBatchSize = batchSize.coerceAtLeast(1)
+        val batch = mutableListOf<DocumentNode>()
+        val sort = buildSortOrder(sortOrder)
+
+        suspend fun emitBatch(force: Boolean) {
+            if (batch.isNotEmpty() && (force || batch.size >= safeBatchSize)) {
+                emit(ChildBatch(batch.toList(), false))
+                batch.clear()
+            }
+        }
+
+        val mimeTypeColumn = DocumentsContract.Document.COLUMN_MIME_TYPE
+        val dirMime = DocumentsContract.Document.MIME_TYPE_DIR
+        val selectionDirs = "$mimeTypeColumn = ?"
+        var dirSelectionRespected = true
+        val dirBuffer = mutableListOf<DocumentNode>()
+
+        val dirsQueryOk = queryChildren(
+            treeUri = treeUri,
+            parentDocId = parentDocId,
+            selection = selectionDirs,
+            selectionArgs = arrayOf(dirMime),
+            sortOrder = sort
+        ) { node, mime ->
+            if (mime != dirMime) {
+                dirSelectionRespected = false
+                return@queryChildren false
+            }
+            dirBuffer.add(node)
+            true
+        }
+
+        if (!dirsQueryOk) {
+            emit(ChildBatch(emptyList(), true))
+            return@flow
+        }
+
+        if (!dirSelectionRespected) {
+            batch.clear()
+            val dirs = mutableListOf<DocumentNode>()
+            val files = mutableListOf<DocumentNode>()
+            queryChildren(
+                treeUri = treeUri,
+                parentDocId = parentDocId,
+                selection = null,
+                selectionArgs = null,
+                sortOrder = sort
+            ) { node, mime ->
+                if (mime == dirMime || node.isDirectory) {
+                    dirs.add(node)
+                } else if (isSupportedExtension(node.name)) {
+                    files.add(node)
+                }
+                true
+            }
+            val sortedDirs = sortByName(dirs, sortOrder)
+            val sortedFiles = sortByName(files, sortOrder)
+            for (node in sortedDirs + sortedFiles) {
+                batch.add(node)
+                emitBatch(force = false)
+            }
+            emitBatch(force = true)
+            emit(ChildBatch(emptyList(), true))
+            return@flow
+        }
+
+        for (node in dirBuffer) {
+            batch.add(node)
+            emitBatch(force = false)
+        }
+        emitBatch(force = true)
+
+        val selectionFiles = "$mimeTypeColumn != ?"
+        queryChildren(
+            treeUri = treeUri,
+            parentDocId = parentDocId,
+            selection = selectionFiles,
+            selectionArgs = arrayOf(dirMime),
+            sortOrder = sort
+        ) { node, mime ->
+            if (mime == dirMime || node.isDirectory) {
+                return@queryChildren true
+            }
+            if (!isSupportedExtension(node.name)) {
+                return@queryChildren true
+            }
+            batch.add(node)
+            emitBatch(force = false)
+            true
+        }
+
+        emitBatch(force = true)
+        emit(ChildBatch(emptyList(), true))
+    }.flowOn(Dispatchers.IO)
 
     suspend fun listNamesInDirectory(dirTreeUri: Uri): Set<String> = withContext(Dispatchers.IO) {
         val dir = resolveDirDocumentFile(dirTreeUri) ?: return@withContext emptySet()
@@ -125,6 +233,59 @@ class FileRepository(private val context: Context) {
             ?: DocumentFile.fromSingleUri(context, dirUri)
             ?: return null
         return if (dir.isDirectory) dir else null
+    }
+
+    private fun resolveTreeAndDocumentId(dirUri: Uri): Pair<Uri, String>? {
+        val authority = dirUri.authority ?: return null
+        val treeDocId = runCatching { DocumentsContract.getTreeDocumentId(dirUri) }.getOrNull()
+        val docId = runCatching { DocumentsContract.getDocumentId(dirUri) }.getOrNull()
+        val parentDocId = docId ?: treeDocId ?: return null
+        val treeUri = if (treeDocId != null) {
+            DocumentsContract.buildTreeDocumentUri(authority, treeDocId)
+        } else {
+            DocumentsContract.buildTreeDocumentUri(authority, parentDocId)
+        }
+        return treeUri to parentDocId
+    }
+
+    private fun buildSortOrder(sortOrder: FileSortOrder): String {
+        val direction = if (sortOrder == FileSortOrder.NAME_ASC) "ASC" else "DESC"
+        val column = DocumentsContract.Document.COLUMN_DISPLAY_NAME
+        return "$column COLLATE NOCASE $direction"
+    }
+
+    private suspend fun queryChildren(
+        treeUri: Uri,
+        parentDocId: String,
+        selection: String?,
+        selectionArgs: Array<String>?,
+        sortOrder: String?,
+        onRow: suspend (DocumentNode, String) -> Boolean
+    ): Boolean {
+        val childUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE
+        )
+        resolver.query(childUri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(nameCol) ?: continue
+                val docId = cursor.getString(idCol) ?: continue
+                val mimeType = cursor.getString(mimeCol) ?: ""
+                val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+                val node = DocumentNode(
+                    name = name,
+                    uri = docUri,
+                    isDirectory = mimeType == DocumentsContract.Document.MIME_TYPE_DIR
+                )
+                if (!onRow(node, mimeType)) return true
+            }
+        } ?: return false
+        return true
     }
 
     private fun sortByName(entries: List<DocumentNode>, order: FileSortOrder): List<DocumentNode> {

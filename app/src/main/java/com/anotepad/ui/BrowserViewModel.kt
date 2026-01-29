@@ -6,13 +6,16 @@ import androidx.lifecycle.viewModelScope
 import com.anotepad.data.BrowserViewMode
 import com.anotepad.data.FileSortOrder
 import com.anotepad.data.PreferencesRepository
+import com.anotepad.file.ChildBatch
 import com.anotepad.file.DocumentNode
 import com.anotepad.file.FileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 data class FeedItem(
@@ -27,6 +30,7 @@ data class BrowserState(
     val dirStack: List<Uri> = emptyList(),
     val entries: List<DocumentNode> = emptyList(),
     val isLoading: Boolean = false,
+    val isLoadingMore: Boolean = false,
     val fileListFontSizeSp: Float = 14f,
     val fileSortOrder: FileSortOrder = FileSortOrder.NAME_DESC,
     val defaultFileExtension: String = "txt",
@@ -48,6 +52,7 @@ class BrowserViewModel(
     private var feedFiles: List<DocumentNode> = emptyList()
     private val feedPageSize = 10
     private var feedGeneration = 0
+    private var refreshJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -77,7 +82,9 @@ class BrowserViewModel(
                             feedLoading = false,
                             feedScrollIndex = 0,
                             feedScrollOffset = 0,
-                            feedResetSignal = state.feedResetSignal + 1
+                            feedResetSignal = state.feedResetSignal + 1,
+                            isLoading = false,
+                            isLoadingMore = false
                         )
                     }
                     feedFiles = emptyList()
@@ -111,11 +118,25 @@ class BrowserViewModel(
 
     fun refresh() {
         val dirUri = _state.value.currentDirUri ?: return
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            val entries = fileRepository.listChildren(dirUri, _state.value.fileSortOrder)
-            _state.update { it.copy(entries = entries, isLoading = false) }
-            updateFeedSource(entries)
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, isLoadingMore = false, entries = emptyList()) }
+            val collected = mutableListOf<DocumentNode>()
+            fileRepository.listChildrenBatched(dirUri, _state.value.fileSortOrder).collect { batch: ChildBatch ->
+                if (batch.entries.isNotEmpty()) {
+                    collected.addAll(batch.entries)
+                    _state.update {
+                        it.copy(
+                            entries = collected.toList(),
+                            isLoading = false,
+                            isLoadingMore = !batch.done
+                        )
+                    }
+                } else if (batch.done) {
+                    _state.update { it.copy(isLoading = false, isLoadingMore = false) }
+                }
+            }
+            updateFeedSource(collected)
         }
     }
 
