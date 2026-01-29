@@ -23,6 +23,7 @@ data class EditorState(
     val dirUri: Uri? = null,
     val fileName: String = "",
     val text: String = "",
+    val loadToken: Long = 0L,
     val isSaving: Boolean = false,
     val lastSavedAt: Long? = null,
     val autoLinkWeb: Boolean = false,
@@ -58,6 +59,7 @@ class EditorViewModel(
     private var autoInsertTemplateEnabled = true
     private var autoInsertTemplate = "yyyy-MM-dd"
     private var openedFileUri: Uri? = null
+    private var loadCounter = 0L
 
     init {
         viewModelScope.launch {
@@ -85,6 +87,7 @@ class EditorViewModel(
         viewModelScope.launch {
             isLoaded = false
             openedFileUri = fileUri
+            loadCounter += 1
             val text = if (fileUri != null) fileRepository.readText(fileUri) else ""
             val fileName = fileUri?.let { uri ->
                 fileRepository.getDisplayName(uri) ?: ""
@@ -110,6 +113,7 @@ class EditorViewModel(
                     dirUri = resolvedDir,
                     fileName = fileName,
                     text = initialText,
+                    loadToken = loadCounter,
                     newFileExtension = newFileExtension
                 )
             }

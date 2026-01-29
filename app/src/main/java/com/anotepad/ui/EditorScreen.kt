@@ -1,17 +1,24 @@
 package com.anotepad.ui
 
-import androidx.compose.material3.ExperimentalMaterial3Api
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
 import android.text.util.Linkify
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.widget.EditText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.List
@@ -20,14 +27,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,6 +66,10 @@ fun EditorScreen(
     val pendingTemplate by viewModel.pendingTemplateFlow.collectAsState()
     var editTextRef by remember { mutableStateOf<EditText?>(null) }
     var ignoreChanges by remember { mutableStateOf(false) }
+    var ignoreHistory by remember { mutableStateOf(false) }
+    var pendingSnapshot by remember { mutableStateOf<TextSnapshot?>(null) }
+    val undoStack = remember { mutableStateListOf<TextSnapshot>() }
+    val redoStack = remember { mutableStateListOf<TextSnapshot>() }
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val backgroundColor = MaterialTheme.colorScheme.surface.toArgb()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -71,6 +85,12 @@ fun EditorScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    LaunchedEffect(state.loadToken) {
+        undoStack.clear()
+        redoStack.clear()
+        pendingSnapshot = null
+    }
+
     LaunchedEffect(pendingTemplate) {
         val textToInsert = pendingTemplate
         if (!textToInsert.isNullOrEmpty()) {
@@ -81,6 +101,48 @@ fun EditorScreen(
             }
             viewModel.consumeTemplate()
         }
+    }
+
+    fun currentSnapshot(): TextSnapshot {
+        val editText = editTextRef
+        val text = editText?.text?.toString() ?: state.text
+        val selectionStart = (editText?.selectionStart ?: text.length).coerceAtLeast(0)
+        val selectionEnd = (editText?.selectionEnd ?: text.length).coerceAtLeast(0)
+        return TextSnapshot(text, selectionStart, selectionEnd)
+    }
+
+    fun applySnapshot(snapshot: TextSnapshot) {
+        val editText = editTextRef ?: return
+        ignoreHistory = true
+        ignoreChanges = true
+        editText.setText(snapshot.text)
+        val length = snapshot.text.length
+        val rawStart = snapshot.selectionStart.coerceIn(0, length)
+        val rawEnd = snapshot.selectionEnd.coerceIn(0, length)
+        val start = minOf(rawStart, rawEnd)
+        val end = maxOf(rawStart, rawEnd)
+        editText.setSelection(start, end)
+        ignoreChanges = false
+        ignoreHistory = false
+        pendingSnapshot = null
+        viewModel.updateText(snapshot.text)
+        editText.requestFocus()
+    }
+
+    fun performUndo() {
+        if (undoStack.isEmpty()) return
+        val current = currentSnapshot()
+        val previous = undoStack.removeAt(undoStack.lastIndex)
+        redoStack.add(current)
+        applySnapshot(previous)
+    }
+
+    fun performRedo() {
+        if (redoStack.isEmpty()) return
+        val current = currentSnapshot()
+        val next = redoStack.removeAt(redoStack.lastIndex)
+        undoStack.add(current)
+        applySnapshot(next)
     }
 
     Scaffold(
@@ -127,6 +189,18 @@ fun EditorScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
+        },
+        bottomBar = {
+            UndoRedoBar(
+                canUndo = undoStack.isNotEmpty(),
+                canRedo = redoStack.isNotEmpty(),
+                onUndo = ::performUndo,
+                onRedo = ::performRedo,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.ime)
+                    .navigationBarsPadding()
+            )
         }
     ) { padding ->
         Column(
@@ -153,13 +227,54 @@ fun EditorScreen(
                         isScrollbarFadingEnabled = true
                         movementMethod = LinkMovementMethod.getInstance()
                         addTextChangedListener(object : TextWatcher {
-                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                                if (ignoreChanges || ignoreHistory) {
+                                    pendingSnapshot = null
+                                    return
+                                }
+                                val text = s?.toString().orEmpty()
+                                val selectionStart = selectionStart.coerceAtLeast(0)
+                                val selectionEnd = selectionEnd.coerceAtLeast(0)
+                                pendingSnapshot = TextSnapshot(text, selectionStart, selectionEnd)
+                            }
                             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
                             override fun afterTextChanged(s: Editable?) {
                                 if (ignoreChanges) return
+                                if (!ignoreHistory) {
+                                    pendingSnapshot?.let { snapshot ->
+                                        val newText = s?.toString().orEmpty()
+                                        if (snapshot.text != newText) {
+                                            undoStack.add(snapshot)
+                                            if (undoStack.size > UNDO_HISTORY_LIMIT) {
+                                                undoStack.removeAt(0)
+                                            }
+                                            redoStack.clear()
+                                        }
+                                    }
+                                }
+                                pendingSnapshot = null
                                 viewModel.updateText(s?.toString().orEmpty())
                             }
                         })
+                        setOnKeyListener { _, keyCode, event ->
+                            if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                            val isUndo = event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_Z && !event.isShiftPressed
+                            val isRedo = event.isCtrlPressed &&
+                                ((keyCode == KeyEvent.KEYCODE_Z && event.isShiftPressed) || keyCode == KeyEvent.KEYCODE_Y)
+                            when {
+                                isUndo -> {
+                                    performUndo()
+                                    true
+                                }
+
+                                isRedo -> {
+                                    performRedo()
+                                    true
+                                }
+
+                                else -> false
+                            }
+                        }
                         editTextRef = this
                     }
                 },
@@ -187,6 +302,42 @@ fun EditorScreen(
     }
 }
 
+@Composable
+private fun UndoRedoBar(
+    canUndo: Boolean,
+    canRedo: Boolean,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            IconButton(onClick = onUndo, enabled = canUndo) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Undo,
+                    contentDescription = stringResource(id = R.string.action_undo)
+                )
+            }
+            IconButton(onClick = onRedo, enabled = canRedo) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Redo,
+                    contentDescription = stringResource(id = R.string.action_redo)
+                )
+            }
+        }
+    }
+}
+
 private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: Boolean) {
     val mask = (if (web) Linkify.WEB_URLS else 0) or
         (if (email) Linkify.EMAIL_ADDRESSES else 0) or
@@ -204,3 +355,11 @@ private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: 
         }
     }
 }
+
+private data class TextSnapshot(
+    val text: String,
+    val selectionStart: Int,
+    val selectionEnd: Int
+)
+
+private const val UNDO_HISTORY_LIMIT = 200
