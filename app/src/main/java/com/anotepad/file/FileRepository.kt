@@ -24,6 +24,11 @@ data class ChildBatch(
 
 class FileRepository(private val context: Context) {
     private val resolver: ContentResolver = context.contentResolver
+    private val listCache = object : LinkedHashMap<ListCacheKey, ListCacheEntry>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<ListCacheKey, ListCacheEntry>): Boolean {
+            return size > LIST_CACHE_MAX_ENTRIES
+        }
+    }
 
     suspend fun listChildren(dirTreeUri: Uri, sortOrder: FileSortOrder): List<DocumentNode> =
         withContext(Dispatchers.IO) {
@@ -38,8 +43,24 @@ class FileRepository(private val context: Context) {
         dirTreeUri: Uri,
         sortOrder: FileSortOrder,
         batchSize: Int = 50,
-        firstBatchSize: Int = batchSize
+        firstBatchSize: Int = batchSize,
+        useCache: Boolean = true
     ): Flow<ChildBatch> = flow {
+        val cacheKey = ListCacheKey(dirTreeUri.toString(), sortOrder)
+        if (useCache) {
+            val cached = getCachedList(cacheKey)
+            if (cached != null) {
+                emitCachedBatches(
+                    cached,
+                    batchSize.coerceAtLeast(1),
+                    firstBatchSize.coerceAtLeast(1)
+                ) { batch ->
+                    emit(batch)
+                }
+                emit(ChildBatch(emptyList(), true))
+                return@flow
+            }
+        }
         val (treeUri, parentDocId) = resolveTreeAndDocumentId(dirTreeUri) ?: run {
             emit(ChildBatch(emptyList(), true))
             return@flow
@@ -49,10 +70,12 @@ class FileRepository(private val context: Context) {
         var firstBatchEmitted = false
         val batch = mutableListOf<DocumentNode>()
         val sort = buildSortOrder(sortOrder)
+        val collected = mutableListOf<DocumentNode>()
 
         suspend fun emitBatch(force: Boolean) {
             if (batch.isNotEmpty() && (force || batch.size >= currentBatchLimit)) {
                 emit(ChildBatch(batch.toList(), false))
+                collected.addAll(batch)
                 batch.clear()
                 if (!firstBatchEmitted) {
                     firstBatchEmitted = true
@@ -107,7 +130,9 @@ class FileRepository(private val context: Context) {
             }
             val sortedDirs = sortByName(dirs, sortOrder)
             val sortedFiles = sortByName(files, sortOrder)
-            for (node in sortedDirs + sortedFiles) {
+            val combined = sortedDirs + sortedFiles
+            storeCachedList(cacheKey, combined)
+            for (node in combined) {
                 batch.add(node)
                 emitBatch(force = false)
             }
@@ -143,6 +168,7 @@ class FileRepository(private val context: Context) {
 
         emitBatch(force = true)
         emit(ChildBatch(emptyList(), true))
+        storeCachedList(cacheKey, collected)
     }.flowOn(Dispatchers.IO)
 
     suspend fun listNamesInDirectory(dirTreeUri: Uri): Set<String> = withContext(Dispatchers.IO) {
@@ -186,17 +212,23 @@ class FileRepository(private val context: Context) {
     suspend fun createFile(dirTreeUri: Uri, displayName: String, mimeType: String): Uri? =
         withContext(Dispatchers.IO) {
             val dir = resolveDirDocumentFile(dirTreeUri) ?: return@withContext null
-            dir.createFile(mimeType, displayName)?.uri
+            val uri = dir.createFile(mimeType, displayName)?.uri
+            invalidateListCache(dirTreeUri)
+            uri
         }
 
     suspend fun createDirectory(dirTreeUri: Uri, displayName: String): Uri? =
         withContext(Dispatchers.IO) {
             val dir = resolveDirDocumentFile(dirTreeUri) ?: return@withContext null
-            dir.createDirectory(displayName)?.uri
+            val uri = dir.createDirectory(displayName)?.uri
+            invalidateListCache(dirTreeUri)
+            uri
         }
 
     suspend fun renameFile(fileUri: Uri, newName: String): Uri? = withContext(Dispatchers.IO) {
-        DocumentsContract.renameDocument(resolver, fileUri, newName)
+        val uri = DocumentsContract.renameDocument(resolver, fileUri, newName)
+        parentTreeUri(fileUri)?.let { invalidateListCache(it) }
+        uri
     }
 
     fun isSupportedExtension(name: String): Boolean {
@@ -302,4 +334,71 @@ class FileRepository(private val context: Context) {
             FileSortOrder.NAME_ASC -> entries.sortedWith(comparator)
         }
     }
+
+    private fun getCachedList(key: ListCacheKey): List<DocumentNode>? {
+        val now = System.currentTimeMillis()
+        synchronized(listCache) {
+            val entry = listCache[key] ?: return null
+            return if (now - entry.timestampMs <= LIST_CACHE_TTL_MS) {
+                entry.entries
+            } else {
+                listCache.remove(key)
+                null
+            }
+        }
+    }
+
+    private fun storeCachedList(key: ListCacheKey, entries: List<DocumentNode>) {
+        synchronized(listCache) {
+            listCache[key] = ListCacheEntry(entries, System.currentTimeMillis())
+        }
+    }
+
+    private fun invalidateListCache(dirTreeUri: Uri) {
+        val keyPrefix = dirTreeUri.toString()
+        synchronized(listCache) {
+            val iterator = listCache.keys.iterator()
+            while (iterator.hasNext()) {
+                val key = iterator.next()
+                if (key.dirUri == keyPrefix) {
+                    iterator.remove()
+                }
+            }
+        }
+    }
+
+    private suspend fun emitCachedBatches(
+        entries: List<DocumentNode>,
+        batchSize: Int,
+        firstBatchSize: Int,
+        emitBatch: suspend (ChildBatch) -> Unit
+    ) {
+        val safeBatchSize = batchSize.coerceAtLeast(1)
+        val initialSize = firstBatchSize.coerceAtLeast(1)
+        var limit = initialSize
+        var first = true
+        var index = 0
+        while (index < entries.size) {
+            val end = (index + limit).coerceAtMost(entries.size)
+            emitBatch(ChildBatch(entries.subList(index, end), false))
+            index = end
+            if (first) {
+                first = false
+                limit = safeBatchSize
+            }
+        }
+    }
 }
+
+private data class ListCacheKey(
+    val dirUri: String,
+    val sortOrder: FileSortOrder
+)
+
+private data class ListCacheEntry(
+    val entries: List<DocumentNode>,
+    val timestampMs: Long
+)
+
+private const val LIST_CACHE_TTL_MS = 15_000L
+private const val LIST_CACHE_MAX_ENTRIES = 12

@@ -118,7 +118,7 @@ class BrowserViewModel(
         refresh()
     }
 
-    fun refresh() {
+    fun refresh(force: Boolean = false) {
         val dirUri = _state.value.currentDirUri ?: return
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
@@ -128,7 +128,8 @@ class BrowserViewModel(
                 dirUri,
                 _state.value.fileSortOrder,
                 batchSize = listBatchSize,
-                firstBatchSize = listFirstBatchSize
+                firstBatchSize = listFirstBatchSize,
+                useCache = !force
             ).collect { batch: ChildBatch ->
                 if (batch.entries.isNotEmpty()) {
                     collected.addAll(batch.entries)

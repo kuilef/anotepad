@@ -109,7 +109,7 @@ fun BrowserScreen(
                             contentDescription = stringResource(id = R.string.action_new_folder)
                         )
                     }
-                    IconButton(onClick = { viewModel.refresh() }) {
+                    IconButton(onClick = { viewModel.refresh(force = true) }) {
                         Icon(
                             Icons.Default.Refresh,
                             contentDescription = stringResource(id = R.string.action_refresh)
