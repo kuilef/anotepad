@@ -26,7 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -309,30 +308,23 @@ private fun UndoRedoBar(
     onRedo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        tonalElevation = 2.dp
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            IconButton(onClick = onUndo, enabled = canUndo) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Undo,
-                    contentDescription = stringResource(id = R.string.action_undo)
-                )
-            }
-            IconButton(onClick = onRedo, enabled = canRedo) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Redo,
-                    contentDescription = stringResource(id = R.string.action_redo)
-                )
-            }
+        IconButton(onClick = onUndo, enabled = canUndo) {
+            Icon(
+                Icons.AutoMirrored.Filled.Undo,
+                contentDescription = stringResource(id = R.string.action_undo)
+            )
+        }
+        IconButton(onClick = onRedo, enabled = canRedo) {
+            Icon(
+                Icons.AutoMirrored.Filled.Redo,
+                contentDescription = stringResource(id = R.string.action_redo)
+            )
         }
     }
 }
