@@ -175,7 +175,8 @@ class DriveClient(
                 )
             }
         }
-        return DriveListResult(items, json.optString("nextPageToken", null).ifBlank { null })
+        val nextPage = json.optString("nextPageToken")
+        return DriveListResult(items, nextPage.ifBlank { null })
     }
 
     private fun parseDriveFile(json: JSONObject): DriveFile {
