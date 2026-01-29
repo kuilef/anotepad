@@ -12,6 +12,7 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 - Smart file naming: first line becomes the filename for new notes; optional "sync title" keeps name updated.
 - Templates: reusable snippets (plain, time-based, numbered); insert on demand; auto-insert a date/time template for new notes.
 - Customization: font size controls, sort order, default extension, and linkify toggles (web/email/phone).
+- Long tap on the file: shows the menu to open, delete, rename, copy or move file.
 
 ## How it works
 - **Storage access**: `FileRepository` uses the Storage Access Framework (DocumentFile/DocumentsContract) to read/write files in the user-picked tree. Only `.txt` and `.md` files are listed or searched.
