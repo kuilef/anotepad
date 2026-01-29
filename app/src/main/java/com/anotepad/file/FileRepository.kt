@@ -231,6 +231,40 @@ class FileRepository(private val context: Context) {
         uri
     }
 
+    suspend fun deleteFile(fileUri: Uri): Boolean = withContext(Dispatchers.IO) {
+        val file = DocumentFile.fromSingleUri(context, fileUri) ?: return@withContext false
+        val parent = parentTreeUri(fileUri)
+        val deleted = file.delete()
+        if (deleted) {
+            parent?.let { invalidateListCache(it) }
+        }
+        deleted
+    }
+
+    suspend fun copyFile(fileUri: Uri, targetDirUri: Uri, displayName: String): Uri? =
+        withContext(Dispatchers.IO) {
+            val targetDir = resolveDirDocumentFile(targetDirUri) ?: return@withContext null
+            val mimeType = guessMimeType(displayName)
+            val created = targetDir.createFile(mimeType, displayName) ?: return@withContext null
+            resolver.openInputStream(fileUri)?.use { input ->
+                resolver.openOutputStream(created.uri, "wt")?.use { output ->
+                    input.copyTo(output)
+                }
+            }
+            invalidateListCache(targetDirUri)
+            created.uri
+        }
+
+    suspend fun moveFile(fileUri: Uri, targetDirUri: Uri, displayName: String): Uri? =
+        withContext(Dispatchers.IO) {
+            val copied = copyFile(fileUri, targetDirUri, displayName) ?: return@withContext null
+            val deleted = deleteFile(fileUri)
+            if (!deleted) {
+                return@withContext null
+            }
+            copied
+        }
+
     fun isSupportedExtension(name: String): Boolean {
         val lower = name.lowercase(Locale.getDefault())
         return lower.endsWith(".txt") || lower.endsWith(".md")

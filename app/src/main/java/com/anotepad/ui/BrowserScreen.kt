@@ -2,6 +2,7 @@ package com.anotepad.ui
 
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -71,12 +73,24 @@ fun BrowserScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var showNewFolderDialog by remember { mutableStateOf(false) }
+    var showFileActions by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var renameInput by remember { mutableStateOf("") }
+    var pendingDestinationAction by remember { mutableStateOf<FileAction?>(null) }
+    var actionTarget by remember { mutableStateOf<DocumentNode?>(null) }
 
     LaunchedEffect(state.viewMode, state.feedResetSignal) {
         if (state.viewMode == BrowserViewMode.FEED) {
             viewModel.ensureFeedLoaded()
         }
     }
+
+    val destinationOptions = buildDestinationOptions(
+        state = state,
+        currentLabel = stringResource(id = R.string.label_current_folder),
+        parentLabel = stringResource(id = R.string.label_parent_folder)
+    )
 
     Scaffold(
         topBar = {
@@ -279,15 +293,23 @@ fun BrowserScreen(
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .clickable {
-                                                        if (entry.isDirectory) {
-                                                            viewModel.navigateInto(entry.uri)
-                                                        } else {
-                                                            state.currentDirUri?.let { dir ->
-                                                                onOpenFile(entry.uri, dir)
+                                                    .combinedClickable(
+                                                        onClick = {
+                                                            if (entry.isDirectory) {
+                                                                viewModel.navigateInto(entry.uri)
+                                                            } else {
+                                                                state.currentDirUri?.let { dir ->
+                                                                    onOpenFile(entry.uri, dir)
+                                                                }
+                                                            }
+                                                        },
+                                                        onLongClick = {
+                                                            if (!entry.isDirectory) {
+                                                                actionTarget = entry
+                                                                showFileActions = true
                                                             }
                                                         }
-                                                    }
+                                                    )
                                                     .padding(horizontal = 16.dp, vertical = 8.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -336,6 +358,90 @@ fun BrowserScreen(
                 viewModel.createDirectory(name)
                 showNewFolderDialog = false
             }
+        )
+    }
+
+    if (showFileActions && actionTarget != null) {
+        FileActionsDialog(
+            onOpen = {
+                val target = actionTarget
+                showFileActions = false
+                if (target != null) {
+                    state.currentDirUri?.let { dir -> onOpenFile(target.uri, dir) }
+                }
+            },
+            onDelete = {
+                showFileActions = false
+                showDeleteDialog = true
+            },
+            onRename = {
+                showFileActions = false
+                renameInput = actionTarget?.name.orEmpty()
+                showRenameDialog = true
+            },
+            onCopy = {
+                showFileActions = false
+                pendingDestinationAction = FileAction.COPY
+            },
+            onMove = {
+                showFileActions = false
+                pendingDestinationAction = FileAction.MOVE
+            },
+            onCancel = {
+                showFileActions = false
+            }
+        )
+    }
+
+    if (showDeleteDialog && actionTarget != null) {
+        ConfirmDeleteDialog(
+            fileName = actionTarget?.name.orEmpty(),
+            onConfirm = {
+                val target = actionTarget
+                showDeleteDialog = false
+                if (target != null) {
+                    viewModel.deleteFile(target)
+                }
+            },
+            onDismiss = { showDeleteDialog = false }
+        )
+    }
+
+    if (showRenameDialog && actionTarget != null) {
+        RenameFileDialog(
+            initialName = renameInput,
+            onRename = { name ->
+                val target = actionTarget
+                showRenameDialog = false
+                if (target != null) {
+                    viewModel.renameFile(target, name)
+                }
+            },
+            onDismiss = { showRenameDialog = false }
+        )
+    }
+
+    val destinationAction = pendingDestinationAction
+    if (destinationAction != null && actionTarget != null) {
+        DestinationPickerDialog(
+            title = if (destinationAction == FileAction.COPY) {
+                stringResource(id = R.string.label_copy_to)
+            } else {
+                stringResource(id = R.string.label_move_to)
+            },
+            options = destinationOptions,
+            onSelect = { option ->
+                val target = actionTarget
+                pendingDestinationAction = null
+                if (target != null) {
+                    if (destinationAction == FileAction.COPY) {
+                        viewModel.copyFile(target, option.uri)
+                    } else {
+                        viewModel.moveFile(target, option.uri)
+                    }
+                }
+            },
+            onDismiss = { pendingDestinationAction = null }
         )
     }
 }
@@ -469,6 +575,133 @@ private fun FeedList(
     }
 }
 
+@Composable
+private fun FileActionsDialog(
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+    onRename: () -> Unit,
+    onCopy: () -> Unit,
+    onMove: () -> Unit,
+    onCancel: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(text = stringResource(id = R.string.label_file_actions)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_open))
+                }
+                TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_delete))
+                }
+                TextButton(onClick = onRename, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_rename))
+                }
+                TextButton(onClick = onCopy, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_copy))
+                }
+                TextButton(onClick = onMove, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_move))
+                }
+                TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_cancel))
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {}
+    )
+}
+
+@Composable
+private fun ConfirmDeleteDialog(
+    fileName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.label_delete_file)) },
+        text = { Text(text = stringResource(id = R.string.label_delete_file_message, fileName)) },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text(text = stringResource(id = R.string.action_delete))
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.action_cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun RenameFileDialog(
+    initialName: String,
+    onRename: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember(initialName) { mutableStateOf(initialName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.label_rename_file)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                label = { Text(text = stringResource(id = R.string.hint_file_name)) }
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onRename(name) },
+                enabled = name.trim().isNotEmpty()
+            ) {
+                Text(text = stringResource(id = R.string.action_rename))
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.action_cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun DestinationPickerDialog(
+    title: String,
+    options: List<DestinationOption>,
+    onSelect: (DestinationOption) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                options.forEach { option ->
+                    TextButton(
+                        onClick = { onSelect(option) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = option.label)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.action_cancel))
+            }
+        }
+    )
+}
+
 private fun buildFeedAnnotatedText(text: String) = buildAnnotatedString {
     val normalized = text.replace("\r\n", "\n")
     val parts = normalized.split("\n", limit = 2)
@@ -480,4 +713,31 @@ private fun buildFeedAnnotatedText(text: String) = buildAnnotatedString {
     if (rest.isNotEmpty()) {
         append(rest)
     }
+}
+
+private enum class FileAction {
+    COPY,
+    MOVE
+}
+
+private data class DestinationOption(
+    val label: String,
+    val uri: Uri
+)
+
+private fun buildDestinationOptions(
+    state: BrowserState,
+    currentLabel: String,
+    parentLabel: String
+): List<DestinationOption> {
+    val currentDir = state.currentDirUri ?: return emptyList()
+    val options = mutableListOf<DestinationOption>()
+    options.add(DestinationOption(label = currentLabel, uri = currentDir))
+    if (state.dirStack.size > 1) {
+        options.add(DestinationOption(label = parentLabel, uri = state.dirStack[state.dirStack.size - 2]))
+    }
+    state.entries.filter { it.isDirectory }.forEach { entry ->
+        options.add(DestinationOption(label = entry.name, uri = entry.uri))
+    }
+    return options
 }

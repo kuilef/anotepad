@@ -158,6 +158,50 @@ class BrowserViewModel(
         }
     }
 
+    fun deleteFile(node: DocumentNode) {
+        if (node.isDirectory) return
+        viewModelScope.launch {
+            fileRepository.deleteFile(node.uri)
+            refresh(force = true)
+        }
+    }
+
+    fun renameFile(node: DocumentNode, newName: String) {
+        if (node.isDirectory) return
+        val dirUri = _state.value.currentDirUri ?: return
+        val trimmed = newName.trim()
+        if (trimmed.isBlank()) return
+        val resolvedName = appendExtensionIfMissing(trimmed, node.name)
+        if (resolvedName == node.name) return
+        viewModelScope.launch {
+            val uniqueName = ensureUniqueName(dirUri, resolvedName, node.name)
+            fileRepository.renameFile(node.uri, uniqueName)
+            refresh(force = true)
+        }
+    }
+
+    fun copyFile(node: DocumentNode, targetDirUri: Uri) {
+        if (node.isDirectory) return
+        viewModelScope.launch {
+            val uniqueName = ensureUniqueName(targetDirUri, node.name, null)
+            fileRepository.copyFile(node.uri, targetDirUri, uniqueName)
+            if (_state.value.currentDirUri == targetDirUri) {
+                refresh(force = true)
+            }
+        }
+    }
+
+    fun moveFile(node: DocumentNode, targetDirUri: Uri) {
+        if (node.isDirectory) return
+        val currentDir = _state.value.currentDirUri ?: return
+        if (currentDir == targetDirUri) return
+        viewModelScope.launch {
+            val uniqueName = ensureUniqueName(targetDirUri, node.name, null)
+            fileRepository.moveFile(node.uri, targetDirUri, uniqueName)
+            refresh(force = true)
+        }
+    }
+
     private fun updateCurrentDir(dirUri: Uri, stack: List<Uri>) {
         _state.update {
             it.copy(
@@ -166,6 +210,26 @@ class BrowserViewModel(
                 dirStack = stack
             )
         }
+    }
+
+    private suspend fun ensureUniqueName(dirUri: Uri, desiredName: String, currentName: String?): String {
+        val names = fileRepository.listNamesInDirectory(dirUri)
+        if (desiredName == currentName || !names.contains(desiredName)) return desiredName
+        val base = desiredName.substringBeforeLast('.')
+        val ext = desiredName.substringAfterLast('.', "")
+        var index = 1
+        while (index < 1000) {
+            val candidate = if (ext.isBlank()) "$base($index)" else "$base($index).$ext"
+            if (!names.contains(candidate)) return candidate
+            index++
+        }
+        return desiredName
+    }
+
+    private fun appendExtensionIfMissing(name: String, originalName: String): String {
+        if ('.' in name) return name
+        val ext = originalName.substringAfterLast('.', "")
+        return if (ext.isBlank()) name else "$name.$ext"
     }
 
     fun toggleViewMode() {
