@@ -189,7 +189,7 @@ class SyncViewModel(
         viewModelScope.launch {
             syncRepository.resetForNewFolder(folder.id, folder.name)
             refreshFolderMeta()
-            syncScheduler.scheduleDebounced()
+            syncScheduler.syncNow()
         }
     }
 
@@ -204,7 +204,7 @@ class SyncViewModel(
                 val folder = driveClient.createFolder(token, name, null)
                 syncRepository.resetForNewFolder(folder.id, folder.name)
                 refreshFolderMeta()
-                syncScheduler.scheduleDebounced()
+                syncScheduler.syncNow()
             } catch (error: DriveApiException) {
                 val detail = error.userMessage()
                 val message = detail?.let { "Drive error ${error.code}: $it" } ?: "Drive error ${error.code}"

@@ -67,8 +67,13 @@ class DriveSyncWorker(
                 else -> Result.failure()
             }
         } catch (error: Exception) {
-            logger.log("sync_retry unexpected_error")
-            syncRepository.setSyncStatus(SyncState.ERROR, "Unexpected error")
+            val type = error::class.java.simpleName?.ifBlank { "UnknownException" } ?: "UnknownException"
+            val detail = error.message?.ifBlank { null }
+            val message = detail?.let { "Unexpected error: $type: $it" } ?: "Unexpected error: $type"
+            logger.log(
+                "sync_retry unexpected_error type=$type detail=${detail ?: "none"}"
+            )
+            syncRepository.setSyncStatus(SyncState.ERROR, message)
             Result.retry()
         }
     }
