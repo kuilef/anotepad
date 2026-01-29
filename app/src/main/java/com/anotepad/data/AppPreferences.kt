@@ -2,10 +2,10 @@ package com.anotepad.data
 
 data class AppPreferences(
     val rootTreeUri: String? = null,
-    val autoLinkWeb: Boolean = false,
-    val autoLinkEmail: Boolean = false,
+    val autoLinkWeb: Boolean = True,
+    val autoLinkEmail: Boolean = True,
     val autoLinkTel: Boolean = false,
-    val syncTitle: Boolean = false,
+    val syncTitle: Boolean = True,
     val autoSaveDebounceMs: Long = 1200L,
     val autoSaveEnabled: Boolean = true,
     val browserFontSizeSp: Float = 14f,
