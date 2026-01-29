@@ -151,6 +151,10 @@ class SyncViewModel(
         }
     }
 
+    fun setFolderError(message: String?) {
+        updateFolderState(error = message)
+    }
+
     fun syncNow() {
         viewModelScope.launch { syncScheduler.syncNow() }
     }

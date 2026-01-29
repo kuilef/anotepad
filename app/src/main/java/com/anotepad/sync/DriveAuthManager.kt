@@ -59,6 +59,6 @@ class DriveAuthManager(private val context: Context) {
     }
 
     companion object {
-        const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
+        const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
     }
 }

@@ -87,6 +87,10 @@
     <string name="label_drive_pick_folder">Pick Drive folder</string>
     <string name="label_drive_create_folder">Create Drive folder</string>
     <string name="label_drive_folder_name">Folder name</string>
+    <string name="error_drive_pick_folder">Please select a Google Drive folder.</string>
+    <string name="error_drive_picker_missing_config">Drive Picker is not configured.</string>
+    <string name="error_drive_picker_auth">Sign in required for Drive Picker.</string>
+    <string name="error_drive_picker_failed">Drive Picker failed.</string>
     <string name="label_loading">Loading...</string>
     <string name="label_no_folders">No folders found</string>
     <string name="label_file_list_font_size">File list font size</string>

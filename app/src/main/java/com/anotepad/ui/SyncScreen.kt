@@ -1,8 +1,12 @@
 package com.anotepad.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,16 +37,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.anotepad.BuildConfig
 import com.anotepad.R
+import com.anotepad.drive.DrivePickerActivity
 import com.anotepad.sync.SyncState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SyncScreen(viewModel: SyncViewModel, onBack: () -> Unit) {
     val state by viewModel.state.collectAsState()
-    var showFolderPicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     var showCreateDialog by remember { mutableStateOf(false) }
     var newFolderName by remember(state.prefs.driveSyncFolderName) {
         mutableStateOf(state.prefs.driveSyncFolderName)
@@ -54,34 +61,39 @@ fun SyncScreen(viewModel: SyncViewModel, onBack: () -> Unit) {
         viewModel.handleSignInResult(it.data)
     }
 
-    if (showFolderPicker) {
-        AlertDialog(
-            onDismissRequest = { showFolderPicker = false },
-            title = { Text(text = stringResource(id = R.string.label_drive_pick_folder)) },
-            confirmButton = {},
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (state.isLoadingFolders) {
-                        Text(text = stringResource(id = R.string.label_loading))
-                    } else if (state.availableFolders.isEmpty()) {
-                        Text(text = stringResource(id = R.string.label_no_folders))
-                    } else {
-                        state.availableFolders.forEach { folder ->
-                            Text(
-                                text = folder.name,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.selectDriveFolder(folder)
-                                        showFolderPicker = false
-                                    }
-                                    .padding(vertical = 6.dp)
-                            )
-                        }
-                    }
-                }
+    val pickDriveFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val folder = resolveDriveFolder(context, uri)
+        if (folder == null) {
+            viewModel.setFolderError(context.getString(R.string.error_drive_pick_folder))
+        } else {
+            viewModel.setFolderError(null)
+            viewModel.selectDriveFolder(folder)
+        }
+    }
+
+    val drivePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data
+        if (result.resultCode == Activity.RESULT_OK && data != null) {
+            val id = data.getStringExtra(DrivePickerActivity.EXTRA_DRIVE_ID)
+            val name = data.getStringExtra(DrivePickerActivity.EXTRA_DRIVE_NAME)
+            if (id.isNullOrBlank()) {
+                viewModel.setFolderError(context.getString(R.string.error_drive_picker_failed))
+            } else {
+                viewModel.setFolderError(null)
+                viewModel.selectDriveFolder(com.anotepad.sync.DriveFolder(id, name ?: id))
             }
-        )
+        } else {
+            val error = data?.getStringExtra(DrivePickerActivity.EXTRA_ERROR)
+            if (!error.isNullOrBlank()) {
+                viewModel.setFolderError(error)
+                pickDriveFolderLauncher.launch(null)
+            }
+        }
     }
 
     if (showCreateDialog) {
@@ -178,8 +190,15 @@ fun SyncScreen(viewModel: SyncViewModel, onBack: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = {
-                        viewModel.loadDriveFolders()
-                        showFolderPicker = true
+                        if (BuildConfig.DRIVE_PICKER_API_KEY.isBlank() ||
+                            BuildConfig.DRIVE_PICKER_APP_ID.isBlank()
+                        ) {
+                            viewModel.setFolderError(null)
+                            pickDriveFolderLauncher.launch(null)
+                        } else {
+                            viewModel.setFolderError(null)
+                            drivePickerLauncher.launch(Intent(context, DrivePickerActivity::class.java))
+                        }
                     },
                     enabled = state.isSignedIn
                 ) {
@@ -268,4 +287,41 @@ private fun statusText(state: SyncUiState): String {
         SyncState.IDLE -> "Idle"
     }
     return state.statusMessage?.let { "$base · $it" } ?: base
+}
+
+private fun resolveDriveFolder(context: Context, treeUri: Uri): com.anotepad.sync.DriveFolder? {
+    if (!isGoogleDriveUri(treeUri)) return null
+    val docId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull()
+        ?: runCatching { DocumentsContract.getDocumentId(treeUri) }.getOrNull()
+    val driveId = extractDriveId(docId) ?: return null
+    val displayName = queryDisplayName(context, treeUri) ?: driveId
+    return com.anotepad.sync.DriveFolder(id = driveId, name = displayName)
+}
+
+private fun isGoogleDriveUri(uri: Uri): Boolean {
+    val authority = uri.authority ?: return false
+    return authority == "com.google.android.apps.docs.storage" ||
+        authority == "com.google.android.apps.docs.storage.legacy"
+}
+
+private fun queryDisplayName(context: Context, uri: Uri): String? {
+    val projection = arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+    return context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+        val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+        if (nameIndex != -1 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
+    }
+}
+
+private fun extractDriveId(docId: String?): String? {
+    if (docId.isNullOrBlank()) return null
+    val decoded = Uri.decode(docId)
+    if (decoded == "root") return null
+    val docMatch = Regex("doc=([^;]+)").find(decoded)
+    if (docMatch != null) return docMatch.groupValues[1]
+    val colonIndex = decoded.lastIndexOf(':')
+    return if (colonIndex != -1 && colonIndex < decoded.length - 1) {
+        decoded.substring(colonIndex + 1)
+    } else {
+        decoded
+    }
 }

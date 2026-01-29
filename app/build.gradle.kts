@@ -4,6 +4,9 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val drivePickerApiKey = project.findProperty("drivePickerApiKey") as String? ?: ""
+val drivePickerAppId = project.findProperty("drivePickerAppId") as String? ?: ""
+
 android {
     namespace = "com.anotepad"
     compileSdk = 35
@@ -14,6 +17,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("String", "DRIVE_PICKER_API_KEY", "\"$drivePickerApiKey\"")
+        buildConfigField("String", "DRIVE_PICKER_APP_ID", "\"$drivePickerAppId\"")
     }
 
     buildTypes {
@@ -28,6 +33,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     sourceSets {
