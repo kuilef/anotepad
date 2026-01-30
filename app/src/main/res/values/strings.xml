@@ -31,7 +31,7 @@
     <string name="label_copy_to">Copy to</string>
     <string name="label_move_to">Move to</string>
     <string name="label_no_folder">No folder selected</string>
-    <string name="label_empty_folder">Folder is empty. Tap the bottom-right button to create a new file.</string>
+    <string name="label_empty_folder">Tap the bottom-right button\nto create a new file.</string>
     <string name="label_folder_access_title">Folder access</string>
     <string name="label_folder_access_message">Anotepad stores notes in Documents/Anotepad. We will open the system folder picker to grant access and create the folder if needed.</string>
     <string name="label_search_query">Search query</string>
