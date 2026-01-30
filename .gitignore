@@ -18,3 +18,9 @@ app/build/
 build/
 
 AGENTS.md
+
+# Signing keys
+keystore.properties
+*.jks
+*.keystore
+*.p12

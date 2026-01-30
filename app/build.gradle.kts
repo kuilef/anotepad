@@ -6,6 +6,12 @@ plugins {
 
 val drivePickerApiKey = project.findProperty("drivePickerApiKey") as String? ?: ""
 val drivePickerAppId = project.findProperty("drivePickerAppId") as String? ?: ""
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = java.util.Properties()
+val hasKeystoreProperties = keystorePropertiesFile.exists()
+if (hasKeystoreProperties) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
 
 android {
     namespace = "com.anotepad"
@@ -21,8 +27,22 @@ android {
         buildConfigField("String", "DRIVE_PICKER_APP_ID", "\"$drivePickerAppId\"")
     }
 
+    val releaseSigning = if (hasKeystoreProperties) {
+        signingConfigs.create("release") {
+            storeFile = file(keystoreProperties.getProperty("storeFile"))
+            storePassword = keystoreProperties.getProperty("storePassword")
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+        }
+    } else {
+        null
+    }
+
     buildTypes {
         release {
+            if (releaseSigning != null) {
+                signingConfig = releaseSigning
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
