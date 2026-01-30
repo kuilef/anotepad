@@ -26,6 +26,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -51,6 +53,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.anotepad.R
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,6 +75,8 @@ fun EditorScreen(
     val backgroundColor = MaterialTheme.colorScheme.surface.toArgb()
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val savedMessage = stringResource(id = R.string.label_saved)
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -98,6 +103,12 @@ fun EditorScreen(
                 editText.text.replace(start.coerceAtMost(end), end.coerceAtLeast(start), textToInsert)
             }
             viewModel.consumeTemplate()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.manualSaveEvents.collect {
+            snackbarHostState.showSnackbar(message = savedMessage)
         }
     }
 
@@ -170,7 +181,7 @@ fun EditorScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.saveNow() }) {
+                    IconButton(onClick = { viewModel.saveNow(manual = state.fileUri != null) }) {
                         Icon(
                             Icons.Default.Save,
                             contentDescription = stringResource(id = R.string.action_save)
@@ -199,7 +210,8 @@ fun EditorScreen(
                     .imePadding()
                     .navigationBarsPadding()
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier

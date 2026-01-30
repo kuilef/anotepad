@@ -7,8 +7,11 @@ import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
 import com.anotepad.sync.SyncScheduler
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
@@ -52,6 +55,8 @@ class EditorViewModel(
     private val textChanges = MutableStateFlow("")
     private val pendingTemplate = MutableStateFlow<String?>(null)
     val pendingTemplateFlow: StateFlow<String?> = pendingTemplate.asStateFlow()
+    private val _manualSaveEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val manualSaveEvents: SharedFlow<Unit> = _manualSaveEvents.asSharedFlow()
 
     private var autosaveJob: Job? = null
     private var isLoaded = false
@@ -138,9 +143,12 @@ class EditorViewModel(
         pendingTemplate.value = null
     }
 
-    fun saveNow() {
+    fun saveNow(manual: Boolean = false) {
         viewModelScope.launch {
-            saveIfNeeded(_state.value.text)
+            val saved = saveIfNeeded(_state.value.text)
+            if (manual && saved) {
+                _manualSaveEvents.emit(Unit)
+            }
         }
     }
 
@@ -179,19 +187,19 @@ class EditorViewModel(
         }
     }
 
-    private suspend fun saveIfNeeded(text: String) {
-        if (!isLoaded) return
-        if (text == lastSavedText) return
+    private suspend fun saveIfNeeded(text: String): Boolean {
+        if (!isLoaded) return false
+        if (text == lastSavedText) return false
         val dirUri = _state.value.dirUri
         var fileUri = _state.value.fileUri
         if (fileUri == null) {
-            if (dirUri == null || text.isBlank()) return
+            if (dirUri == null || text.isBlank()) return false
             val rawExtension = _state.value.newFileExtension.ifBlank { "txt" }
             val extension = ".${rawExtension.lowercase(Locale.getDefault())}"
             val desiredName = buildNameFromText(text, extension)
             val uniqueName = ensureUniqueName(dirUri, desiredName, null)
             fileUri = fileRepository.createFile(dirUri, uniqueName, fileRepository.guessMimeType(uniqueName))
-            if (fileUri == null) return
+            if (fileUri == null) return false
             _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
         }
 
@@ -215,6 +223,7 @@ class EditorViewModel(
 
         _state.update { it.copy(isSaving = false, lastSavedAt = System.currentTimeMillis()) }
         syncScheduler.scheduleDebounced()
+        return true
     }
 
     private suspend fun ensureUniqueName(dirUri: Uri, desiredName: String, currentName: String?): String {
