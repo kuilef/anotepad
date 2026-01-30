@@ -78,6 +78,7 @@ fun BrowserScreen(
     var showFileActions by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
+    var showFolderAccessDialog by remember { mutableStateOf(false) }
     var renameInput by remember { mutableStateOf("") }
     var pendingDestinationAction by remember { mutableStateOf<FileAction?>(null) }
     var actionTarget by remember { mutableStateOf<DocumentNode?>(null) }
@@ -188,7 +189,13 @@ fun BrowserScreen(
                         .padding(padding),
                     message = stringResource(id = R.string.label_no_folder),
                     actionLabel = stringResource(id = R.string.action_pick_folder),
-                    onAction = onPickDirectory
+                    onAction = {
+                        if (state.showFolderAccessHint) {
+                            showFolderAccessDialog = true
+                        } else {
+                            onPickDirectory()
+                        }
+                    }
                 )
             }
 
@@ -398,6 +405,38 @@ fun BrowserScreen(
                 }
             },
             onDismiss = { showDeleteDialog = false }
+        )
+    }
+
+    if (showFolderAccessDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showFolderAccessDialog = false
+                viewModel.markFolderAccessHintShown()
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showFolderAccessDialog = false
+                        viewModel.markFolderAccessHintShown()
+                        onPickDirectory()
+                    }
+                ) {
+                    Text(text = stringResource(id = R.string.action_continue))
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = {
+                        showFolderAccessDialog = false
+                        viewModel.markFolderAccessHintShown()
+                    }
+                ) {
+                    Text(text = stringResource(id = R.string.action_cancel))
+                }
+            },
+            title = { Text(text = stringResource(id = R.string.label_folder_access_title)) },
+            text = { Text(text = stringResource(id = R.string.label_folder_access_message)) }
         )
     }
 

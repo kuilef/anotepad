@@ -36,6 +36,7 @@ class PreferencesRepository(private val context: Context) {
         val DRIVE_SYNC_PAUSED = booleanPreferencesKey("drive_sync_paused")
         val DRIVE_SYNC_IGNORE_REMOTE_DELETES = booleanPreferencesKey("drive_sync_ignore_remote_deletes")
         val DRIVE_SYNC_FOLDER_NAME = stringPreferencesKey("drive_sync_folder_name")
+        val FOLDER_ACCESS_HINT_SHOWN = booleanPreferencesKey("folder_access_hint_shown")
     }
 
     val preferencesFlow: Flow<AppPreferences> = context.dataStore.data.map { prefs ->
@@ -66,7 +67,8 @@ class PreferencesRepository(private val context: Context) {
             driveSyncChargingOnly = prefs[Keys.DRIVE_SYNC_CHARGING_ONLY] ?: false,
             driveSyncPaused = prefs[Keys.DRIVE_SYNC_PAUSED] ?: false,
             driveSyncIgnoreRemoteDeletes = prefs[Keys.DRIVE_SYNC_IGNORE_REMOTE_DELETES] ?: false,
-            driveSyncFolderName = prefs[Keys.DRIVE_SYNC_FOLDER_NAME] ?: "Anotepad"
+            driveSyncFolderName = prefs[Keys.DRIVE_SYNC_FOLDER_NAME] ?: "Anotepad",
+            folderAccessHintShown = prefs[Keys.FOLDER_ACCESS_HINT_SHOWN] ?: false
         )
     }
 
@@ -155,6 +157,10 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setDriveSyncFolderName(name: String) {
         context.dataStore.edit { it[Keys.DRIVE_SYNC_FOLDER_NAME] = name }
+    }
+
+    suspend fun setFolderAccessHintShown(shown: Boolean) {
+        context.dataStore.edit { it[Keys.FOLDER_ACCESS_HINT_SHOWN] = shown }
     }
 
     internal val dataStore = context.dataStore

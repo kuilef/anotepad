@@ -21,6 +21,7 @@
     <string name="action_redo">Redo</string>
     <string name="action_toggle_feed">Show feed</string>
     <string name="action_toggle_list">Show list</string>
+    <string name="action_continue">Continue</string>
     <string name="label_current_folder">Current folder</string>
     <string name="label_parent_folder">Parent folder</string>
     <string name="label_file_actions">File actions</string>
@@ -31,6 +32,8 @@
     <string name="label_move_to">Move to</string>
     <string name="label_no_folder">No folder selected</string>
     <string name="label_empty_folder">Folder is empty</string>
+    <string name="label_folder_access_title">Folder access</string>
+    <string name="label_folder_access_message">Anotepad stores notes in Documents/Anotepad. We'll open the system folder picker to grant access and create the folder if needed.</string>
     <string name="label_search_query">Search query</string>
     <string name="label_regex">Regex</string>
     <string name="label_searching">Searching...</string>

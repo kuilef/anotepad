@@ -42,7 +42,8 @@ data class BrowserState(
     val feedLoading: Boolean = false,
     val feedScrollIndex: Int = 0,
     val feedScrollOffset: Int = 0,
-    val feedResetSignal: Int = 0
+    val feedResetSignal: Int = 0,
+    val showFolderAccessHint: Boolean = false
 )
 
 class BrowserViewModel(
@@ -72,7 +73,8 @@ class BrowserViewModel(
                         fileListFontSizeSp = prefs.browserFontSizeSp,
                         fileSortOrder = prefs.fileSortOrder,
                         defaultFileExtension = prefs.defaultFileExtension,
-                        viewMode = prefs.browserViewMode
+                        viewMode = prefs.browserViewMode,
+                        showFolderAccessHint = !prefs.folderAccessHintShown
                     )
                 }
                 val currentDir = _state.value.currentDirUri
@@ -257,6 +259,12 @@ class BrowserViewModel(
         if (next == BrowserViewMode.FEED) {
             ensureFeedLoaded()
         }
+    }
+
+    fun markFolderAccessHintShown() {
+        if (!_state.value.showFolderAccessHint) return
+        _state.update { it.copy(showFolderAccessHint = false) }
+        viewModelScope.launch { preferencesRepository.setFolderAccessHintShown(true) }
     }
 
     fun ensureFeedLoaded() {

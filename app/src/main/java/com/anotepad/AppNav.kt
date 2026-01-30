@@ -2,6 +2,7 @@ package com.anotepad
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -48,7 +49,8 @@ fun AppNav(deps: AppDependencies) {
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             context.contentResolver.takePersistableUriPermission(uri, flags)
             scope.launch {
-                deps.preferencesRepository.setRootTreeUri(uri)
+                val appRoot = resolveAppFolderUri(deps.fileRepository, uri)
+                deps.preferencesRepository.setRootTreeUri(appRoot ?: uri)
             }
         }
     }
@@ -76,7 +78,7 @@ fun AppNav(deps: AppDependencies) {
             }
             BrowserScreen(
                 viewModel = viewModel,
-                onPickDirectory = { pickDirectoryLauncher.launch(null) },
+                onPickDirectory = { pickDirectoryLauncher.launch(buildInitialFolderUri()) },
                 onOpenFile = { fileUri, dirUri ->
                     navController.navigate("$ROUTE_EDITOR?file=${encodeUri(fileUri)}&dir=${encodeUri(dirUri)}")
                 },
@@ -197,4 +199,31 @@ private fun encodeUri(uri: Uri?): String {
 private fun parseNavUriArg(value: String?): Uri? {
     val normalized = value?.takeIf { it.isNotBlank() } ?: return null
     return Uri.parse(normalized)
+}
+
+private const val RECOMMENDED_FOLDER_NAME = "Anotepad"
+private const val RECOMMENDED_PARENT_DIR = "Documents"
+private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
+
+private fun buildInitialFolderUri(): Uri? {
+    val docId = "primary:$RECOMMENDED_PARENT_DIR/$RECOMMENDED_FOLDER_NAME"
+    return DocumentsContract.buildDocumentUri(EXTERNAL_STORAGE_AUTHORITY, docId)
+}
+
+private suspend fun resolveAppFolderUri(
+    fileRepository: com.anotepad.file.FileRepository,
+    pickedUri: Uri
+): Uri? {
+    if (isRecommendedFolder(pickedUri)) return pickedUri
+    return fileRepository.resolveDirByRelativePath(pickedUri, RECOMMENDED_FOLDER_NAME, create = true)
+}
+
+private fun isRecommendedFolder(uri: Uri): Boolean {
+    val docId = runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
+        ?: runCatching { DocumentsContract.getDocumentId(uri) }.getOrNull()
+        ?: return false
+    val decoded = Uri.decode(docId).trimEnd('/')
+    val relative = decoded.substringAfter(':', decoded)
+    val lastSegment = relative.substringAfterLast('/', relative)
+    return lastSegment == RECOMMENDED_FOLDER_NAME
 }
