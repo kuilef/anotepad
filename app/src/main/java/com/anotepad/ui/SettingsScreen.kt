@@ -61,6 +61,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onOpenSync:
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            SectionHeader(text = stringResource(id = R.string.label_settings_section_sync))
+            NavigationRow(
+                title = stringResource(id = R.string.label_drive_sync_title),
+                onClick = onOpenSync
+            )
+
             SectionHeader(text = stringResource(id = R.string.label_settings_section_browser))
             FontSizeSetting(
                 title = stringResource(id = R.string.label_file_list_font_size),
@@ -85,12 +91,6 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onOpenSync:
                     onSelect = { viewModel.setFileSortOrder(FileSortOrder.NAME_ASC) }
                 )
             }
-
-            SectionHeader(text = stringResource(id = R.string.label_settings_section_sync))
-            NavigationRow(
-                title = stringResource(id = R.string.label_drive_sync_title),
-                onClick = onOpenSync
-            )
 
             SectionHeader(text = stringResource(id = R.string.label_settings_section_editor))
             SettingRow(
