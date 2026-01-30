@@ -8,13 +8,16 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
 import android.widget.EditText
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
@@ -26,8 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -42,7 +43,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
@@ -54,6 +57,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.anotepad.R
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,8 +79,8 @@ fun EditorScreen(
     val backgroundColor = MaterialTheme.colorScheme.surface.toArgb()
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
     val savedMessage = stringResource(id = R.string.label_saved)
+    var showSavedBubble by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -108,7 +112,9 @@ fun EditorScreen(
 
     LaunchedEffect(Unit) {
         viewModel.manualSaveEvents.collect {
-            snackbarHostState.showSnackbar(message = savedMessage)
+            showSavedBubble = true
+            delay(1400)
+            showSavedBubble = false
         }
     }
 
@@ -181,11 +187,21 @@ fun EditorScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.saveNow(manual = state.fileUri != null) }) {
-                        Icon(
-                            Icons.Default.Save,
-                            contentDescription = stringResource(id = R.string.action_save)
-                        )
+                    Box {
+                        IconButton(onClick = { viewModel.saveNow(manual = state.fileUri != null) }) {
+                            Icon(
+                                Icons.Default.Save,
+                                contentDescription = stringResource(id = R.string.action_save)
+                            )
+                        }
+                        if (showSavedBubble) {
+                            SavedBubble(
+                                text = savedMessage,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 12.dp, y = (-6).dp)
+                            )
+                        }
                     }
                     IconButton(onClick = onOpenTemplates) {
                         Icon(
@@ -210,8 +226,7 @@ fun EditorScreen(
                     .imePadding()
                     .navigationBarsPadding()
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -309,6 +324,22 @@ fun EditorScreen(
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun SavedBubble(text: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
