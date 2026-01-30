@@ -110,12 +110,6 @@ fun BrowserScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onPickDirectory) {
-                        Icon(
-                            Icons.Default.FolderOpen,
-                            contentDescription = stringResource(id = R.string.action_pick_folder)
-                        )
-                    }
                     IconButton(
                         onClick = { showNewFolderDialog = true },
                         enabled = state.currentDirUri != null
@@ -235,9 +229,7 @@ fun BrowserScreen(
                         state.entries.isEmpty() -> {
                             EmptyState(
                                 modifier = Modifier.fillMaxSize(),
-                                message = stringResource(id = R.string.label_empty_folder),
-                                actionLabel = stringResource(id = R.string.action_pick_folder),
-                                onAction = onPickDirectory
+                                message = stringResource(id = R.string.label_empty_folder)
                             )
                         }
 
@@ -452,8 +444,8 @@ fun BrowserScreen(
 private fun EmptyState(
     modifier: Modifier,
     message: String,
-    actionLabel: String,
-    onAction: () -> Unit
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
 ) {
     Column(
         modifier = modifier,
@@ -461,8 +453,10 @@ private fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(text = message, style = MaterialTheme.typography.bodyLarge)
-        Button(onClick = onAction, modifier = Modifier.padding(top = 16.dp)) {
-            Text(text = actionLabel)
+        if (actionLabel != null && onAction != null) {
+            Button(onClick = onAction, modifier = Modifier.padding(top = 16.dp)) {
+                Text(text = actionLabel)
+            }
         }
     }
 }
