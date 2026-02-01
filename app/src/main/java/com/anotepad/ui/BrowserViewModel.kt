@@ -286,7 +286,7 @@ class BrowserViewModel(
         viewModelScope.launch {
             _state.update { it.copy(feedLoading = true) }
             val items = batch.map { node ->
-                FeedItem(node = node, text = fileRepository.readText(node.uri))
+                FeedItem(node = node, text = fileRepository.readTextPreview(node.uri, FEED_PREVIEW_CHARS))
             }
             _state.update { state ->
                 if (generation != feedGeneration) {
@@ -373,7 +373,7 @@ class BrowserViewModel(
         }
         val itemIndex = if (matchItemIndex >= 0) matchItemIndex else currentItemIndex
         if (itemIndex >= 0) {
-            val updatedText = fileRepository.readText(updatedNode.uri)
+            val updatedText = fileRepository.readTextPreview(updatedNode.uri, FEED_PREVIEW_CHARS)
             val updatedItems = feedItems.toMutableList().apply {
                 set(itemIndex, FeedItem(node = updatedNode, text = updatedText))
             }
@@ -383,3 +383,5 @@ class BrowserViewModel(
         }
     }
 }
+
+private const val FEED_PREVIEW_CHARS = 2_048

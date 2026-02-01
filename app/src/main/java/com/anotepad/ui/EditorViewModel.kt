@@ -1,6 +1,7 @@
 package com.anotepad.ui
 
 import android.net.Uri
+import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.anotepad.data.PreferencesRepository
@@ -68,6 +69,8 @@ class EditorViewModel(
     private var autoInsertTemplate = "yyyy-MM-dd"
     private var openedFileUri: Uri? = null
     private var loadCounter = 0L
+    val undoStack = mutableStateListOf<TextSnapshot>()
+    val redoStack = mutableStateListOf<TextSnapshot>()
 
     init {
         viewModelScope.launch {
@@ -96,6 +99,7 @@ class EditorViewModel(
             isLoaded = false
             openedFileUri = fileUri
             loadCounter += 1
+            clearHistory()
             val text = if (fileUri != null) fileRepository.readText(fileUri) else ""
             val fileName = fileUri?.let { uri ->
                 fileRepository.getDisplayName(uri) ?: ""
@@ -188,6 +192,11 @@ class EditorViewModel(
         }.getOrElse {
             pattern
         }
+    }
+
+    fun clearHistory() {
+        undoStack.clear()
+        redoStack.clear()
     }
 
     private suspend fun saveIfNeeded(text: String): Boolean {

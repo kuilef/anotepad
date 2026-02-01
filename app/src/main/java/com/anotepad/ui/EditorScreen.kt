@@ -37,7 +37,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -71,8 +70,8 @@ fun EditorScreen(
     var ignoreChanges by remember { mutableStateOf(false) }
     var ignoreHistory by remember { mutableStateOf(false) }
     var pendingSnapshot by remember { mutableStateOf<TextSnapshot?>(null) }
-    val undoStack = remember { mutableStateListOf<TextSnapshot>() }
-    val redoStack = remember { mutableStateListOf<TextSnapshot>() }
+    val undoStack = viewModel.undoStack
+    val redoStack = viewModel.redoStack
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val backgroundColor = MaterialTheme.colorScheme.surface.toArgb()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -93,8 +92,7 @@ fun EditorScreen(
     }
 
     LaunchedEffect(state.loadToken) {
-        undoStack.clear()
-        redoStack.clear()
+        viewModel.clearHistory()
         pendingSnapshot = null
     }
 
@@ -417,11 +415,5 @@ private fun focusAndShowKeyboard(editText: EditText) {
         imm?.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
     }
 }
-
-private data class TextSnapshot(
-    val text: String,
-    val selectionStart: Int,
-    val selectionEnd: Int
-)
 
 private const val UNDO_HISTORY_LIMIT = 200

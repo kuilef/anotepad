@@ -20,6 +20,7 @@ data class AppPreferences(
     val driveSyncChargingOnly: Boolean = false,
     val driveSyncPaused: Boolean = false,
     val driveSyncIgnoreRemoteDeletes: Boolean = false,
+    val driveSyncRemoteDeletePolicy: String = "TRASH",
     val driveSyncFolderName: String = "Anotepad",
     val folderAccessHintShown: Boolean = false
 )

@@ -35,6 +35,7 @@ class PreferencesRepository(private val context: Context) {
         val DRIVE_SYNC_CHARGING_ONLY = booleanPreferencesKey("drive_sync_charging_only")
         val DRIVE_SYNC_PAUSED = booleanPreferencesKey("drive_sync_paused")
         val DRIVE_SYNC_IGNORE_REMOTE_DELETES = booleanPreferencesKey("drive_sync_ignore_remote_deletes")
+        val DRIVE_SYNC_REMOTE_DELETE_POLICY = stringPreferencesKey("drive_sync_remote_delete_policy")
         val DRIVE_SYNC_FOLDER_NAME = stringPreferencesKey("drive_sync_folder_name")
         val FOLDER_ACCESS_HINT_SHOWN = booleanPreferencesKey("folder_access_hint_shown")
     }
@@ -67,6 +68,7 @@ class PreferencesRepository(private val context: Context) {
             driveSyncChargingOnly = prefs[Keys.DRIVE_SYNC_CHARGING_ONLY] ?: false,
             driveSyncPaused = prefs[Keys.DRIVE_SYNC_PAUSED] ?: false,
             driveSyncIgnoreRemoteDeletes = prefs[Keys.DRIVE_SYNC_IGNORE_REMOTE_DELETES] ?: false,
+            driveSyncRemoteDeletePolicy = prefs[Keys.DRIVE_SYNC_REMOTE_DELETE_POLICY] ?: "TRASH",
             driveSyncFolderName = prefs[Keys.DRIVE_SYNC_FOLDER_NAME] ?: "Anotepad",
             folderAccessHintShown = prefs[Keys.FOLDER_ACCESS_HINT_SHOWN] ?: false
         )
@@ -137,6 +139,10 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setDriveSyncEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.DRIVE_SYNC_ENABLED] = enabled }
+    }
+
+    suspend fun setDriveSyncRemoteDeletePolicy(policy: String) {
+        context.dataStore.edit { it[Keys.DRIVE_SYNC_REMOTE_DELETE_POLICY] = policy }
     }
 
     suspend fun setDriveSyncWifiOnly(enabled: Boolean) {

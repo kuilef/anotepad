@@ -23,7 +23,7 @@ class SyncScheduler(
     suspend fun scheduleDebounced() {
         val prefs = preferencesRepository.preferencesFlow.first()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused) return
-        val constraints = buildConstraints(prefs)
+        val constraints = buildConstraints(prefs, manual = false)
         val request = OneTimeWorkRequestBuilder<DriveSyncWorker>()
             .setConstraints(constraints)
             .setInitialDelay(DEBOUNCE_SECONDS, TimeUnit.SECONDS)
@@ -40,7 +40,7 @@ class SyncScheduler(
             workManager.cancelUniqueWork(WORK_SYNC_NOW)
             return
         }
-        val constraints = buildConstraints(prefs)
+        val constraints = buildConstraints(prefs, manual = false)
         val request = PeriodicWorkRequestBuilder<DriveSyncWorker>(PERIODIC_HOURS, TimeUnit.HOURS)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.HOURS)
@@ -51,7 +51,7 @@ class SyncScheduler(
     suspend fun syncNow() {
         val prefs = preferencesRepository.preferencesFlow.first()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused) return
-        val constraints = buildConstraints(prefs)
+        val constraints = buildConstraints(prefs, manual = true)
         val request = OneTimeWorkRequestBuilder<DriveSyncWorker>()
             .setConstraints(constraints)
             .build()
@@ -59,12 +59,20 @@ class SyncScheduler(
         syncRepository.setSyncStatus(SyncState.PENDING, "Sync scheduled")
     }
 
-    private fun buildConstraints(prefs: com.anotepad.data.AppPreferences): Constraints {
-        val networkType = if (prefs.driveSyncWifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED
+    private fun buildConstraints(prefs: com.anotepad.data.AppPreferences, manual: Boolean): Constraints {
+        val networkType = if (manual) {
+            NetworkType.CONNECTED
+        } else {
+            if (prefs.driveSyncWifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED
+        }
         return Constraints.Builder()
             .setRequiredNetworkType(networkType)
-            .setRequiresCharging(prefs.driveSyncChargingOnly)
-            .setRequiresBatteryNotLow(true)
+            .apply {
+                if (!manual) {
+                    setRequiresCharging(prefs.driveSyncChargingOnly)
+                    setRequiresBatteryNotLow(true)
+                }
+            }
             .build()
     }
 

@@ -70,6 +70,7 @@ class SyncEngine(
         rootUri: Uri,
         driveFolderId: String
     ) {
+        val remoteDeletePolicy = resolveRemoteDeletePolicy(prefs)
         val localFiles = fileRepository.listFilesRecursive(rootUri)
         val localMap = mutableMapOf<String, LocalFileMeta>()
         for (node in localFiles) {
@@ -150,7 +151,7 @@ class SyncEngine(
         for ((path, item) in existing) {
             if (localMap.containsKey(path)) continue
             val driveId = item.driveFileId ?: continue
-            when (RemoteDeletePolicy.TRASH) {
+            when (remoteDeletePolicy) {
                 RemoteDeletePolicy.TRASH -> driveClient.trashFile(token, driveId)
                 RemoteDeletePolicy.DELETE -> driveClient.deleteFile(token, driveId)
                 RemoteDeletePolicy.IGNORE -> {}
@@ -259,11 +260,12 @@ class SyncEngine(
             else -> remoteFile.appProperties["localRelativePath"]
         }
         if (resolvedPath.isNullOrBlank()) return
+        val uniquePath = ensureUniqueLocalPath(rootUri, resolvedPath, remoteFile.id)
         var movedLocally = false
-        if (existingById != null && existingById.localRelativePath != resolvedPath) {
-            val movedUri = moveLocalFile(rootUri, existingById.localRelativePath, resolvedPath)
+        if (existingById != null && existingById.localRelativePath != uniquePath) {
+            val movedUri = moveLocalFile(rootUri, existingById.localRelativePath, uniquePath)
             val updated = existingById.copy(
-                localRelativePath = resolvedPath,
+                localRelativePath = uniquePath,
                 localLastModified = movedUri?.let { fileRepository.getLastModified(it) }
                     ?: existingById.localLastModified,
                 localSize = movedUri?.let { fileRepository.getSize(it) } ?: existingById.localSize
@@ -272,7 +274,7 @@ class SyncEngine(
             syncRepository.upsertItem(updated)
             movedLocally = movedUri != null
         }
-        pullFileIfNeeded(token, rootUri, resolvedPath, remoteFile, suppressLocalConflict = movedLocally)
+        pullFileIfNeeded(token, rootUri, uniquePath, remoteFile, suppressLocalConflict = movedLocally)
     }
 
     private suspend fun handleRemoteFolderChange(
@@ -589,11 +591,44 @@ class SyncEngine(
     private suspend fun computeHashIfNeeded(item: SyncItemEntity?, meta: LocalFileMeta): String {
         val shouldCompute = item == null || item.localLastModified != meta.lastModified || item.localSize != meta.size
         return if (shouldCompute) {
-            val text = fileRepository.readText(meta.uri)
-            sha256(text.toByteArray(Charsets.UTF_8))
+            fileRepository.computeHash(meta.uri)
         } else {
             item.localHash ?: ""
         }
+    }
+
+    private suspend fun ensureUniqueLocalPath(rootUri: Uri, desiredPath: String, driveId: String): String {
+        val existingByPath = syncRepository.getItemByPath(desiredPath)
+        val sameDrive = existingByPath?.driveFileId == driveId
+        val localUri = fileRepository.findFileByRelativePath(rootUri, desiredPath)
+        if ((existingByPath == null || sameDrive) && localUri == null) return desiredPath
+        if (sameDrive) return desiredPath
+
+        val dirPath = desiredPath.substringBeforeLast('/', "")
+        val fileName = desiredPath.substringAfterLast('/')
+        val base = fileName.substringBeforeLast('.', fileName)
+        val ext = fileName.substringAfterLast('.', "")
+        var index = 1
+        while (index <= MAX_DUPLICATE_NAME_ATTEMPTS) {
+            val candidateName = if (ext.isBlank()) {
+                "$base ($index)"
+            } else {
+                "$base ($index).$ext"
+            }
+            val candidatePath = if (dirPath.isBlank()) candidateName else "$dirPath/$candidateName"
+            val candidateItem = syncRepository.getItemByPath(candidatePath)
+            val candidateLocal = fileRepository.findFileByRelativePath(rootUri, candidatePath)
+            if (candidateItem == null && candidateLocal == null) {
+                return candidatePath
+            }
+            index++
+        }
+        return desiredPath
+    }
+
+    private fun resolveRemoteDeletePolicy(prefs: AppPreferences): RemoteDeletePolicy {
+        return runCatching { RemoteDeletePolicy.valueOf(prefs.driveSyncRemoteDeletePolicy) }
+            .getOrElse { RemoteDeletePolicy.TRASH }
     }
 
     private fun sha256(data: ByteArray): String {
@@ -614,6 +649,7 @@ class SyncEngine(
 
     companion object {
         private const val DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
+        private const val MAX_DUPLICATE_NAME_ATTEMPTS = 200
     }
 }
 
