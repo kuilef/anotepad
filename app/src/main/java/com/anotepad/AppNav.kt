@@ -141,9 +141,6 @@ fun AppNav(deps: AppDependencies) {
                         )
                     }
                     navController.popBackStack()
-                },
-                onOpenTemplates = {
-                    navController.navigate("$ROUTE_TEMPLATES?mode=pick")
                 }
             )
         }

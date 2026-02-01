@@ -23,7 +23,6 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,8 +63,7 @@ import kotlin.math.roundToInt
 @Composable
 fun EditorScreen(
     viewModel: EditorViewModel,
-    onBack: (EditorSaveResult?) -> Unit,
-    onOpenTemplates: () -> Unit
+    onBack: (EditorSaveResult?) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val pendingTemplate by viewModel.pendingTemplateFlow.collectAsState()
@@ -196,12 +194,6 @@ fun EditorScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onOpenTemplates) {
-                        Icon(
-                            Icons.Default.List,
-                            contentDescription = stringResource(id = R.string.action_templates)
-                        )
-                    }
                     Box {
                         IconButton(onClick = { viewModel.saveNow(manual = state.fileUri != null) }) {
                             Icon(
