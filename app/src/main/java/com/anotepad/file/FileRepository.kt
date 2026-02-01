@@ -354,6 +354,11 @@ class FileRepository(private val context: Context) {
         return DocumentFile.fromSingleUri(context, uri)?.name
     }
 
+    fun getTreeDisplayName(treeUri: Uri): String? {
+        return DocumentFile.fromTreeUri(context, treeUri)?.name
+            ?: DocumentFile.fromSingleUri(context, treeUri)?.name
+    }
+
     fun getLastModified(uri: Uri): Long? {
         return DocumentFile.fromSingleUri(context, uri)?.lastModified()?.takeIf { it > 0 }
     }

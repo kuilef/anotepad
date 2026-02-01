@@ -1,5 +1,6 @@
 package com.anotepad.ui
 
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -32,15 +34,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.anotepad.data.FileSortOrder
 import com.anotepad.R
+import com.anotepad.file.FileRepository
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onOpenSync: () -> Unit) {
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    onBack: () -> Unit,
+    onOpenSync: () -> Unit,
+    onPickDirectory: () -> Unit,
+    fileRepository: FileRepository
+) {
     val prefs by viewModel.state.collectAsState()
+    val rootPath = remember(prefs.rootTreeUri) {
+        prefs.rootTreeUri
+            ?.let(Uri::parse)
+            ?.let { fileRepository.getTreeDisplayPath(it) }
+    }
 
     Scaffold(
         topBar = {
@@ -61,6 +76,31 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onOpenSync:
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            SectionHeader(text = stringResource(id = R.string.label_settings_section_storage))
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Text(
+                    text = stringResource(id = R.string.label_main_folder),
+                    style = MaterialTheme.typography.labelMedium
+                )
+                Text(
+                    text = rootPath ?: stringResource(id = R.string.label_main_folder_not_set),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                TextButton(
+                    onClick = onPickDirectory,
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    Text(
+                        text = stringResource(
+                            id = if (rootPath == null) R.string.action_pick_folder else R.string.action_change_folder
+                        )
+                    )
+                }
+            }
+
             SectionHeader(text = stringResource(id = R.string.label_settings_section_sync))
             NavigationRow(
                 title = stringResource(id = R.string.label_drive_sync_title),

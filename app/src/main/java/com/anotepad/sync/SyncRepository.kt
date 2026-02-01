@@ -92,6 +92,19 @@ class SyncRepository(private val db: SyncDatabase) {
         setDriveFolderName(folderName)
     }
 
+    suspend fun resetForNewLocalRoot(folderName: String?) {
+        clearItems()
+        clearFolders()
+        setMeta(KEY_START_PAGE_TOKEN, "")
+        setMeta(KEY_LAST_FULL_SCAN_AT, "")
+        setDriveFolderId("")
+        if (folderName.isNullOrBlank()) {
+            setMeta(KEY_DRIVE_FOLDER_NAME, "")
+        } else {
+            setDriveFolderName(folderName)
+        }
+    }
+
     companion object {
         const val KEY_DRIVE_FOLDER_ID = "drive_folder_id"
         const val KEY_DRIVE_FOLDER_NAME = "drive_folder_name"

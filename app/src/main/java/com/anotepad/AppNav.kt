@@ -23,6 +23,7 @@ import com.anotepad.ui.SettingsScreen
 import com.anotepad.ui.SyncScreen
 import com.anotepad.ui.TemplatesScreen
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private const val ROUTE_BROWSER = "browser"
@@ -49,8 +50,7 @@ fun AppNav(deps: AppDependencies) {
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             context.contentResolver.takePersistableUriPermission(uri, flags)
             scope.launch {
-                val appRoot = resolveAppFolderUri(deps.fileRepository, uri)
-                deps.preferencesRepository.setRootTreeUri(appRoot ?: uri)
+                applyRootSelection(deps, uri)
             }
         }
     }
@@ -182,7 +182,9 @@ fun AppNav(deps: AppDependencies) {
             SettingsScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onOpenSync = { navController.navigate(ROUTE_SYNC) }
+                onOpenSync = { navController.navigate(ROUTE_SYNC) },
+                onPickDirectory = { pickDirectoryLauncher.launch(buildInitialFolderUri()) },
+                fileRepository = deps.fileRepository
             )
         }
         composable(ROUTE_SYNC) {
@@ -210,20 +212,25 @@ private fun buildInitialFolderUri(): Uri? {
     return DocumentsContract.buildDocumentUri(EXTERNAL_STORAGE_AUTHORITY, docId)
 }
 
-private suspend fun resolveAppFolderUri(
-    fileRepository: com.anotepad.file.FileRepository,
-    pickedUri: Uri
-): Uri? {
-    if (isRecommendedFolder(pickedUri)) return pickedUri
-    return fileRepository.resolveDirByRelativePath(pickedUri, RECOMMENDED_FOLDER_NAME, create = true)
+private suspend fun applyRootSelection(deps: AppDependencies, pickedUri: Uri) {
+    val currentRoot = deps.preferencesRepository.preferencesFlow.first().rootTreeUri
+    val rootString = pickedUri.toString()
+    val driveFolderName = resolveDriveFolderName(deps.fileRepository, pickedUri)
+    deps.preferencesRepository.setRootTreeUri(pickedUri)
+    if (!driveFolderName.isNullOrBlank()) {
+        deps.preferencesRepository.setDriveSyncFolderName(driveFolderName)
+    }
+    if (rootString != currentRoot) {
+        deps.syncRepository.resetForNewLocalRoot(driveFolderName)
+    }
 }
 
-private fun isRecommendedFolder(uri: Uri): Boolean {
-    val docId = runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
-        ?: runCatching { DocumentsContract.getDocumentId(uri) }.getOrNull()
-        ?: return false
-    val decoded = Uri.decode(docId).trimEnd('/')
-    val relative = decoded.substringAfter(':', decoded)
-    val lastSegment = relative.substringAfterLast('/', relative)
-    return lastSegment == RECOMMENDED_FOLDER_NAME
+private fun resolveDriveFolderName(
+    fileRepository: com.anotepad.file.FileRepository,
+    pickedUri: Uri
+): String {
+    val displayName = fileRepository.getTreeDisplayName(pickedUri)
+    if (!displayName.isNullOrBlank()) return displayName
+    val displayPath = fileRepository.getTreeDisplayPath(pickedUri)
+    return displayPath.substringAfterLast('/').ifBlank { RECOMMENDED_FOLDER_NAME }
 }
