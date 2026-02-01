@@ -122,7 +122,10 @@ fun AppNav(deps: AppDependencies) {
 
             EditorScreen(
                 viewModel = viewModel,
-                onBack = { result ->
+                onBack = back@{ result ->
+                    if (navController.currentDestination?.route?.startsWith(ROUTE_EDITOR) != true) {
+                        return@back
+                    }
                     result?.let {
                         navController.previousBackStackEntry?.savedStateHandle?.set(
                             RESULT_EDITED_ORIGINAL_URI,

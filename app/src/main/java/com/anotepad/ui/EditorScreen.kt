@@ -83,6 +83,7 @@ fun EditorScreen(
     val scope = rememberCoroutineScope()
     val savedMessage = stringResource(id = R.string.label_saved)
     var showSavedBubble by remember { mutableStateOf(false) }
+    var backInProgress by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -180,11 +181,14 @@ fun EditorScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = {
+                            if (backInProgress) return@IconButton
+                            backInProgress = true
                             scope.launch {
                                 val result = viewModel.saveAndGetResult()
                                 onBack(result)
                             }
-                        }
+                        },
+                        enabled = !backInProgress
                     ) {
                         Icon(
                             Icons.Default.ArrowBack,
