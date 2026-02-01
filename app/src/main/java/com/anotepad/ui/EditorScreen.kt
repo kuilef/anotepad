@@ -13,12 +13,12 @@ import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.Icons
@@ -224,18 +224,8 @@ fun EditorScreen(
                 )
             )
         },
-        bottomBar = {
-            UndoRedoBar(
-                canUndo = undoStack.isNotEmpty(),
-                canRedo = redoStack.isNotEmpty(),
-                onUndo = ::performUndo,
-                onRedo = ::performRedo,
-                modifier = Modifier
-                    .fillMaxWidth()
-            )
-        }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
@@ -337,6 +327,16 @@ fun EditorScreen(
                     applyLinkify(editText, state.autoLinkWeb, state.autoLinkEmail, state.autoLinkTel)
                 }
             )
+            UndoRedoBar(
+                canUndo = undoStack.isNotEmpty(),
+                canRedo = redoStack.isNotEmpty(),
+                onUndo = ::performUndo,
+                onRedo = ::performRedo,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .imePadding()
+                    .padding(end = 8.dp, bottom = 8.dp)
+            )
         }
     }
 }
@@ -365,23 +365,36 @@ private fun UndoRedoBar(
     onRedo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    Box(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f))
+            .padding(horizontal = 6.dp, vertical = 4.dp)
     ) {
-        IconButton(onClick = onUndo, enabled = canUndo) {
-            Icon(
-                Icons.AutoMirrored.Filled.Undo,
-                contentDescription = stringResource(id = R.string.action_undo)
-            )
-        }
-        IconButton(onClick = onRedo, enabled = canRedo) {
-            Icon(
-                Icons.AutoMirrored.Filled.Redo,
-                contentDescription = stringResource(id = R.string.action_redo)
-            )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onUndo,
+                enabled = canUndo,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Undo,
+                    contentDescription = stringResource(id = R.string.action_undo)
+                )
+            }
+            IconButton(
+                onClick = onRedo,
+                enabled = canRedo,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Redo,
+                    contentDescription = stringResource(id = R.string.action_redo)
+                )
+            }
         }
     }
 }
