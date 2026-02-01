@@ -16,11 +16,11 @@ if (hasKeystoreProperties) {
 }
 
 android {
-    namespace = "com.anotepad"
+    namespace = "com.kuilef.anotepad"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.anotepad"
+        applicationId = "com.kuilef.anotepad"
         minSdk = 29
         targetSdk = 35
         versionCode = 4
