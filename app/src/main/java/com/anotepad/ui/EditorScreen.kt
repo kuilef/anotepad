@@ -95,7 +95,6 @@ fun EditorScreen(
     }
 
     LaunchedEffect(state.loadToken) {
-        viewModel.clearHistory()
         pendingSnapshot = null
     }
 
@@ -216,7 +215,7 @@ fun EditorScreen(
                                 text = savedMessage,
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .offset(x = (-8).dp, y = 10.dp)
+                                    .offset(x = (-8).dp, y = 16.dp)
                             )
                         }
                     }

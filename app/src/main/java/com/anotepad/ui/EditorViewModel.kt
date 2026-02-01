@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -69,12 +70,14 @@ class EditorViewModel(
     private var autoInsertTemplate = "yyyy-MM-dd"
     private var openedFileUri: Uri? = null
     private var loadCounter = 0L
+    private var prefsLoaded = false
     val undoStack = mutableStateListOf<TextSnapshot>()
     val redoStack = mutableStateListOf<TextSnapshot>()
 
     init {
         viewModelScope.launch {
             preferencesRepository.preferencesFlow.collectLatest { prefs ->
+                prefsLoaded = true
                 debounceMs = prefs.autoSaveDebounceMs
                 autoSaveEnabled = prefs.autoSaveEnabled
                 autoInsertTemplateEnabled = prefs.autoInsertTemplateEnabled
@@ -111,6 +114,7 @@ class EditorViewModel(
             }
             if (sameTarget) return@launch
 
+            ensureTemplatePrefsLoaded()
             isLoaded = false
             openedFileUri = fileUri
             loadCounter += 1
@@ -202,6 +206,14 @@ class EditorViewModel(
         }.getOrElse {
             pattern
         }
+    }
+
+    private suspend fun ensureTemplatePrefsLoaded() {
+        if (prefsLoaded) return
+        val prefs = preferencesRepository.preferencesFlow.first()
+        autoInsertTemplateEnabled = prefs.autoInsertTemplateEnabled
+        autoInsertTemplate = prefs.autoInsertTemplate
+        prefsLoaded = true
     }
 
     fun clearHistory() {
