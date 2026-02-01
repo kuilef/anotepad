@@ -60,6 +60,7 @@ class BrowserViewModel(
     private var feedGeneration = 0
     private var refreshJob: Job? = null
     private var lastSyncedAtSeen: Long? = null
+    private var lastRefreshDirUri: Uri? = null
 
     init {
         viewModelScope.launch {
@@ -138,7 +139,15 @@ class BrowserViewModel(
         val dirUri = _state.value.currentDirUri ?: return
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, isLoadingMore = false, entries = emptyList()) }
+            val shouldClear = lastRefreshDirUri != dirUri
+            lastRefreshDirUri = dirUri
+            _state.update { state ->
+                state.copy(
+                    isLoading = true,
+                    isLoadingMore = false,
+                    entries = if (shouldClear) emptyList() else state.entries
+                )
+            }
             val collected = mutableListOf<DocumentNode>()
             fileRepository.listChildrenBatched(
                 dirUri,

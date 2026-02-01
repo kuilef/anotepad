@@ -5,10 +5,14 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okio.BufferedSink
+import okio.source
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.io.InputStream
 
 data class DriveFolder(val id: String, val name: String)
 
@@ -96,7 +100,8 @@ class DriveClient(
         name: String,
         parentId: String,
         mimeType: String,
-        content: ByteArray,
+        contentLength: Long?,
+        contentProvider: () -> InputStream?,
         appProperties: Map<String, String>
     ): DriveFile {
         val metadata = JSONObject().apply {
@@ -119,7 +124,7 @@ class DriveClient(
             metadata,
             method = if (fileId == null) "POST" else "PATCH"
         )
-        return uploadToSession(token, sessionLocation, mimeType, content)
+        return uploadToSession(token, sessionLocation, mimeType, contentLength, contentProvider)
     }
 
     suspend fun trashFile(token: String, fileId: String) {
@@ -234,9 +239,10 @@ class DriveClient(
         token: String,
         sessionUrl: String,
         mimeType: String,
-        content: ByteArray
+        contentLength: Long?,
+        contentProvider: () -> InputStream?
     ): DriveFile {
-        val body = content.toRequestBody(mimeType.toMediaType())
+        val body = StreamRequestBody(mimeType, contentLength, contentProvider)
         val request = Request.Builder()
             .url(sessionUrl)
             .addHeader("Authorization", "Bearer $token")
@@ -250,6 +256,26 @@ class DriveClient(
                 }
                 val json = JSONObject(response.body?.string().orEmpty())
                 parseDriveFile(json)
+            }
+        }
+    }
+
+    private class StreamRequestBody(
+        private val mimeType: String,
+        private val contentLength: Long?,
+        private val contentProvider: () -> InputStream?
+    ) : RequestBody() {
+        override fun contentType() = mimeType.toMediaType()
+
+        override fun contentLength(): Long {
+            return contentLength?.takeIf { it >= 0 } ?: -1L
+        }
+
+        override fun writeTo(sink: BufferedSink) {
+            val input = contentProvider()
+                ?: throw IOException("Unable to open content stream for upload")
+            input.use { stream ->
+                sink.writeAll(stream.source())
             }
         }
     }

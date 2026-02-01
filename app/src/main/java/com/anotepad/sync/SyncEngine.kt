@@ -122,7 +122,7 @@ class SyncEngine(
             val parentId = ensureDriveFolderForPath(token, driveFolderId, path)
             val name = path.substringAfterLast('/')
             val mimeType = fileRepository.guessMimeType(name)
-            val content = fileRepository.readText(meta.uri).toByteArray(Charsets.UTF_8)
+            val contentLength = fileRepository.getSize(meta.uri) ?: -1L
             val appProps = mapOf("localRelativePath" to path)
             val updated = driveClient.createOrUpdateFile(
                 token = token,
@@ -130,7 +130,8 @@ class SyncEngine(
                 name = name,
                 parentId = parentId,
                 mimeType = mimeType,
-                content = content,
+                contentLength = contentLength,
+                contentProvider = { fileRepository.openInputStream(meta.uri) },
                 appProperties = appProps
             )
             syncRepository.upsertItem(

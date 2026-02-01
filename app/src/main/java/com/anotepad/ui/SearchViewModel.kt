@@ -61,15 +61,8 @@ class SearchViewModel(private val fileRepository: FileRepository) : ViewModel() 
             }
 
             files.forEach { node ->
-                val text = fileRepository.readText(node.uri)
-                val match = if (regex != null) {
-                    regex.find(text)?.let { SimpleMatch(it.range.first, it.value.length) }
-                } else {
-                    val index = text.indexOf(query, ignoreCase = true)
-                    if (index >= 0) SimpleMatch(index, query.length) else null
-                }
-                if (match != null) {
-                    val snippet = buildSnippet(text, match.start, match.length)
+                val snippet = fileRepository.searchInFile(node.uri, query, regex)
+                if (snippet != null) {
                     results.add(
                         SearchResult(
                             fileName = node.name,
@@ -84,15 +77,4 @@ class SearchViewModel(private val fileRepository: FileRepository) : ViewModel() 
             _state.update { it.copy(searching = false, results = results) }
         }
     }
-
-    private fun buildSnippet(text: String, start: Int, length: Int): String {
-        val window = 48
-        val from = (start - window).coerceAtLeast(0)
-        val to = (start + length + window).coerceAtMost(text.length)
-        val prefix = if (from > 0) "..." else ""
-        val suffix = if (to < text.length) "..." else ""
-        return prefix + text.substring(from, to).replace("\n", " ") + suffix
-    }
-
-    private data class SimpleMatch(val start: Int, val length: Int)
 }

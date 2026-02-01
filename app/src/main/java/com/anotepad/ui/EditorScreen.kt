@@ -53,6 +53,7 @@ import androidx.core.text.util.LinkifyCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.anotepad.R
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.delay
@@ -80,6 +81,7 @@ fun EditorScreen(
     var showSavedBubble by remember { mutableStateOf(false) }
     var lastCursorToken by remember { mutableStateOf<Long?>(null) }
     var backInProgress by remember { mutableStateOf(false) }
+    var linkifyJob by remember { mutableStateOf<Job?>(null) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -117,6 +119,15 @@ fun EditorScreen(
             showSavedBubble = true
             delay(1400)
             showSavedBubble = false
+        }
+    }
+
+    LaunchedEffect(editTextRef, state.text, state.autoLinkWeb, state.autoLinkEmail, state.autoLinkTel) {
+        val editText = editTextRef ?: return@LaunchedEffect
+        linkifyJob?.cancel()
+        linkifyJob = scope.launch {
+            delay(LINKIFY_DEBOUNCE_MS)
+            applyLinkify(editText, state.autoLinkWeb, state.autoLinkEmail, state.autoLinkTel)
         }
     }
 
@@ -314,7 +325,6 @@ fun EditorScreen(
                     val availableHeight = editText.height - editText.paddingTop - editText.paddingBottom
                     val contentHeight = editText.lineCount * editText.lineHeight
                     editText.isVerticalScrollBarEnabled = availableHeight > 0 && contentHeight > availableHeight
-                    applyLinkify(editText, state.autoLinkWeb, state.autoLinkEmail, state.autoLinkTel)
                 }
             )
             UndoRedoBar(
@@ -417,3 +427,4 @@ private fun focusAndShowKeyboard(editText: EditText) {
 }
 
 private const val UNDO_HISTORY_LIMIT = 200
+private const val LINKIFY_DEBOUNCE_MS = 250L

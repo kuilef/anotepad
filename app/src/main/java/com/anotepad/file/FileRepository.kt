@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.security.MessageDigest
@@ -202,6 +203,10 @@ class FileRepository(private val context: Context) {
         } ?: ""
     }
 
+    fun openInputStream(fileUri: Uri): InputStream? {
+        return resolver.openInputStream(fileUri)
+    }
+
     suspend fun readTextPreview(fileUri: Uri, maxLength: Int): String = withContext(Dispatchers.IO) {
         if (maxLength <= 0) return@withContext ""
         resolver.openInputStream(fileUri)?.use { input ->
@@ -219,6 +224,29 @@ class FileRepository(private val context: Context) {
             }
         } ?: ""
     }
+
+    suspend fun searchInFile(fileUri: Uri, query: String, regex: Regex?): String? =
+        withContext(Dispatchers.IO) {
+            if (query.isBlank()) return@withContext null
+            resolver.openInputStream(fileUri)?.use { input ->
+                BufferedReader(InputStreamReader(input, Charsets.UTF_8)).use { reader ->
+                    var line = reader.readLine()
+                    while (line != null) {
+                        val match = if (regex != null) {
+                            regex.find(line)?.let { it.range.first to it.value.length }
+                        } else {
+                            val index = line.indexOf(query, ignoreCase = true)
+                            if (index >= 0) index to query.length else null
+                        }
+                        if (match != null) {
+                            return@withContext buildSearchSnippet(line, match.first, match.second)
+                        }
+                        line = reader.readLine()
+                    }
+                }
+            }
+            null
+        }
 
     suspend fun computeHash(fileUri: Uri): String = withContext(Dispatchers.IO) {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -537,6 +565,15 @@ class FileRepository(private val context: Context) {
             }
         }
     }
+
+    private fun buildSearchSnippet(line: String, start: Int, length: Int): String {
+        val window = SEARCH_SNIPPET_WINDOW
+        val from = (start - window).coerceAtLeast(0)
+        val to = (start + length + window).coerceAtMost(line.length)
+        val prefix = if (from > 0) "..." else ""
+        val suffix = if (to < line.length) "..." else ""
+        return prefix + line.substring(from, to).replace("\n", " ") + suffix
+    }
 }
 
 private data class ListCacheKey(
@@ -553,3 +590,4 @@ private const val LIST_CACHE_TTL_MS = 15_000L
 private const val LIST_CACHE_MAX_ENTRIES = 12
 private const val HASH_BUFFER_SIZE = 8 * 1024
 private const val PREVIEW_BUFFER_SIZE = 2 * 1024
+private const val SEARCH_SNIPPET_WINDOW = 48
