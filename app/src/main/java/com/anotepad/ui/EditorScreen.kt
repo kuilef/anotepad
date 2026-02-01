@@ -1,5 +1,6 @@
 package com.anotepad.ui
 
+import android.content.Context
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
@@ -8,6 +9,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
 import android.widget.EditText
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -110,6 +112,10 @@ fun EditorScreen(
         }
     }
 
+    LaunchedEffect(editTextRef, state.loadToken) {
+        editTextRef?.let { focusAndShowKeyboard(it) }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.manualSaveEvents.collect {
             showSavedBubble = true
@@ -187,6 +193,12 @@ fun EditorScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenTemplates) {
+                        Icon(
+                            Icons.Default.List,
+                            contentDescription = stringResource(id = R.string.action_templates)
+                        )
+                    }
                     Box {
                         IconButton(onClick = { viewModel.saveNow(manual = state.fileUri != null) }) {
                             Icon(
@@ -203,12 +215,6 @@ fun EditorScreen(
                             )
                         }
                     }
-                    IconButton(onClick = onOpenTemplates) {
-                        Icon(
-                            Icons.Default.List,
-                            contentDescription = stringResource(id = R.string.action_templates)
-                        )
-                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
@@ -223,7 +229,6 @@ fun EditorScreen(
                 onRedo = ::performRedo,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .imePadding()
                     .navigationBarsPadding()
             )
         }
@@ -387,6 +392,15 @@ private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: 
                 spans.forEach { text.removeSpan(it) }
             }
         }
+    }
+}
+
+private fun focusAndShowKeyboard(editText: EditText) {
+    editText.requestFocus()
+    editText.post {
+        val imm = editText.context
+            .getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
     }
 }
 
