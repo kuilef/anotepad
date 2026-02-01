@@ -96,6 +96,21 @@ class EditorViewModel(
 
     fun load(fileUri: Uri?, dirUri: Uri?, newFileExtension: String) {
         viewModelScope.launch {
+            val resolvedDir = if (dirUri == null && fileUri != null) {
+                fileRepository.parentTreeUri(fileUri)
+            } else {
+                dirUri
+            }
+            val sameTarget = if (fileUri == null) {
+                isLoaded && openedFileUri == null &&
+                    _state.value.dirUri == resolvedDir &&
+                    _state.value.newFileExtension == newFileExtension
+            } else {
+                isLoaded && openedFileUri == fileUri &&
+                    _state.value.dirUri == resolvedDir
+            }
+            if (sameTarget) return@launch
+
             isLoaded = false
             openedFileUri = fileUri
             loadCounter += 1
@@ -104,11 +119,6 @@ class EditorViewModel(
             val fileName = fileUri?.let { uri ->
                 fileRepository.getDisplayName(uri) ?: ""
             } ?: ""
-            val resolvedDir = if (dirUri == null && fileUri != null) {
-                fileRepository.parentTreeUri(fileUri)
-            } else {
-                dirUri
-            }
             val autoInsertedText = if (fileUri == null && text.isBlank()) {
                 resolveAutoInsertText()
             } else {

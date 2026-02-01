@@ -2,6 +2,7 @@ package com.anotepad.ui
 
 import android.content.Context
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
 import android.text.util.Linkify
@@ -214,8 +215,8 @@ fun EditorScreen(
                             SavedBubble(
                                 text = savedMessage,
                                 modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 12.dp, y = (-6).dp)
+                                    .align(Alignment.BottomEnd)
+                                    .offset(x = (-8).dp, y = 10.dp)
                             )
                         }
                     }
@@ -239,6 +240,10 @@ fun EditorScreen(
                         setBackgroundColor(backgroundColor)
                         setTextColor(textColor)
                         setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
+                        inputType = InputType.TYPE_CLASS_TEXT or
+                            InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                            InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                            InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
                         gravity = Gravity.TOP or Gravity.START
                         setSingleLine(false)
                         setHorizontallyScrolling(false)

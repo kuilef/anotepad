@@ -23,10 +23,15 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.anotepad.R
@@ -39,6 +44,13 @@ fun SearchScreen(
     onOpenResult: (Uri, Uri?) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
 
     Scaffold(
         topBar = {
@@ -63,7 +75,9 @@ fun SearchScreen(
                 value = state.query,
                 onValueChange = viewModel::updateQuery,
                 label = { Text(text = stringResource(id = R.string.label_search_query)) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(text = stringResource(id = R.string.label_regex), modifier = Modifier.weight(1f))
