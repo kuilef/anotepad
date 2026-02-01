@@ -28,6 +28,7 @@ data class EditorState(
     val fileName: String = "",
     val text: String = "",
     val loadToken: Long = 0L,
+    val moveCursorToEndOnLoad: Boolean = false,
     val isSaving: Boolean = false,
     val lastSavedAt: Long? = null,
     val autoLinkWeb: Boolean = false,
@@ -114,6 +115,7 @@ class EditorViewModel(
             } else {
                 text
             }
+            val moveCursorToEndOnLoad = autoInsertedText.isNotBlank()
             _state.update {
                 it.copy(
                     fileUri = fileUri,
@@ -121,6 +123,7 @@ class EditorViewModel(
                     fileName = fileName,
                     text = initialText,
                     loadToken = loadCounter,
+                    moveCursorToEndOnLoad = moveCursorToEndOnLoad,
                     newFileExtension = newFileExtension
                 )
             }

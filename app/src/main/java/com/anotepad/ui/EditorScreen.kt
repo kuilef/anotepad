@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.automirrored.filled.Redo
@@ -83,6 +81,7 @@ fun EditorScreen(
     val scope = rememberCoroutineScope()
     val savedMessage = stringResource(id = R.string.label_saved)
     var showSavedBubble by remember { mutableStateOf(false) }
+    var lastCursorToken by remember { mutableStateOf<Long?>(null) }
     var backInProgress by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
@@ -115,6 +114,18 @@ fun EditorScreen(
 
     LaunchedEffect(editTextRef, state.loadToken) {
         editTextRef?.let { focusAndShowKeyboard(it) }
+    }
+
+    LaunchedEffect(state.loadToken, state.moveCursorToEndOnLoad, editTextRef) {
+        if (state.moveCursorToEndOnLoad && lastCursorToken != state.loadToken) {
+            editTextRef?.let { editText ->
+                editText.post {
+                    val length = editText.text?.length ?: 0
+                    editText.setSelection(length)
+                }
+                lastCursorToken = state.loadToken
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -233,7 +244,6 @@ fun EditorScreen(
                 onRedo = ::performRedo,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .navigationBarsPadding()
             )
         }
     ) { padding ->
