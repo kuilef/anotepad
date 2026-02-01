@@ -368,7 +368,7 @@ private fun UndoRedoBar(
     Box(
         modifier = modifier
             .clip(MaterialTheme.shapes.small)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f))
+            .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = 6.dp, vertical = 4.dp)
     ) {
         Row(
