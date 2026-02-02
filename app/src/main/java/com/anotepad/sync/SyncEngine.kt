@@ -78,6 +78,7 @@ class SyncEngine(
         val localMap = mutableMapOf<String, LocalFileMeta>()
         for (node in localFiles) {
             val relativePath = fileRepository.getRelativePath(rootUri, node.uri) ?: continue
+            if (isIgnoredPath(relativePath)) continue
             val lastModified = fileRepository.getLastModified(node.uri) ?: 0L
             val size = fileRepository.getSize(node.uri) ?: 0L
             localMap[relativePath] = LocalFileMeta(node.uri, lastModified, size)
@@ -166,14 +167,17 @@ class SyncEngine(
                         } else {
                             "${current.relativePath}/${file.name}"
                         }
-                        syncRepository.upsertFolder(nextPath, file.id)
-                        queue.add(DriveFolderNode(file.id, nextPath))
+                        if (!isIgnoredPath(nextPath)) {
+                            syncRepository.upsertFolder(nextPath, file.id)
+                            queue.add(DriveFolderNode(file.id, nextPath))
+                        }
                     } else if (isSupportedNote(file.name)) {
                         val relativePath = if (current.relativePath.isBlank()) {
                             file.name
                         } else {
                             "${current.relativePath}/${file.name}"
                         }
+                        if (isIgnoredPath(relativePath)) continue
                         val existing = remoteFiles[relativePath]
                         val existingModified = existing?.modifiedTime ?: 0L
                         val candidateModified = file.modifiedTime ?: 0L
@@ -222,6 +226,7 @@ class SyncEngine(
         val localMap = mutableMapOf<String, LocalFileMeta>()
         for (node in localFiles) {
             val relativePath = fileRepository.getRelativePath(rootUri, node.uri) ?: continue
+            if (isIgnoredPath(relativePath)) continue
             val lastModified = fileRepository.getLastModified(node.uri) ?: 0L
             val size = fileRepository.getSize(node.uri) ?: 0L
             localMap[relativePath] = LocalFileMeta(node.uri, lastModified, size)
@@ -349,14 +354,17 @@ class SyncEngine(
                 for (file in list.items) {
                     if (file.mimeType == DRIVE_FOLDER_MIME) {
                         val nextPath = if (current.relativePath.isBlank()) file.name else "${current.relativePath}/${file.name}"
-                        syncRepository.upsertFolder(nextPath, file.id)
-                        queue.add(DriveFolderNode(file.id, nextPath))
+                        if (!isIgnoredPath(nextPath)) {
+                            syncRepository.upsertFolder(nextPath, file.id)
+                            queue.add(DriveFolderNode(file.id, nextPath))
+                        }
                     } else if (isSupportedNote(file.name)) {
                         val relativePath = if (current.relativePath.isBlank()) {
                             file.name
                         } else {
                             "${current.relativePath}/${file.name}"
                         }
+                        if (isIgnoredPath(relativePath)) continue
                         pullFileIfNeeded(token, rootUri, relativePath, file)
                     }
                 }
@@ -408,6 +416,7 @@ class SyncEngine(
             else -> remoteFile.appProperties["localRelativePath"]
         }
         if (resolvedPath.isNullOrBlank()) return
+        if (isIgnoredPath(resolvedPath)) return
         val uniquePath = ensureUniqueLocalPath(rootUri, resolvedPath, remoteFile.id)
         var movedLocally = false
         if (existingById != null && existingById.localRelativePath != uniquePath) {
@@ -434,6 +443,7 @@ class SyncEngine(
         if (folder.id == driveFolderId) return
         val parentPath = resolveParentPathWithFetch(token, driveFolderId, folder.parents) ?: return
         val newPath = if (parentPath.isBlank()) folder.name else "$parentPath/${folder.name}"
+        if (isIgnoredPath(newPath)) return
         val existing = syncRepository.getFolderByDriveId(folder.id)
         if (existing == null) {
             fileRepository.resolveDirByRelativePath(rootUri, newPath, create = true)
@@ -520,6 +530,10 @@ class SyncEngine(
         if (prefs.driveSyncIgnoreRemoteDeletes) return
         val folder = syncRepository.getFolderByDriveId(driveFileId)
         if (folder != null) {
+            if (isIgnoredPath(folder.localRelativePath)) {
+                syncRepository.deleteFolderByPath(folder.localRelativePath)
+                return
+            }
             handleRemoteFolderDeletion(rootUri, folder.localRelativePath)
             return
         }
@@ -528,6 +542,10 @@ class SyncEngine(
 
     private suspend fun handleRemoteFileDeletion(rootUri: Uri, driveFileId: String) {
         val existing = syncRepository.getItemByDriveId(driveFileId) ?: return
+        if (isIgnoredPath(existing.localRelativePath)) {
+            syncRepository.deleteItemByPath(existing.localRelativePath)
+            return
+        }
         val localUri = fileRepository.findFileByRelativePath(rootUri, existing.localRelativePath)
         val localModified = localUri?.let { fileRepository.getLastModified(it) } ?: 0L
         val lastSynced = existing.lastSyncedAt ?: 0L
@@ -736,6 +754,10 @@ class SyncEngine(
             name.lowercase(Locale.getDefault()).endsWith(".md")
     }
 
+    private fun isIgnoredPath(relativePath: String): Boolean {
+        return relativePath == TRASH_DIR || relativePath.startsWith("$TRASH_DIR/")
+    }
+
     private suspend fun computeHashIfNeeded(item: SyncItemEntity?, meta: LocalFileMeta): String {
         val shouldCompute = item == null || item.localLastModified != meta.lastModified || item.localSize != meta.size
         return if (shouldCompute) {
@@ -798,6 +820,7 @@ class SyncEngine(
     companion object {
         private const val DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
         private const val MAX_DUPLICATE_NAME_ATTEMPTS = 200
+        private const val TRASH_DIR = ".trash"
     }
 }
 
