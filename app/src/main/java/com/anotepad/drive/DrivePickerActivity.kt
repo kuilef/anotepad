@@ -3,9 +3,14 @@ package com.anotepad.drive
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
@@ -34,6 +39,10 @@ import org.json.JSONObject
 class DrivePickerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (BuildConfig.DEBUG) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
 
         if (BuildConfig.DRIVE_PICKER_API_KEY.isBlank() || BuildConfig.DRIVE_PICKER_APP_ID.isBlank()) {
             finishWithError(getString(R.string.error_drive_picker_missing_config))
@@ -135,8 +144,38 @@ private fun DrivePickerWebView(
                 val cookieManager = CookieManager.getInstance()
                 cookieManager.setAcceptCookie(true)
                 cookieManager.setAcceptThirdPartyCookies(this, true)
-                webChromeClient = WebChromeClient()
-                webViewClient = WebViewClient()
+                webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                        Log.e(
+                            "DrivePickerWebView",
+                            "console: ${message.message()} @${message.lineNumber()} ${message.sourceId()}"
+                        )
+                        return true
+                    }
+                }
+                webViewClient = object : WebViewClient() {
+                    override fun onReceivedError(
+                        view: WebView,
+                        request: WebResourceRequest,
+                        error: WebResourceError
+                    ) {
+                        Log.e(
+                            "DrivePickerWebView",
+                            "web_error: ${request.url} ${error.errorCode} ${error.description}"
+                        )
+                    }
+
+                    override fun onReceivedHttpError(
+                        view: WebView,
+                        request: WebResourceRequest,
+                        errorResponse: WebResourceResponse
+                    ) {
+                        Log.e(
+                            "DrivePickerWebView",
+                            "http_error: ${request.url} ${errorResponse.statusCode} ${errorResponse.reasonPhrase}"
+                        )
+                    }
+                }
                 addJavascriptInterface(PickerBridge(onPicked, onCancel, onError), "Android")
                 loadDataWithBaseURL("https://localhost", html, "text/html", "utf-8", null)
             }
