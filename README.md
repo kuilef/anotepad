@@ -4,6 +4,7 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 
 ## Features and advantages
 - Synchronization with **Google Drive**
+- Drive sync controls: Wi‑Fi only, charging only, pause, ignore remote deletes, and manual sync.
 - **Undo/redo controls**: on-screen undo/redo buttons (Ctrl+Z / Ctrl+Shift+Z); redo is available only after an undo.
 - Folder-based workflow: pick a root directory and browse subfolders; create folders and notes inside it.
 - Plain-text first: supports `.txt` and `.md` and keeps notes readable outside the app.
@@ -21,13 +22,13 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 - **Editor**: `EditorViewModel` keeps state, performs debounced auto-save, creates a new file on first save, and optionally renames the file based on the first line (sync title).
 - **Search**: `SearchViewModel` walks the tree, reads each note, and matches either a plain query or a regex; results include a short snippet.
 - **Templates & preferences**: templates and settings live in DataStore; templates can format current time or auto-numbered items.
-- **Drive sync**: WorkManager runs a periodic sync (every 8 hours) and schedules a debounced sync about 45 seconds after local saves. Sync respects Wi-Fi/charging/battery constraints, auto-selects a Drive folder by name, and can be triggered manually from settings.
+- **Drive sync**: WorkManager runs a periodic sync (every 8 hours) and schedules a debounced sync about 10 seconds after local saves. Auto/periodic sync respects Wi-Fi/charging/battery constraints; manual sync only requires network connectivity. Sync auto-selects a Drive folder by name and can be triggered manually from settings.
 
 ## Google Drive sync (detailed)
 
 ### Folder selection
 - Sign in with Google.
-- The app searches the root of Google Drive for a folder with the configured name (default: `Anotepad`).
+- The app searches Drive for folders with the configured name (default: `Anotepad`).
 - If exactly one folder is found, it is connected automatically.
 - If none are found, a new folder is created.
 - If multiple folders are found, the app shows a native list and the user chooses one.
