@@ -58,6 +58,23 @@ class DriveClient(
         return DriveListResult(items, json.optString("nextPageToken", null))
     }
 
+    suspend fun findFoldersByName(token: String, name: String): List<DriveFolder> {
+        val safeName = name.replace("'", "\\'")
+        val query = "mimeType='application/vnd.google-apps.folder' and trashed=false and name='$safeName'"
+        val url = buildString {
+            append("$DRIVE_BASE/files?spaces=drive&fields=files(id,name)&q=")
+            append(urlEncode(query))
+        }
+        val json = requestJson(token, url)
+        val files = json.optJSONArray("files") ?: JSONArray()
+        return buildList {
+            for (i in 0 until files.length()) {
+                val item = files.getJSONObject(i)
+                add(DriveFolder(id = item.getString("id"), name = item.optString("name")))
+            }
+        }
+    }
+
     suspend fun listChildren(token: String, folderId: String, pageToken: String?): DriveListResult<DriveFile> {
         val query = "'$folderId' in parents and trashed=false"
         val url = buildString {

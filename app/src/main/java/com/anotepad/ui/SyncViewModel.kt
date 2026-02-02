@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class SyncUiState(
@@ -34,7 +33,8 @@ data class SyncUiState(
     val accountEmail: String? = null,
     val driveFolderName: String? = null,
     val driveFolderId: String? = null,
-    val availableFolders: List<DriveFolder> = emptyList(),
+    val showFolderConflictDialog: Boolean = false,
+    val foundFolders: List<DriveFolder> = emptyList(),
     val isLoadingFolders: Boolean = false,
     val errorMessage: String? = null
 )
@@ -71,7 +71,8 @@ class SyncViewModel(
                     accountEmail = auth.email,
                     driveFolderName = folders.folderName,
                     driveFolderId = folders.folderId,
-                    availableFolders = folders.available,
+                    showFolderConflictDialog = folders.showConflictDialog,
+                    foundFolders = folders.foundFolders,
                     isLoadingFolders = folders.isLoading,
                     errorMessage = folders.errorMessage
                 )
@@ -79,7 +80,10 @@ class SyncViewModel(
                 _state.value = combined
             }
         }
-        viewModelScope.launch { refreshFolderMeta() }
+        viewModelScope.launch {
+            refreshFolderMeta()
+            maybeAutoConnect()
+        }
     }
 
     fun signInIntent(): Intent = authManager.signInIntent()
@@ -94,6 +98,7 @@ class SyncViewModel(
             GoogleSignIn.getSignedInAccountFromIntent(data).getResult(ApiException::class.java)
             updateFolderState(error = null)
             refreshAuthState()
+            checkAndConnectDriveFolder()
         } catch (error: ApiException) {
             val status = error.statusCode
             val statusText = GoogleSignInStatusCodes.getStatusCodeString(status)
@@ -148,80 +153,38 @@ class SyncViewModel(
         }
     }
 
-    fun setFolderName(name: String) {
-        viewModelScope.launch {
-            preferencesRepository.setDriveSyncFolderName(name)
-        }
-    }
-
-    fun setFolderError(message: String?) {
-        updateFolderState(error = message)
-    }
-
     fun syncNow() {
         viewModelScope.launch { syncScheduler.syncNow() }
     }
 
-    fun loadDriveFolders() {
-        viewModelScope.launch {
-            val token = authManager.getAccessToken()
-            if (token.isNullOrBlank()) {
-                updateFolderState(error = "Sign in required")
-                return@launch
-            }
-            updateFolderState(isLoading = true, error = null)
-            try {
-                val folders = mutableListOf<DriveFolder>()
-                var page: String? = null
-                do {
-                    val result = driveClient.listFolders(token, page)
-                    folders.addAll(result.items)
-                    page = result.nextPageToken
-                } while (!page.isNullOrBlank())
-                updateFolderState(available = folders, isLoading = false)
-            } catch (error: DriveApiException) {
-                val detail = error.userMessage()
-                val message = detail?.let { "Drive error ${error.code}: $it" } ?: "Drive error ${error.code}"
-                updateFolderState(isLoading = false, error = message)
-            } catch (error: DriveNetworkException) {
-                val message = error.description?.let { "Network error: $it" } ?: "Network error"
-                updateFolderState(isLoading = false, error = message)
-            } catch (_: Exception) {
-                updateFolderState(isLoading = false, error = "Failed to load folders")
-            }
-        }
-    }
-
     fun selectDriveFolder(folder: DriveFolder) {
         viewModelScope.launch {
-            syncRepository.resetForNewFolder(folder.id, folder.name)
-            refreshFolderMeta()
-            syncScheduler.syncNow()
+            selectDriveFolderInternal(folder)
         }
     }
 
-    fun createDriveFolder(name: String) {
+    fun checkAndConnectDriveFolder() {
+        viewModelScope.launch { checkAndConnectDriveFolderInternal() }
+    }
+
+    fun cancelFolderSelection() {
+        updateFolderState(
+            showFolderConflictDialog = false,
+            foundFolders = emptyList(),
+            isLoading = false
+        )
+    }
+
+    fun disconnectFolder() {
         viewModelScope.launch {
-            val token = authManager.getAccessToken()
-            if (token.isNullOrBlank()) {
-                updateFolderState(error = "Sign in required")
-                return@launch
-            }
-            try {
-                val folder = driveClient.createFolder(token, name, null)
-                syncRepository.resetForNewFolder(folder.id, folder.name)
-                refreshFolderMeta()
-                syncScheduler.syncNow()
-            } catch (error: DriveApiException) {
-                val detail = error.userMessage()
-                val message = detail?.let { "Drive error ${error.code}: $it" } ?: "Drive error ${error.code}"
-                updateFolderState(error = message)
-            } catch (error: DriveNetworkException) {
-                val message = error.description?.let { "Network error: $it" } ?: "Network error"
-                updateFolderState(error = message)
-            } catch (_: Exception) {
-                updateFolderState(error = "Failed to create folder")
-            }
+            syncRepository.disconnectDriveFolder()
+            refreshFolderMeta()
+            updateFolderState(
+                showFolderConflictDialog = false,
+                foundFolders = emptyList(),
+                isLoading = false,
+                error = null
+            )
         }
     }
 
@@ -239,17 +202,118 @@ class SyncViewModel(
         updateFolderState(folderId = id, folderName = name)
     }
 
+    private suspend fun maybeAutoConnect() {
+        if (!authState.value.isSignedIn) return
+        val existingId = syncRepository.getDriveFolderId()
+        if (!existingId.isNullOrBlank()) return
+        checkAndConnectDriveFolderInternal()
+    }
+
+    private suspend fun checkAndConnectDriveFolderInternal() {
+        val token = authManager.getAccessToken()
+        if (token.isNullOrBlank()) {
+            updateFolderState(error = "Sign in required")
+            return
+        }
+        val existingId = syncRepository.getDriveFolderId()
+        if (!existingId.isNullOrBlank()) {
+            refreshFolderMeta()
+            updateFolderState(isLoading = false)
+            return
+        }
+        val folderName = state.value.prefs.driveSyncFolderName
+        updateFolderState(
+            isLoading = true,
+            error = null,
+            showFolderConflictDialog = false,
+            foundFolders = emptyList()
+        )
+        try {
+            val folders = driveClient.findFoldersByName(token, folderName)
+            when {
+                folders.isEmpty() -> {
+                    updateFolderState(isLoading = false)
+                    createDriveFolderInternal(folderName, token)
+                }
+                folders.size == 1 -> {
+                    updateFolderState(isLoading = false)
+                    selectDriveFolderInternal(folders.first())
+                }
+                else -> {
+                    updateFolderState(
+                        showFolderConflictDialog = true,
+                        foundFolders = folders,
+                        isLoading = false
+                    )
+                }
+            }
+        } catch (error: DriveApiException) {
+            val detail = error.userMessage()
+            val message = detail?.let { "Drive error ${error.code}: $it" } ?: "Drive error ${error.code}"
+            updateFolderState(isLoading = false, error = message)
+        } catch (error: DriveNetworkException) {
+            val message = error.description?.let { "Network error: $it" } ?: "Network error"
+            updateFolderState(isLoading = false, error = message)
+        } catch (_: Exception) {
+            updateFolderState(isLoading = false, error = "Failed to find folders")
+        }
+    }
+
+    private suspend fun createDriveFolderInternal(name: String, tokenOverride: String? = null) {
+        val token = tokenOverride ?: authManager.getAccessToken()
+        if (token.isNullOrBlank()) {
+            updateFolderState(error = "Sign in required", isLoading = false)
+            return
+        }
+        updateFolderState(isLoading = true, error = null)
+        try {
+            val folder = driveClient.createFolder(token, name, null)
+            syncRepository.resetForNewFolder(folder.id, folder.name)
+            refreshFolderMeta()
+            syncScheduler.syncNow()
+            updateFolderState(
+                isLoading = false,
+                showFolderConflictDialog = false,
+                foundFolders = emptyList(),
+                error = null
+            )
+        } catch (error: DriveApiException) {
+            val detail = error.userMessage()
+            val message = detail?.let { "Drive error ${error.code}: $it" } ?: "Drive error ${error.code}"
+            updateFolderState(isLoading = false, error = message)
+        } catch (error: DriveNetworkException) {
+            val message = error.description?.let { "Network error: $it" } ?: "Network error"
+            updateFolderState(isLoading = false, error = message)
+        } catch (_: Exception) {
+            updateFolderState(isLoading = false, error = "Failed to create folder")
+        }
+    }
+
+    private suspend fun selectDriveFolderInternal(folder: DriveFolder) {
+        updateFolderState(
+            showFolderConflictDialog = false,
+            foundFolders = emptyList(),
+            isLoading = false,
+            error = null
+        )
+        syncRepository.resetForNewFolder(folder.id, folder.name)
+        refreshFolderMeta()
+        syncScheduler.syncNow()
+    }
+
     private fun updateFolderState(
         folderId: String? = folderState.value.folderId,
         folderName: String? = folderState.value.folderName,
-        available: List<DriveFolder> = folderState.value.available,
+        foundFolders: List<DriveFolder> = folderState.value.foundFolders,
+        showFolderConflictDialog: Boolean = folderState.value.showConflictDialog,
         isLoading: Boolean = folderState.value.isLoading,
         error: String? = null
     ) {
         folderState.value = FolderState(
             folderId = folderId,
             folderName = folderName,
-            available = available,
+            foundFolders = foundFolders,
+            showConflictDialog = showFolderConflictDialog,
             isLoading = isLoading,
             errorMessage = error
         )
@@ -263,7 +327,8 @@ class SyncViewModel(
     private data class FolderState(
         val folderId: String? = null,
         val folderName: String? = null,
-        val available: List<DriveFolder> = emptyList(),
+        val foundFolders: List<DriveFolder> = emptyList(),
+        val showConflictDialog: Boolean = false,
         val isLoading: Boolean = false,
         val errorMessage: String? = null
     )

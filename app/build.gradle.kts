@@ -6,8 +6,6 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val drivePickerApiKey = project.findProperty("drivePickerApiKey") as String? ?: ""
-val drivePickerAppId = project.findProperty("drivePickerAppId") as String? ?: ""
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties()
 val hasKeystoreProperties = keystorePropertiesFile.exists()
@@ -25,8 +23,6 @@ android {
         targetSdk = 35
         versionCode = 6
         versionName = "1.5"
-        buildConfigField("String", "DRIVE_PICKER_API_KEY", "\"$drivePickerApiKey\"")
-        buildConfigField("String", "DRIVE_PICKER_APP_ID", "\"$drivePickerAppId\"")
     }
 
     val releaseSigning = if (hasKeystoreProperties) {

@@ -82,6 +82,11 @@
     <string name="action_drive_sign_out">Sign out</string>
     <string name="label_drive_folder">Drive folder</string>
     <string name="label_drive_folder_not_set">Folder not selected</string>
+    <string name="label_drive_folder_connected">Connected: %1$s</string>
+    <string name="label_drive_folder_searching">Searching...</string>
+    <string name="label_drive_folder_conflict_title">Found multiple folders "%1$s"</string>
+    <string name="action_drive_auto_connect">Find or create "%1$s"</string>
+    <string name="action_drive_disconnect_folder">Disconnect folder</string>
     <string name="action_drive_pick_existing">Choose existing</string>
     <string name="action_drive_create_new">Create new</string>
     <string name="label_drive_status">Status</string>
