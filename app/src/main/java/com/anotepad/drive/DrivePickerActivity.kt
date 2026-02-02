@@ -218,6 +218,8 @@ private fun buildPickerHtml(accessToken: String, apiKey: String, appId: String):
                   }
                 } else if (data.action === google.picker.Action.CANCEL) {
                   Android.onCancel();
+                } else if (data.action === google.picker.Action.AUTHFAILED) {
+                  Android.onError("Drive picker auth failed. Please sign in and grant access.");
                 }
               }
 
