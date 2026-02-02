@@ -179,19 +179,29 @@ class FileRepository(private val context: Context) {
     }
 
     suspend fun listFilesRecursive(dirTreeUri: Uri): List<DocumentNode> = withContext(Dispatchers.IO) {
-        val root = resolveDirDocumentFile(dirTreeUri) ?: return@withContext emptyList()
+        val (treeUri, rootDocId) = resolveTreeAndDocumentId(dirTreeUri) ?: return@withContext emptyList()
         val results = mutableListOf<DocumentNode>()
-        val stack = ArrayDeque<DocumentFile>()
-        stack.add(root)
+        val stack = ArrayDeque<String>()
+        stack.add(rootDocId)
         while (stack.isNotEmpty()) {
-            val current = stack.removeFirst()
-            current.listFiles().forEach { file ->
-                val name = file.name ?: return@forEach
-                if (file.isDirectory) {
-                    stack.add(file)
-                } else if (isSupportedExtension(name)) {
-                    results.add(DocumentNode(name = name, uri = file.uri, isDirectory = false))
+            val parentDocId = stack.removeFirst()
+            val queryOk = queryChildrenRaw(
+                treeUri = treeUri,
+                parentDocId = parentDocId
+            ) { docId, name, mimeType ->
+                if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    stack.add(docId)
+                    return@queryChildrenRaw true
                 }
+                if (!isSupportedExtension(name)) {
+                    return@queryChildrenRaw true
+                }
+                val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+                results.add(DocumentNode(name = name, uri = docUri, isDirectory = false))
+                true
+            }
+            if (!queryOk) {
+                continue
             }
         }
         results
@@ -504,6 +514,31 @@ class FileRepository(private val context: Context) {
                     isDirectory = mimeType == DocumentsContract.Document.MIME_TYPE_DIR
                 )
                 if (!onRow(node, mimeType)) return true
+            }
+        } ?: return false
+        return true
+    }
+
+    private suspend fun queryChildrenRaw(
+        treeUri: Uri,
+        parentDocId: String,
+        onRow: suspend (docId: String, name: String, mimeType: String) -> Boolean
+    ): Boolean {
+        val childUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE
+        )
+        resolver.query(childUri, projection, null, null, null)?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            while (cursor.moveToNext()) {
+                val docId = cursor.getString(idCol) ?: continue
+                val name = cursor.getString(nameCol) ?: continue
+                val mimeType = cursor.getString(mimeCol) ?: ""
+                if (!onRow(docId, name, mimeType)) return true
             }
         } ?: return false
         return true
