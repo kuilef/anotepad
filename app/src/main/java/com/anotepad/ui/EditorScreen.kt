@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.widget.EditText
 import android.view.inputmethod.InputMethodManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,6 +84,19 @@ fun EditorScreen(
     var lastCursorToken by remember { mutableStateOf<Long?>(null) }
     var backInProgress by remember { mutableStateOf(false) }
     var linkifyJob by remember { mutableStateOf<Job?>(null) }
+
+    fun triggerBack() {
+        if (backInProgress) return
+        backInProgress = true
+        scope.launch {
+            val result = viewModel.saveAndGetResult()
+            onBack(result)
+        }
+    }
+
+    BackHandler(enabled = !backInProgress) {
+        triggerBack()
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -187,12 +201,7 @@ fun EditorScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            if (backInProgress) return@IconButton
-                            backInProgress = true
-                            scope.launch {
-                                val result = viewModel.saveAndGetResult()
-                                onBack(result)
-                            }
+                            triggerBack()
                         },
                         enabled = !backInProgress
                     ) {
