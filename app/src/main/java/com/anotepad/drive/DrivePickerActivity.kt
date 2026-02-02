@@ -3,6 +3,8 @@ package com.anotepad.drive
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
@@ -191,23 +193,27 @@ private class PickerBridge(
     private val onCancel: () -> Unit,
     private val onError: (String) -> Unit
 ) {
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     @JavascriptInterface
     fun onPicked(id: String?, name: String?) {
-        if (id.isNullOrBlank()) {
-            onError("Drive picker returned empty id")
-            return
+        mainHandler.post {
+            if (id.isNullOrBlank()) {
+                onError("Drive picker returned empty id")
+                return@post
+            }
+            onPicked(id, name)
         }
-        onPicked(id, name)
     }
 
     @JavascriptInterface
     fun onCancel() {
-        onCancel()
+        mainHandler.post { onCancel() }
     }
 
     @JavascriptInterface
     fun onError(message: String?) {
-        onError(message ?: "Drive picker error")
+        mainHandler.post { onError(message ?: "Drive picker error") }
     }
 }
 
