@@ -30,7 +30,7 @@ class SyncScheduler(
             .setInitialDelay(DEBOUNCE_SECONDS, TimeUnit.SECONDS)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
-        workManager.enqueueUniqueWork(WORK_SYNC_NOW, ExistingWorkPolicy.REPLACE, request)
+        workManager.enqueueUniqueWork(WORK_SYNC_AUTO, ExistingWorkPolicy.REPLACE, request)
         syncRepository.setSyncStatus(SyncState.PENDING, "Waiting for sync")
     }
 
@@ -38,7 +38,8 @@ class SyncScheduler(
         val prefs = preferencesRepository.preferencesFlow.first()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused) {
             workManager.cancelUniqueWork(WORK_SYNC_PERIODIC)
-            workManager.cancelUniqueWork(WORK_SYNC_NOW)
+            workManager.cancelUniqueWork(WORK_SYNC_AUTO)
+            workManager.cancelUniqueWork(WORK_SYNC_MANUAL)
             return
         }
         val constraints = buildConstraints(prefs, manual = false)
@@ -57,7 +58,7 @@ class SyncScheduler(
             .setConstraints(constraints)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
-        workManager.enqueueUniqueWork(WORK_SYNC_NOW, ExistingWorkPolicy.REPLACE, request)
+        workManager.enqueueUniqueWork(WORK_SYNC_MANUAL, ExistingWorkPolicy.REPLACE, request)
         syncRepository.setSyncStatus(SyncState.PENDING, "Sync scheduled")
     }
 
@@ -79,7 +80,8 @@ class SyncScheduler(
     }
 
     companion object {
-        private const val WORK_SYNC_NOW = "drive_sync_now"
+        private const val WORK_SYNC_AUTO = "drive_sync_auto"
+        private const val WORK_SYNC_MANUAL = "drive_sync_manual"
         private const val WORK_SYNC_PERIODIC = "drive_sync_periodic"
         private const val DEBOUNCE_SECONDS = 10L
         private const val PERIODIC_HOURS = 8L
