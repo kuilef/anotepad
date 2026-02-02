@@ -58,8 +58,8 @@ class SyncScheduler(
             .setConstraints(constraints)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
-        workManager.enqueueUniqueWork(WORK_SYNC_MANUAL, ExistingWorkPolicy.REPLACE, request)
         syncRepository.setSyncStatus(SyncState.PENDING, "Sync scheduled")
+        workManager.enqueueUniqueWork(WORK_SYNC_MANUAL, ExistingWorkPolicy.REPLACE, request)
     }
 
     private fun buildConstraints(prefs: com.anotepad.data.AppPreferences, manual: Boolean): Constraints {
