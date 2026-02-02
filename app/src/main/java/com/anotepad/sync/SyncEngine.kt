@@ -41,9 +41,13 @@ class SyncEngine(
         syncRepository.setSyncStatus(SyncState.RUNNING, "Syncing...")
 
         val folderId = ensureDriveFolder(token, prefs)
-
-        pushLocalChanges(token, prefs, rootUri, folderId)
-        pullRemoteChanges(token, prefs, rootUri, folderId)
+        val startToken = syncRepository.getStartPageToken()
+        if (startToken.isNullOrBlank()) {
+            initialSync(token, rootUri, folderId)
+        } else {
+            pushLocalChanges(token, prefs, rootUri, folderId)
+            pullRemoteChanges(token, prefs, rootUri, folderId)
+        }
 
         syncRepository.setSyncStatus(
             SyncState.SYNCED,
@@ -62,6 +66,149 @@ class SyncEngine(
         syncRepository.setDriveFolderId(folder.id)
         syncRepository.setDriveFolderName(folder.name)
         return folder.id
+    }
+
+    private suspend fun initialSync(
+        token: String,
+        rootUri: Uri,
+        driveFolderId: String
+    ) {
+        val remoteFiles = indexRemoteFiles(token, driveFolderId)
+        val localFiles = fileRepository.listFilesRecursive(rootUri)
+        val localMap = mutableMapOf<String, LocalFileMeta>()
+        for (node in localFiles) {
+            val relativePath = fileRepository.getRelativePath(rootUri, node.uri) ?: continue
+            val lastModified = fileRepository.getLastModified(node.uri) ?: 0L
+            val size = fileRepository.getSize(node.uri) ?: 0L
+            localMap[relativePath] = LocalFileMeta(node.uri, lastModified, size)
+        }
+
+        for ((path, meta) in localMap) {
+            val remoteFile = remoteFiles.remove(path)
+            if (remoteFile == null) {
+                val created = uploadLocalFile(token, driveFolderId, path, meta, null)
+                val localHash = computeHashIfNeeded(null, meta)
+                syncRepository.upsertItem(
+                    SyncItemEntity(
+                        localRelativePath = path,
+                        localLastModified = meta.lastModified,
+                        localSize = meta.size,
+                        localHash = localHash,
+                        driveFileId = created.id,
+                        driveModifiedTime = created.modifiedTime,
+                        lastSyncedAt = System.currentTimeMillis(),
+                        syncState = SyncItemState.SYNCED.name,
+                        lastError = null
+                    )
+                )
+                continue
+            }
+
+            val remoteModified = remoteFile.modifiedTime ?: 0L
+            if (meta.lastModified >= remoteModified) {
+                val updated = uploadLocalFile(token, driveFolderId, path, meta, remoteFile.id)
+                val localHash = computeHashIfNeeded(null, meta)
+                syncRepository.upsertItem(
+                    SyncItemEntity(
+                        localRelativePath = path,
+                        localLastModified = meta.lastModified,
+                        localSize = meta.size,
+                        localHash = localHash,
+                        driveFileId = updated.id,
+                        driveModifiedTime = updated.modifiedTime,
+                        lastSyncedAt = System.currentTimeMillis(),
+                        syncState = SyncItemState.SYNCED.name,
+                        lastError = null
+                    )
+                )
+            } else {
+                pullFileIfNeeded(
+                    token = token,
+                    rootUri = rootUri,
+                    relativePath = path,
+                    remoteFile = remoteFile,
+                    suppressLocalConflict = true
+                )
+            }
+        }
+
+        for ((path, remoteFile) in remoteFiles) {
+            pullFileIfNeeded(
+                token = token,
+                rootUri = rootUri,
+                relativePath = path,
+                remoteFile = remoteFile,
+                suppressLocalConflict = true
+            )
+        }
+
+        val freshToken = driveClient.getStartPageToken(token)
+        syncRepository.setStartPageToken(freshToken)
+        syncRepository.setLastFullScanAt(System.currentTimeMillis())
+    }
+
+    private suspend fun indexRemoteFiles(
+        token: String,
+        driveFolderId: String
+    ): MutableMap<String, DriveFile> {
+        val remoteFiles = mutableMapOf<String, DriveFile>()
+        val queue = ArrayDeque<DriveFolderNode>()
+        queue.add(DriveFolderNode(driveFolderId, ""))
+        while (queue.isNotEmpty()) {
+            val current = queue.removeFirst()
+            var pageToken: String? = null
+            do {
+                val list = driveClient.listChildren(token, current.id, pageToken)
+                for (file in list.items) {
+                    if (file.mimeType == DRIVE_FOLDER_MIME) {
+                        val nextPath = if (current.relativePath.isBlank()) {
+                            file.name
+                        } else {
+                            "${current.relativePath}/${file.name}"
+                        }
+                        syncRepository.upsertFolder(nextPath, file.id)
+                        queue.add(DriveFolderNode(file.id, nextPath))
+                    } else if (isSupportedNote(file.name)) {
+                        val relativePath = if (current.relativePath.isBlank()) {
+                            file.name
+                        } else {
+                            "${current.relativePath}/${file.name}"
+                        }
+                        val existing = remoteFiles[relativePath]
+                        val existingModified = existing?.modifiedTime ?: 0L
+                        val candidateModified = file.modifiedTime ?: 0L
+                        if (existing == null || candidateModified >= existingModified) {
+                            remoteFiles[relativePath] = file
+                        }
+                    }
+                }
+                pageToken = list.nextPageToken
+            } while (!pageToken.isNullOrBlank())
+        }
+        return remoteFiles
+    }
+
+    private suspend fun uploadLocalFile(
+        token: String,
+        driveFolderId: String,
+        relativePath: String,
+        meta: LocalFileMeta,
+        driveFileId: String?
+    ): DriveFile {
+        val parentId = ensureDriveFolderForPath(token, driveFolderId, relativePath)
+        val name = relativePath.substringAfterLast('/')
+        val mimeType = fileRepository.guessMimeType(name)
+        val appProps = mapOf("localRelativePath" to relativePath)
+        return driveClient.createOrUpdateFile(
+            token = token,
+            fileId = driveFileId,
+            name = name,
+            parentId = parentId,
+            mimeType = mimeType,
+            contentLength = meta.size,
+            contentProvider = { fileRepository.openInputStream(meta.uri) },
+            appProperties = appProps
+        )
     }
 
     private suspend fun pushLocalChanges(

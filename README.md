@@ -21,7 +21,54 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 - **Editor**: `EditorViewModel` keeps state, performs debounced auto-save, creates a new file on first save, and optionally renames the file based on the first line (sync title).
 - **Search**: `SearchViewModel` walks the tree, reads each note, and matches either a plain query or a regex; results include a short snippet.
 - **Templates & preferences**: templates and settings live in DataStore; templates can format current time or auto-numbered items.
-- **Drive sync**: WorkManager runs a periodic sync (every 8 hours) and schedules a debounced sync about 45 seconds after local saves. Sync respects Wi-Fi/charging/battery constraints and can be triggered manually from settings.
+- **Drive sync**: WorkManager runs a periodic sync (every 8 hours) and schedules a debounced sync about 45 seconds after local saves. Sync respects Wi-Fi/charging/battery constraints, auto-selects a Drive folder by name, and can be triggered manually from settings.
+
+## Google Drive sync (detailed)
+
+### Folder selection
+- Sign in with Google.
+- The app searches the root of Google Drive for a folder with the configured name (default: `Anotepad`).
+- If exactly one folder is found, it is connected automatically.
+- If none are found, a new folder is created.
+- If multiple folders are found, the app shows a native list and the user chooses one.
+- The chosen folder ID and name are stored locally; the user can disconnect and re-run auto-setup.
+
+### Local metadata
+The app maintains a small local sync database:
+- `sync_items`: local relative path, Drive file ID, hashes, last modified, last sync time, and state.
+- `sync_folders`: mapping of local folder paths to Drive folder IDs.
+- `sync_meta`: metadata such as the Drive `startPageToken` and timestamps for full scans.
+
+Each uploaded Drive file stores `appProperties.localRelativePath` so the app can map Drive changes back to local paths.
+
+### Sync algorithm
+Sync runs on a manual tap, on a debounced schedule after local edits, and on a periodic WorkManager job.
+
+1) **Pre-checks**
+- Sync is skipped if it is disabled or paused.
+- A local root folder and a valid Google account are required.
+
+2) **Ensure Drive folder**
+- If a Drive folder ID is not stored yet, the app creates the folder (or reuses one from auto-setup) and stores the ID.
+
+3) **Initial sync (first run or after reset)**
+When there is no saved `startPageToken`, the app performs a one-time bootstrap:
+- **Remote scan**: walk the Drive folder tree and build a map of `relative path -> Drive file`.
+- **Merge by timestamp**:
+  - Local only: upload to Drive (creates a new Drive file).
+  - Remote only: download to local.
+  - Both exist: compare timestamps. If local is newer, update the existing Drive file; if Drive is newer, overwrite the local file.
+- Store a fresh `startPageToken` for incremental changes going forward.
+
+This prevents duplicate files on Drive when local files already exist.
+
+4) **Regular sync (incremental)**
+- **Push local changes**: upload modified files, create missing files, and optionally trash/delete Drive files that were removed locally (policy-driven).
+- **Pull remote changes**: use the Drive Changes API with `startPageToken` to apply adds/updates/moves/deletes. Folder moves are reflected locally.
+
+### Conflicts and deletes
+- If the same file changed both locally and remotely since the last sync, the app writes a `conflict ...` copy to avoid data loss.
+- Remote deletions are ignored when "Ignore deletions from Drive" is enabled.
 
 ## Limitations
 - No encrypted file support (unlike Tombo).
