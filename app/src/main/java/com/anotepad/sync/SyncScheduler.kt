@@ -79,7 +79,7 @@ class SyncScheduler(
     companion object {
         private const val WORK_SYNC_NOW = "drive_sync_now"
         private const val WORK_SYNC_PERIODIC = "drive_sync_periodic"
-        private const val DEBOUNCE_SECONDS = 45L
+        private const val DEBOUNCE_SECONDS = 10L
         private const val PERIODIC_HOURS = 8L
     }
 }
