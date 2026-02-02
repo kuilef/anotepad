@@ -17,6 +17,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.annotation.Keep
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -188,7 +189,8 @@ private fun DrivePickerWebView(
     )
 }
 
-private class PickerBridge(
+@Keep
+class PickerBridge(
     private val onPicked: (String, String?) -> Unit,
     private val onCancel: () -> Unit,
     private val onError: (String) -> Unit
