@@ -15,6 +15,7 @@ import com.anotepad.sync.SyncScheduler
 import com.anotepad.sync.SyncState
 import com.anotepad.sync.userMessage
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -93,8 +94,10 @@ class SyncViewModel(
             GoogleSignIn.getSignedInAccountFromIntent(data).getResult(ApiException::class.java)
             updateFolderState(error = null)
             refreshAuthState()
-        } catch (_: ApiException) {
-            updateFolderState(error = "Sign-in failed")
+        } catch (error: ApiException) {
+            val status = error.statusCode
+            val statusText = GoogleSignInStatusCodes.getStatusCodeString(status)
+            updateFolderState(error = "Sign-in failed: $statusText ($status)")
             refreshAuthState()
         }
     }
