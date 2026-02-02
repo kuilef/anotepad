@@ -3,6 +3,7 @@ package com.anotepad.drive
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -130,6 +131,10 @@ private fun DrivePickerWebView(
             WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                settings.javaScriptCanOpenWindowsAutomatically = true
+                val cookieManager = CookieManager.getInstance()
+                cookieManager.setAcceptCookie(true)
+                cookieManager.setAcceptThirdPartyCookies(this, true)
                 webChromeClient = WebChromeClient()
                 webViewClient = WebViewClient()
                 addJavascriptInterface(PickerBridge(onPicked, onCancel, onError), "Android")
