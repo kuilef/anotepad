@@ -16,15 +16,15 @@ if (hasKeystoreProperties) {
 }
 
 android {
-    namespace = "com.kuilef.anotepad"
+    namespace = "com.anotepad"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.kuilef.anotepad"
+        applicationId = "com.anotepad"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.4"
+        versionCode = 6
+        versionName = "1.5"
         buildConfigField("String", "DRIVE_PICKER_API_KEY", "\"$drivePickerApiKey\"")
         buildConfigField("String", "DRIVE_PICKER_APP_ID", "\"$drivePickerAppId\"")
     }
