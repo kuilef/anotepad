@@ -242,7 +242,12 @@ fun EditorScreen(
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { context ->
-                    EditText(context).apply {
+                    object : EditText(context) {
+                        override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+                            super.onSelectionChanged(selStart, selEnd)
+                            ensureCursorVisible(this, allowPost = false)
+                        }
+                    }.apply {
                         setText(state.text)
                         setBackgroundColor(backgroundColor)
                         setTextColor(textColor)
@@ -288,6 +293,7 @@ fun EditorScreen(
                                 }
                                 pendingSnapshot = null
                                 viewModel.updateText(s?.toString().orEmpty())
+                                ensureCursorVisible(this@apply, allowPost = true)
                             }
                         })
                         setOnKeyListener { _, keyCode, event ->
@@ -349,6 +355,7 @@ fun EditorScreen(
                     val visibleHeight = editText.height - editText.paddingTop - editText.paddingBottom
                     val contentHeight = editText.lineCount * editText.lineHeight
                     editText.isVerticalScrollBarEnabled = visibleHeight > 0 && contentHeight > visibleHeight
+                    ensureCursorVisible(editText, allowPost = false)
                 }
             )
             UndoRedoBar(
@@ -437,6 +444,24 @@ private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: 
                 spans.forEach { text.removeSpan(it) }
             }
         }
+    }
+}
+
+private fun ensureCursorVisible(editText: EditText, allowPost: Boolean) {
+    val layout = editText.layout
+    val visibleHeight = editText.height - editText.paddingTop - editText.paddingBottom
+    if (layout == null || visibleHeight <= 0) {
+        if (allowPost) {
+            editText.post { ensureCursorVisible(editText, allowPost = false) }
+        }
+        return
+    }
+    val selection = editText.selectionStart.coerceAtLeast(0)
+    val line = layout.getLineForOffset(selection)
+    val lineBottom = layout.getLineBottom(line)
+    val visibleBottom = editText.scrollY + visibleHeight
+    if (lineBottom > visibleBottom) {
+        editText.scrollTo(0, lineBottom - visibleHeight)
     }
 }
 
