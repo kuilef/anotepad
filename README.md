@@ -103,4 +103,4 @@ This prevents duplicate files on Drive when local files already exist.
 ```
 
 ## Privacy policy link
-http://anotepad.tirmudam.org/PRIVACY_POLICY
+<a href="https://anotepad.tirmudam.org/PRIVACY_POLICY">https://anotepad.tirmudam.org/PRIVACY_POLICY</a>
