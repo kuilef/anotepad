@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -41,9 +42,12 @@ fun ANotepadTheme(
     val view = LocalView.current
 
     SideEffect {
-        val window = WindowCompat.getInsetsController(view.context.findActivity().window, view)
+        val activity = view.context.findActivity()
+        val window = activity.window
+        val insetsController = WindowCompat.getInsetsController(window, view)
         val useDarkIcons = colors.surface.luminance() > 0.5f
-        window.isAppearanceLightStatusBars = useDarkIcons
+        window.statusBarColor = colors.surface.toArgb()
+        insetsController.isAppearanceLightStatusBars = useDarkIcons
     }
 
     MaterialTheme(
