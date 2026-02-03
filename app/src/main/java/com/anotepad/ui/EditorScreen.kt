@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -239,7 +238,6 @@ fun EditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .imePadding()
         ) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
@@ -262,6 +260,7 @@ fun EditorScreen(
                         scrollBarSize = (2f * density).roundToInt()
                         isScrollbarFadingEnabled = true
                         movementMethod = LinkMovementMethod.getInstance()
+                        val editText = this
                         addTextChangedListener(object : TextWatcher {
                             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
                                 if (ignoreChanges || ignoreHistory) {
@@ -290,6 +289,10 @@ fun EditorScreen(
                                 }
                                 pendingSnapshot = null
                                 viewModel.updateText(s?.toString().orEmpty())
+                                editText.post {
+                                    val position = editText.selectionStart.coerceAtLeast(0)
+                                    editText.bringPointIntoView(position)
+                                }
                             }
                         })
                         setOnKeyListener { _, keyCode, event ->
@@ -336,9 +339,22 @@ fun EditorScreen(
                     }
                     editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
                     editText.setBackgroundColor(backgroundColor)
-                    val availableHeight = editText.height - editText.paddingTop - editText.paddingBottom
+                    val density = editText.resources.displayMetrics.density
+                    val basePaddingPx = (4f * density).roundToInt()
+                    val viewportHeight = editText.height - basePaddingPx * 2
+                    val extraBottom = (viewportHeight - editText.lineHeight).coerceAtLeast(0)
+                    val targetBottom = basePaddingPx + extraBottom
+                    if (
+                        editText.paddingLeft != basePaddingPx ||
+                        editText.paddingTop != basePaddingPx ||
+                        editText.paddingRight != basePaddingPx ||
+                        editText.paddingBottom != targetBottom
+                    ) {
+                        editText.setPadding(basePaddingPx, basePaddingPx, basePaddingPx, targetBottom)
+                    }
+                    val visibleHeight = editText.height - editText.paddingTop - editText.paddingBottom
                     val contentHeight = editText.lineCount * editText.lineHeight
-                    editText.isVerticalScrollBarEnabled = availableHeight > 0 && contentHeight > availableHeight
+                    editText.isVerticalScrollBarEnabled = visibleHeight > 0 && contentHeight > visibleHeight
                 }
             )
             UndoRedoBar(
