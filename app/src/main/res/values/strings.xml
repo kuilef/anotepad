@@ -75,7 +75,7 @@
     <string name="label_main_folder_not_set">No folder selected</string>
     <string name="label_drive_sync_title">Google Drive Sync</string>
     <string name="label_drive_sync_enabled">Sync with Google Drive</string>
-    <string name="label_drive_sync_hint">Auto sync: every 8 hours or within 15 min after saving. Sync is urgent, not instant.</string>
+    <string name="label_drive_sync_hint">Auto sync: every 8 hours and within 15 min after saving. Sync is urgent, not instant.</string>
     <string name="label_drive_account">Account</string>
     <string name="label_drive_signed_out">Not signed in</string>
     <string name="action_drive_sign_in">Sign in</string>
@@ -92,8 +92,6 @@
     <string name="label_drive_status">Status</string>
     <string name="action_drive_sync_now">Sync</string>
     <string name="label_drive_constraints">Resources</string>
-    <string name="label_drive_wifi_only">Only on Wi-Fi</string>
-    <string name="label_drive_charging_only">Only while charging</string>
     <string name="label_drive_pause_sync">Pause sync</string>
     <string name="label_drive_ignore_deletes">Ignore deletions from Drive</string>
     <string name="label_drive_pick_folder">Pick Drive folder</string>

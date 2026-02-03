@@ -189,16 +189,6 @@ fun SyncScreen(viewModel: SyncViewModel, onBack: () -> Unit) {
 
             SectionHeader(text = stringResource(id = R.string.label_drive_constraints))
             SyncToggleRow(
-                title = stringResource(id = R.string.label_drive_wifi_only),
-                checked = state.prefs.driveSyncWifiOnly,
-                onToggle = viewModel::setWifiOnly
-            )
-            SyncToggleRow(
-                title = stringResource(id = R.string.label_drive_charging_only),
-                checked = state.prefs.driveSyncChargingOnly,
-                onToggle = viewModel::setChargingOnly
-            )
-            SyncToggleRow(
                 title = stringResource(id = R.string.label_drive_pause_sync),
                 checked = state.prefs.driveSyncPaused,
                 onToggle = viewModel::setPaused
