@@ -260,6 +260,7 @@ fun EditorScreen(
                         scrollBarSize = (2f * density).roundToInt()
                         isScrollbarFadingEnabled = true
                         movementMethod = LinkMovementMethod.getInstance()
+                        val editText = this
                         addTextChangedListener(object : TextWatcher {
                             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
                                 if (ignoreChanges || ignoreHistory) {
@@ -288,6 +289,9 @@ fun EditorScreen(
                                 }
                                 pendingSnapshot = null
                                 viewModel.updateText(s?.toString().orEmpty())
+                                if (!adjustScrollForCursor(editText)) {
+                                    editText.post { adjustScrollForCursor(editText) }
+                                }
                             }
                         })
                         setOnKeyListener { _, keyCode, event ->
@@ -428,6 +432,22 @@ private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: 
     }
 }
 
+private fun adjustScrollForCursor(editText: EditText): Boolean {
+    val layout = editText.layout ?: return false
+    val visibleHeight = editText.height - editText.paddingTop - editText.paddingBottom
+    if (visibleHeight <= 0) return false
+    val selection = editText.selectionStart.coerceAtLeast(0)
+    val line = layout.getLineForOffset(selection)
+    val lineBottom = layout.getLineBottom(line)
+    val visibleBottom = editText.scrollY + visibleHeight
+    val buffer = editText.lineHeight * CURSOR_SCROLL_BUFFER_LINES
+    val desiredBottom = visibleBottom - buffer
+    if (lineBottom > desiredBottom) {
+        editText.scrollBy(0, lineBottom - desiredBottom)
+    }
+    return true
+}
+
 private fun focusAndShowKeyboard(editText: EditText) {
     editText.requestFocus()
     editText.post {
@@ -439,3 +459,4 @@ private fun focusAndShowKeyboard(editText: EditText) {
 
 private const val UNDO_HISTORY_LIMIT = 200
 private const val LINKIFY_DEBOUNCE_MS = 250L
+private const val CURSOR_SCROLL_BUFFER_LINES = 2
