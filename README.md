@@ -4,7 +4,6 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 
 ## Features and advantages
 - Synchronization with **Google Drive**
-- Drive sync controls: Wi‑Fi only, charging only, pause, ignore remote deletes, and manual sync.
 - **Undo/redo controls**: on-screen undo/redo buttons (Ctrl+Z / Ctrl+Shift+Z); redo is available only after an undo.
 - Folder-based workflow: pick a root directory and browse subfolders; create folders and notes inside it.
 - Plain-text first: supports `.txt` and `.md` and keeps notes readable outside the app.
