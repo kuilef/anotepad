@@ -133,23 +133,18 @@ class FileRepository(private val context: Context) {
             val sortedDirs = sortByName(dirs, sortOrder)
             val sortedFiles = sortByName(files, sortOrder)
             val combined = sortedDirs + sortedFiles
-            storeCachedList(cacheKey, combined)
             for (node in combined) {
                 batch.add(node)
                 emitBatch(force = false)
             }
             emitBatch(force = true)
             emit(ChildBatch(emptyList(), true))
+            storeCachedList(cacheKey, collected)
             return@flow
         }
 
-        for (node in dirBuffer) {
-            batch.add(node)
-            emitBatch(force = false)
-        }
-        emitBatch(force = true)
-
         val selectionFiles = "$mimeTypeColumn != ?"
+        val filesBuffer = mutableListOf<DocumentNode>()
         queryChildren(
             treeUri = treeUri,
             parentDocId = parentDocId,
@@ -163,11 +158,17 @@ class FileRepository(private val context: Context) {
             if (!isSupportedExtension(node.name)) {
                 return@queryChildren true
             }
-            batch.add(node)
-            emitBatch(force = false)
+            filesBuffer.add(node)
             true
         }
 
+        val sortedDirs = sortByName(dirBuffer, sortOrder)
+        val sortedFiles = sortByName(filesBuffer, sortOrder)
+        val combined = sortedDirs + sortedFiles
+        for (node in combined) {
+            batch.add(node)
+            emitBatch(force = false)
+        }
         emitBatch(force = true)
         emit(ChildBatch(emptyList(), true))
         storeCachedList(cacheKey, collected)
@@ -545,11 +546,84 @@ class FileRepository(private val context: Context) {
     }
 
     private fun sortByName(entries: List<DocumentNode>, order: FileSortOrder): List<DocumentNode> {
-        val comparator = compareBy<DocumentNode> { it.name.lowercase(Locale.getDefault()) }
+        val comparator = Comparator<DocumentNode> { left, right ->
+            compareNamesNatural(left.name, right.name)
+        }
         return when (order) {
             FileSortOrder.NAME_DESC -> entries.sortedWith(comparator.reversed())
             FileSortOrder.NAME_ASC -> entries.sortedWith(comparator)
         }
+    }
+
+    private fun compareNamesNatural(left: String, right: String): Int {
+        if (left == right) return 0
+        val locale = Locale.getDefault()
+        var leftIndex = 0
+        var rightIndex = 0
+        val leftLength = left.length
+        val rightLength = right.length
+
+        while (leftIndex < leftLength && rightIndex < rightLength) {
+            val leftChar = left[leftIndex]
+            val rightChar = right[rightIndex]
+            val leftIsDigit = leftChar.isDigit()
+            val rightIsDigit = rightChar.isDigit()
+
+            if (leftIsDigit && rightIsDigit) {
+                val leftStart = leftIndex
+                val rightStart = rightIndex
+                while (leftIndex < leftLength && left[leftIndex].isDigit()) leftIndex++
+                while (rightIndex < rightLength && right[rightIndex].isDigit()) rightIndex++
+                val leftRun = left.substring(leftStart, leftIndex)
+                val rightRun = right.substring(rightStart, rightIndex)
+                val leftTrim = leftRun.trimStart('0').ifEmpty { "0" }
+                val rightTrim = rightRun.trimStart('0').ifEmpty { "0" }
+                if (leftTrim.length != rightTrim.length) {
+                    return leftTrim.length - rightTrim.length
+                }
+                val numberCmp = leftTrim.compareTo(rightTrim)
+                if (numberCmp != 0) {
+                    return numberCmp
+                }
+                val zeroCmp = leftRun.length - rightRun.length
+                if (zeroCmp != 0) {
+                    return zeroCmp
+                }
+                continue
+            }
+
+            if (!leftIsDigit && !rightIsDigit) {
+                val leftStart = leftIndex
+                val rightStart = rightIndex
+                while (leftIndex < leftLength && !left[leftIndex].isDigit()) leftIndex++
+                while (rightIndex < rightLength && !right[rightIndex].isDigit()) rightIndex++
+                val leftRun = left.substring(leftStart, leftIndex)
+                val rightRun = right.substring(rightStart, rightIndex)
+                val leftLower = leftRun.lowercase(locale)
+                val rightLower = rightRun.lowercase(locale)
+                val textCmp = leftLower.compareTo(rightLower)
+                if (textCmp != 0) {
+                    return textCmp
+                }
+                val caseCmp = leftRun.compareTo(rightRun)
+                if (caseCmp != 0) {
+                    return caseCmp
+                }
+                continue
+            }
+
+            val lowerCmp = leftChar.lowercaseChar().compareTo(rightChar.lowercaseChar())
+            if (lowerCmp != 0) {
+                return lowerCmp
+            }
+            val caseCmp = leftChar.compareTo(rightChar)
+            if (caseCmp != 0) {
+                return caseCmp
+            }
+            leftIndex++
+            rightIndex++
+        }
+        return leftLength - rightLength
     }
 
     private fun getCachedList(key: ListCacheKey): List<DocumentNode>? {
