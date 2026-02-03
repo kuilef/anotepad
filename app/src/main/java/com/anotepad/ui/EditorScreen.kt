@@ -211,20 +211,29 @@ fun EditorScreen(
                     }
                 },
                 actions = {
-                    Box {
-                        IconButton(onClick = { viewModel.saveNow(manual = state.fileUri != null) }) {
-                            Icon(
-                                Icons.Default.Save,
-                                contentDescription = stringResource(id = R.string.action_save)
-                            )
-                        }
-                        if (showSavedBubble) {
-                            SavedBubble(
-                                text = savedMessage,
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .offset(x = (-8).dp, y = 16.dp)
-                            )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        UndoRedoBar(
+                            canUndo = undoStack.isNotEmpty(),
+                            canRedo = redoStack.isNotEmpty(),
+                            onUndo = ::performUndo,
+                            onRedo = ::performRedo,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Box {
+                            IconButton(onClick = { viewModel.saveNow(manual = state.fileUri != null) }) {
+                                Icon(
+                                    Icons.Default.Save,
+                                    contentDescription = stringResource(id = R.string.action_save)
+                                )
+                            }
+                            if (showSavedBubble) {
+                                SavedBubble(
+                                    text = savedMessage,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .offset(x = (-8).dp, y = 16.dp)
+                                )
+                            }
                         }
                     }
                 },
@@ -357,15 +366,6 @@ fun EditorScreen(
                     editText.isVerticalScrollBarEnabled = visibleHeight > 0 && contentHeight > visibleHeight
                     ensureCursorVisible(editText, allowPost = false)
                 }
-            )
-            UndoRedoBar(
-                canUndo = undoStack.isNotEmpty(),
-                canRedo = redoStack.isNotEmpty(),
-                onUndo = ::performUndo,
-                onRedo = ::performRedo,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 8.dp, bottom = 8.dp)
             )
         }
     }
