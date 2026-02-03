@@ -102,3 +102,6 @@ This prevents duplicate files on Drive when local files already exist.
 ```bash
 ./gradlew installDebug
 ```
+
+## Privacy policy link
+http://anotepad.tirmudam.org/PRIVACY_POLICY
