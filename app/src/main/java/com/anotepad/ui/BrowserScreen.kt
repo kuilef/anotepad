@@ -213,10 +213,6 @@ fun BrowserScreen(
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             Text(
-                                text = stringResource(id = R.string.label_current_folder),
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                            Text(
                                 text = path,
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 2,
