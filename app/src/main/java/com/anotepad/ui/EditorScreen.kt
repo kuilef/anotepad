@@ -6,7 +6,6 @@ import android.text.InputType
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
 import android.text.util.Linkify
-import android.text.style.LineHeightSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
@@ -261,10 +260,6 @@ fun EditorScreen(
                         scrollBarSize = (2f * density).roundToInt()
                         isScrollbarFadingEnabled = true
                         movementMethod = LinkMovementMethod.getInstance()
-                        val editText = this
-                        addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                            updateLastLineSpacer(editText)
-                        }
                         addTextChangedListener(object : TextWatcher {
                             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
                                 if (ignoreChanges || ignoreHistory) {
@@ -293,11 +288,6 @@ fun EditorScreen(
                                 }
                                 pendingSnapshot = null
                                 viewModel.updateText(s?.toString().orEmpty())
-                                editText.post {
-                                    val position = editText.selectionStart.coerceAtLeast(0)
-                                    editText.bringPointIntoView(position)
-                                    updateLastLineSpacer(editText)
-                                }
                             }
                         })
                         setOnKeyListener { _, keyCode, event ->
@@ -344,20 +334,9 @@ fun EditorScreen(
                     }
                     editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
                     editText.setBackgroundColor(backgroundColor)
-                    val density = editText.resources.displayMetrics.density
-                    val basePaddingPx = (4f * density).roundToInt()
-                    if (
-                        editText.paddingLeft != basePaddingPx ||
-                        editText.paddingTop != basePaddingPx ||
-                        editText.paddingRight != basePaddingPx ||
-                        editText.paddingBottom != basePaddingPx
-                    ) {
-                        editText.setPadding(basePaddingPx, basePaddingPx, basePaddingPx, basePaddingPx)
-                    }
                     val visibleHeight = editText.height - editText.paddingTop - editText.paddingBottom
                     val contentHeight = editText.lineCount * editText.lineHeight
                     editText.isVerticalScrollBarEnabled = visibleHeight > 0 && contentHeight > visibleHeight
-                    editText.post { updateLastLineSpacer(editText) }
                 }
             )
             UndoRedoBar(
@@ -446,40 +425,6 @@ private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: 
                 spans.forEach { text.removeSpan(it) }
             }
         }
-    }
-}
-
-private fun updateLastLineSpacer(editText: EditText) {
-    val layout = editText.layout ?: return
-    val text = editText.text ?: return
-    val length = text.length
-    if (length == 0) return
-    val availableHeight = editText.height - editText.paddingTop - editText.paddingBottom
-    if (availableHeight <= 0) return
-    val extra = (availableHeight - editText.lineHeight).coerceAtLeast(0)
-    val existing = text.getSpans(0, length, LastLineSpacerSpan::class.java)
-    existing.forEach { text.removeSpan(it) }
-    if (extra == 0) return
-    val lastLine = layout.lineCount - 1
-    if (lastLine < 0) return
-    val lineEnd = layout.getLineEnd(lastLine).coerceAtMost(length)
-    val spanEnd = lineEnd.coerceAtLeast(1)
-    val spanStart = (spanEnd - 1).coerceAtLeast(0)
-    text.setSpan(LastLineSpacerSpan(extra), spanStart, spanEnd, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-}
-
-private class LastLineSpacerSpan(private val extraPx: Int) : LineHeightSpan {
-    override fun chooseHeight(
-        text: CharSequence,
-        start: Int,
-        end: Int,
-        spanstartv: Int,
-        v: Int,
-        fm: android.graphics.Paint.FontMetricsInt
-    ) {
-        if (extraPx <= 0) return
-        fm.descent += extraPx
-        fm.bottom += extraPx
     }
 }
 
