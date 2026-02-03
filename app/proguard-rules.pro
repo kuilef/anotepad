@@ -19,3 +19,10 @@
 
 # Keep annotations for Room and other reflection users
 -keepattributes *Annotation*
+
+# WorkManager InputMergers (создаются reflectively)
+-keep class androidx.work.OverwritingInputMerger { public <init>(); }
+-keep class androidx.work.ArrayCreatingInputMerger { public <init>(); }
+
+# На всякий случай: любые кастомные InputMerger (если есть)
+-keep class * extends androidx.work.InputMerger { public <init>(); }
