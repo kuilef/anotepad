@@ -239,6 +239,7 @@ fun EditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding()
         ) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
@@ -347,7 +348,6 @@ fun EditorScreen(
                 onRedo = ::performRedo,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .imePadding()
                     .padding(end = 8.dp, bottom = 8.dp)
             )
         }
