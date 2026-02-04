@@ -4,6 +4,7 @@ import android.content.Context
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.text.method.ArrowKeyMovementMethod
 import android.text.method.LinkMovementMethod
 import android.text.util.Linkify
 import android.util.TypedValue
@@ -281,7 +282,6 @@ fun EditorScreen(
                         setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
                         scrollBarSize = (2f * density).roundToInt()
                         isScrollbarFadingEnabled = true
-                        movementMethod = LinkMovementMethod.getInstance()
                         addTextChangedListener(object : TextWatcher {
                             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
                                 if (ignoreChanges || ignoreHistory) {
@@ -454,7 +454,10 @@ private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: 
     if (mask != 0) {
         LinkifyCompat.addLinks(editText, mask)
         editText.linksClickable = true
+        editText.movementMethod = LinkMovementMethod.getInstance()
     } else {
+        editText.linksClickable = false
+        editText.movementMethod = ArrowKeyMovementMethod.getInstance()
         editText.text?.let { text ->
             if (text is android.text.Spannable) {
                 val spans = text.getSpans(0, text.length, android.text.style.URLSpan::class.java)
