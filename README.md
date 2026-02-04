@@ -23,6 +23,27 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 - **Templates & preferences**: templates and settings live in DataStore; templates can format current time or auto-numbered items.
 - **Drive sync**: WorkManager runs a periodic sync (every 8 hours) and schedules a debounced sync about 10 seconds after local saves. Auto/periodic sync respects Wi-Fi/charging/battery constraints; manual sync only requires network connectivity. Sync auto-selects a Drive folder by name and can be triggered manually from settings.
 
+## Permissions shown on Google Play
+
+Google Play lists the following access:
+
+This app has access to:
+Other
+view network connections
+full network access
+run at startup
+prevent device from sleeping
+Google Play license check
+
+Short explanation (and when it applies):
+- **view network connections** (`ACCESS_NETWORK_STATE`): used to detect connectivity and respect Wi-Fi-only sync settings. Needed only when Drive sync is enabled.
+- **full network access** (`INTERNET`): required for Google Drive API calls, Google sign-in, and sync. Needed only when Drive sync is enabled.
+- **run at startup** (`RECEIVE_BOOT_COMPLETED` via WorkManager): lets periodic sync resume after device reboot. Only used when Drive sync is enabled.
+- **prevent device from sleeping** (`WAKE_LOCK` via WorkManager): used briefly while a sync task is running so the system doesn't kill it mid-sync. It does **not** keep the device awake for hours; it is held only during the short sync window and then released.
+- **Google Play license check**: may be reported by Google Play Services dependencies (used for Google sign-in). The app does not block usage based on license checks, and this is only relevant when Drive sync is enabled.
+
+If Drive sync is disabled, the app does not schedule background work and only uses local storage.
+
 ## Google Drive sync (detailed)
 
 ### Drive visibility (scope)
