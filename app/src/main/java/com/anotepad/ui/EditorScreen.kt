@@ -9,6 +9,8 @@ import android.text.util.Linkify
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
 import android.widget.EditText
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
@@ -268,6 +270,8 @@ fun EditorScreen(
                         gravity = Gravity.TOP or Gravity.START
                         setSingleLine(false)
                         setHorizontallyScrolling(false)
+                        isNestedScrollingEnabled = true
+                        overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
                         val density = context.resources.displayMetrics.density
                         val paddingPx = (4f * density).roundToInt()
                         setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
@@ -323,6 +327,15 @@ fun EditorScreen(
 
                                 else -> false
                             }
+                        }
+                        setOnTouchListener { view, event ->
+                            when (event.actionMasked) {
+                                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE ->
+                                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                                    view.parent?.requestDisallowInterceptTouchEvent(false)
+                            }
+                            false
                         }
                         editTextRef = this
                     }
