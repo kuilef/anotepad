@@ -257,6 +257,7 @@ fun EditorScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
+                .windowInsetsPadding(WindowInsets.ime.only(WindowInsetsSides.Bottom))
         ) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
