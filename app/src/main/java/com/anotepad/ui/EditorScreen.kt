@@ -281,7 +281,7 @@ fun EditorScreen(
                         gravity = Gravity.TOP or Gravity.START
                         setSingleLine(false)
                         setHorizontallyScrolling(false)
-                        isNestedScrollingEnabled = true
+                        isNestedScrollingEnabled = false
                         overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
                         val density = context.resources.displayMetrics.density
                         val paddingPx = (4f * density).roundToInt()
@@ -337,15 +337,6 @@ fun EditorScreen(
 
                                 else -> false
                             }
-                        }
-                        setOnTouchListener { view, event ->
-                            when (event.actionMasked) {
-                                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE ->
-                                    view.parent?.requestDisallowInterceptTouchEvent(true)
-                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
-                                    view.parent?.requestDisallowInterceptTouchEvent(false)
-                            }
-                            false
                         }
                         editTextRef = this
                     }
