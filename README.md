@@ -25,6 +25,9 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 
 ## Google Drive sync (detailed)
 
+### Drive visibility (scope)
+Anotepad uses Google Drive primarily as a backup. With the restricted `drive.file` scope, all devices running Anotepad will see and sync files created by Anotepad, but files added to the Drive folder by other apps (or via the Drive web UI) are not visible to the app.
+
 ### Folder selection
 - Sign in with Google.
 - The app searches Drive for folders with the configured name (default: `Anotepad`).

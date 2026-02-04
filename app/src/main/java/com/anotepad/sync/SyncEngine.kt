@@ -162,20 +162,23 @@ class SyncEngine(
                 val list = driveClient.listChildren(token, current.id, pageToken)
                 for (file in list.items) {
                     if (file.mimeType == DRIVE_FOLDER_MIME) {
+                        val safeName = sanitizeRemoteFolderName(file)
                         val nextPath = if (current.relativePath.isBlank()) {
-                            file.name
+                            safeName
                         } else {
-                            "${current.relativePath}/${file.name}"
+                            "${current.relativePath}/$safeName"
                         }
                         if (!isIgnoredPath(nextPath)) {
                             syncRepository.upsertFolder(nextPath, file.id)
                             queue.add(DriveFolderNode(file.id, nextPath))
                         }
-                    } else if (isSupportedNote(file.name)) {
+                    } else {
+                        val safeName = sanitizeRemoteFileName(file)
+                        if (!isSupportedNote(safeName)) continue
                         val relativePath = if (current.relativePath.isBlank()) {
-                            file.name
+                            safeName
                         } else {
-                            "${current.relativePath}/${file.name}"
+                            "${current.relativePath}/$safeName"
                         }
                         if (isIgnoredPath(relativePath)) continue
                         val existing = remoteFiles[relativePath]
@@ -243,7 +246,6 @@ class SyncEngine(
                 val localChangedAfterSync = meta.lastModified > item.lastSyncedAt
                 val remoteChangedAfterSync = (item.driveModifiedTime ?: 0L) > item.lastSyncedAt
                 if (localChangedAfterSync && remoteChangedAfterSync) {
-                    val remoteContent = driveClient.downloadFile(token, item.driveFileId)
                     val conflictName = buildConflictName(path)
                     val conflictUri = fileRepository.createFileByRelativePath(
                         rootUri,
@@ -251,15 +253,13 @@ class SyncEngine(
                         fileRepository.guessMimeType(conflictName)
                     )
                     if (conflictUri != null) {
-                        fileRepository.writeText(conflictUri, remoteContent)
+                        val downloaded = downloadToLocalFile(token, item.driveFileId, conflictUri)
                         syncRepository.upsertItem(
                             SyncItemEntity(
                                 localRelativePath = conflictName,
-                                localLastModified = fileRepository.getLastModified(conflictUri)
-                                    ?: System.currentTimeMillis(),
-                                localSize = fileRepository.getSize(conflictUri)
-                                    ?: remoteContent.length.toLong(),
-                                localHash = sha256(remoteContent.toByteArray(Charsets.UTF_8)),
+                                localLastModified = downloaded.lastModified,
+                                localSize = downloaded.size,
+                                localHash = downloaded.hash,
                                 driveFileId = null,
                                 driveModifiedTime = null,
                                 lastSyncedAt = System.currentTimeMillis(),
@@ -353,16 +353,19 @@ class SyncEngine(
                 val list = driveClient.listChildren(token, current.id, pageToken)
                 for (file in list.items) {
                     if (file.mimeType == DRIVE_FOLDER_MIME) {
-                        val nextPath = if (current.relativePath.isBlank()) file.name else "${current.relativePath}/${file.name}"
+                        val safeName = sanitizeRemoteFolderName(file)
+                        val nextPath = if (current.relativePath.isBlank()) safeName else "${current.relativePath}/$safeName"
                         if (!isIgnoredPath(nextPath)) {
                             syncRepository.upsertFolder(nextPath, file.id)
                             queue.add(DriveFolderNode(file.id, nextPath))
                         }
-                    } else if (isSupportedNote(file.name)) {
+                    } else {
+                        val safeName = sanitizeRemoteFileName(file)
+                        if (!isSupportedNote(safeName)) continue
                         val relativePath = if (current.relativePath.isBlank()) {
-                            file.name
+                            safeName
                         } else {
-                            "${current.relativePath}/${file.name}"
+                            "${current.relativePath}/$safeName"
                         }
                         if (isIgnoredPath(relativePath)) continue
                         pullFileIfNeeded(token, rootUri, relativePath, file)
@@ -402,16 +405,17 @@ class SyncEngine(
         driveFolderId: String,
         remoteFile: DriveFile
     ) {
-        if (!isSupportedNote(remoteFile.name)) return
+        val safeName = sanitizeRemoteFileName(remoteFile)
+        if (!isSupportedNote(safeName)) return
         val existingById = syncRepository.getItemByDriveId(remoteFile.id)
         val parentPath = resolveParentPathWithFetch(token, driveFolderId, remoteFile.parents)
         val resolvedPath = when {
             parentPath != null -> {
-                if (parentPath.isBlank()) remoteFile.name else "$parentPath/${remoteFile.name}"
+                if (parentPath.isBlank()) safeName else "$parentPath/$safeName"
             }
             existingById != null -> {
                 val parent = existingById.localRelativePath.substringBeforeLast('/', "")
-                if (parent.isBlank()) remoteFile.name else "$parent/${remoteFile.name}"
+                if (parent.isBlank()) safeName else "$parent/$safeName"
             }
             else -> remoteFile.appProperties["localRelativePath"]
         }
@@ -442,7 +446,8 @@ class SyncEngine(
     ) {
         if (folder.id == driveFolderId) return
         val parentPath = resolveParentPathWithFetch(token, driveFolderId, folder.parents) ?: return
-        val newPath = if (parentPath.isBlank()) folder.name else "$parentPath/${folder.name}"
+        val safeName = sanitizeRemoteFolderName(folder)
+        val newPath = if (parentPath.isBlank()) safeName else "$parentPath/$safeName"
         if (isIgnoredPath(newPath)) return
         val existing = syncRepository.getFolderByDriveId(folder.id)
         if (existing == null) {
@@ -475,19 +480,18 @@ class SyncEngine(
         val remoteChanged = remoteModified > lastSynced
         if (localChanged && remoteChanged && !suppressLocalConflict) {
             val conflictName = buildConflictName(relativePath)
-            val content = driveClient.downloadFile(token, remoteFile.id)
             val conflictUri = fileRepository.createFileByRelativePath(
                 rootUri,
                 conflictName,
                 fileRepository.guessMimeType(conflictName)
             ) ?: return
-            fileRepository.writeText(conflictUri, content)
+            val downloaded = downloadToLocalFile(token, remoteFile.id, conflictUri)
             syncRepository.upsertItem(
                 SyncItemEntity(
                     localRelativePath = conflictName,
-                    localLastModified = fileRepository.getLastModified(conflictUri) ?: System.currentTimeMillis(),
-                    localSize = fileRepository.getSize(conflictUri) ?: content.length.toLong(),
-                    localHash = sha256(content.toByteArray(Charsets.UTF_8)),
+                    localLastModified = downloaded.lastModified,
+                    localSize = downloaded.size,
+                    localHash = downloaded.hash,
                     driveFileId = null,
                     driveModifiedTime = null,
                     lastSyncedAt = System.currentTimeMillis(),
@@ -498,20 +502,19 @@ class SyncEngine(
             return
         }
         if (!remoteChanged) return
-        val content = driveClient.downloadFile(token, remoteFile.id)
         val targetUri = localUri ?: fileRepository.createFileByRelativePath(
             rootUri,
             relativePath,
             fileRepository.guessMimeType(relativePath)
         )
         if (targetUri != null) {
-            fileRepository.writeText(targetUri, content)
+            val downloaded = downloadToLocalFile(token, remoteFile.id, targetUri)
             syncRepository.upsertItem(
                 SyncItemEntity(
                     localRelativePath = relativePath,
-                    localLastModified = fileRepository.getLastModified(targetUri) ?: System.currentTimeMillis(),
-                    localSize = fileRepository.getSize(targetUri) ?: content.length.toLong(),
-                    localHash = sha256(content.toByteArray(Charsets.UTF_8)),
+                    localLastModified = downloaded.lastModified,
+                    localSize = downloaded.size,
+                    localHash = downloaded.hash,
                     driveFileId = remoteFile.id,
                     driveModifiedTime = remoteFile.modifiedTime,
                     lastSyncedAt = System.currentTimeMillis(),
@@ -656,12 +659,12 @@ class SyncEngine(
             if (!visited.add(currentId)) return null
             val cached = syncRepository.getFolderByDriveId(currentId)
             if (cached != null) {
-                val path = appendPath(cached.localRelativePath, chain.asReversed().map { it.name })
+                val path = appendPath(cached.localRelativePath, chain.asReversed().map { sanitizeRemoteFolderName(it) })
                 upsertFolderChain(cached.localRelativePath, chain)
                 return path
             }
             if (currentId == driveFolderId) {
-                val path = chain.asReversed().joinToString("/")
+                val path = chain.asReversed().joinToString("/") { sanitizeRemoteFolderName(it) }
                 upsertFolderChain("", chain)
                 return path
             }
@@ -669,7 +672,7 @@ class SyncEngine(
             if (meta.mimeType != DRIVE_FOLDER_MIME) return null
             chain.add(meta)
             if (meta.parents.contains(driveFolderId)) {
-                val path = chain.asReversed().joinToString("/")
+                val path = chain.asReversed().joinToString("/") { sanitizeRemoteFolderName(it) }
                 upsertFolderChain("", chain)
                 return path
             }
@@ -681,7 +684,8 @@ class SyncEngine(
     private suspend fun upsertFolderChain(basePath: String, chain: List<DriveFile>) {
         var currentPath = basePath
         for (folder in chain.asReversed()) {
-            currentPath = if (currentPath.isBlank()) folder.name else "$currentPath/${folder.name}"
+            val safeName = sanitizeRemoteFolderName(folder)
+            currentPath = if (currentPath.isBlank()) safeName else "$currentPath/$safeName"
             syncRepository.upsertFolder(currentPath, folder.id)
         }
     }
@@ -758,6 +762,25 @@ class SyncEngine(
         return relativePath == TRASH_DIR || relativePath.startsWith("$TRASH_DIR/")
     }
 
+    private fun sanitizeRemoteFileName(file: DriveFile): String {
+        val cleaned = fileRepository.sanitizeFileName(file.name)
+        if (cleaned.isNotBlank() && cleaned != "." && cleaned != "..") {
+            return cleaned
+        }
+        val ext = file.name.substringAfterLast('.', "")
+        val base = "untitled-${file.id.take(6)}"
+        return if (ext.isBlank()) base else "$base.$ext"
+    }
+
+    private fun sanitizeRemoteFolderName(folder: DriveFile): String {
+        val cleaned = fileRepository.sanitizeFileName(folder.name)
+        return if (cleaned.isNotBlank() && cleaned != "." && cleaned != "..") {
+            cleaned
+        } else {
+            "folder-${folder.id.take(6)}"
+        }
+    }
+
     private suspend fun computeHashIfNeeded(item: SyncItemEntity?, meta: LocalFileMeta): String {
         val shouldCompute = item == null || item.localLastModified != meta.lastModified || item.localSize != meta.size
         return if (shouldCompute) {
@@ -765,6 +788,20 @@ class SyncEngine(
         } else {
             item.localHash ?: ""
         }
+    }
+
+    private suspend fun downloadToLocalFile(
+        token: String,
+        driveFileId: String,
+        targetUri: Uri
+    ): DownloadedFileMeta {
+        driveClient.downloadFile(token, driveFileId) { input ->
+            fileRepository.writeStream(targetUri, input)
+        }
+        val lastModified = fileRepository.getLastModified(targetUri) ?: System.currentTimeMillis()
+        val size = fileRepository.getSize(targetUri) ?: 0L
+        val hash = fileRepository.computeHash(targetUri)
+        return DownloadedFileMeta(lastModified, size, hash)
     }
 
     private suspend fun ensureUniqueLocalPath(rootUri: Uri, desiredPath: String, driveId: String): String {
@@ -810,6 +847,12 @@ class SyncEngine(
         val uri: Uri,
         val lastModified: Long,
         val size: Long
+    )
+
+    private data class DownloadedFileMeta(
+        val lastModified: Long,
+        val size: Long,
+        val hash: String
     )
 
     private data class DriveFolderNode(

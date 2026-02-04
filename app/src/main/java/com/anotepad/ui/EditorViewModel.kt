@@ -387,17 +387,8 @@ class EditorViewModel(
 
     private fun buildNameFromText(text: String, extension: String): String {
         val firstLine = text.lineSequence().firstOrNull().orEmpty()
-        val cleaned = sanitizeFileName(firstLine)
+        val cleaned = fileRepository.sanitizeFileName(firstLine)
         val base = if (cleaned.isBlank()) "Untitled" else cleaned
         return base + extension
-    }
-
-    private fun sanitizeFileName(input: String): String {
-        var text = input.trim()
-        text = text.replace(Regex("^[\\s\\u3000]+"), "")
-        text = text.replace(Regex("[\\s\\u3000]+$"), "")
-        text = text.replace(Regex("[/:,;*?\"<>|]"), "")
-        text = text.replace("\\\\", "")
-        return text
     }
 }

@@ -155,19 +155,22 @@ class DriveClient(
         requestRaw(token, url, method = "DELETE")
     }
 
-    suspend fun downloadFile(token: String, fileId: String): String {
+    suspend fun downloadFile(token: String, fileId: String, consumer: (InputStream) -> Unit) {
         val url = "$DRIVE_BASE/files/$fileId?alt=media"
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $token")
             .get()
             .build()
-        return withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     throw DriveApiException(response.code, response.body?.string(), url, "GET")
                 }
-                response.body?.string() ?: ""
+                val body = response.body ?: throw DriveApiException(response.code, "Empty body", url, "GET")
+                body.byteStream().use { input ->
+                    consumer(input)
+                }
             }
         }
     }

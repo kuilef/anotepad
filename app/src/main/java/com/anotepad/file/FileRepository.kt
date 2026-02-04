@@ -210,7 +210,26 @@ class FileRepository(private val context: Context) {
 
     suspend fun readText(fileUri: Uri): String = withContext(Dispatchers.IO) {
         resolver.openInputStream(fileUri)?.use { input ->
-            BufferedReader(InputStreamReader(input, Charsets.UTF_8)).readText()
+            InputStreamReader(input, Charsets.UTF_8).use { reader ->
+                val buffer = CharArray(READ_BUFFER_SIZE)
+                val builder = StringBuilder()
+                var remaining = MAX_TEXT_READ_CHARS
+                var truncated = false
+                while (remaining > 0) {
+                    val read = reader.read(buffer, 0, minOf(buffer.size, remaining))
+                    if (read <= 0) break
+                    builder.append(buffer, 0, read)
+                    remaining -= read
+                    if (remaining == 0) {
+                        truncated = true
+                        break
+                    }
+                }
+                if (truncated) {
+                    builder.append(TRUNCATED_SUFFIX)
+                }
+                builder.toString()
+            }
         } ?: ""
     }
 
@@ -279,6 +298,12 @@ class FileRepository(private val context: Context) {
             OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
                 writer.write(text)
             }
+        }
+    }
+
+    suspend fun writeStream(fileUri: Uri, input: InputStream) = withContext(Dispatchers.IO) {
+        resolver.openOutputStream(fileUri, "wt")?.use { output ->
+            input.copyTo(output)
         }
     }
 
@@ -354,6 +379,15 @@ class FileRepository(private val context: Context) {
     fun isSupportedExtension(name: String): Boolean {
         val lower = name.lowercase(Locale.getDefault())
         return lower.endsWith(".txt") || lower.endsWith(".md")
+    }
+
+    fun sanitizeFileName(input: String): String {
+        var text = input.trim()
+        text = text.replace(Regex("^[\\s\\u3000]+"), "")
+        text = text.replace(Regex("[\\s\\u3000]+$"), "")
+        text = text.replace(Regex("[/:,;*?\"<>|]"), "")
+        text = text.replace("\\\\", "")
+        return text
     }
 
     fun guessMimeType(name: String): String {
@@ -702,6 +736,9 @@ private data class ListCacheEntry(
 
 private const val LIST_CACHE_TTL_MS = 15_000L
 private const val LIST_CACHE_MAX_ENTRIES = 12
+private const val MAX_TEXT_READ_CHARS = 5_000_000
 private const val HASH_BUFFER_SIZE = 8 * 1024
+private const val READ_BUFFER_SIZE = 8 * 1024
 private const val PREVIEW_BUFFER_SIZE = 2 * 1024
 private const val SEARCH_SNIPPET_WINDOW = 48
+private const val TRUNCATED_SUFFIX = "\n\n[...truncated]"
