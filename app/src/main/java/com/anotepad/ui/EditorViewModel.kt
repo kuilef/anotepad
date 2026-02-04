@@ -38,7 +38,9 @@ data class EditorState(
     val autoLinkTel: Boolean = false,
     val syncTitle: Boolean = false,
     val newFileExtension: String = "txt",
-    val editorFontSizeSp: Float = 16f
+    val editorFontSizeSp: Float = 16f,
+    val externalChangeDetectedAt: Long? = null,
+    val showExternalChangeDialog: Boolean = false
 )
 
 data class EditorSaveResult(
@@ -71,6 +73,7 @@ class EditorViewModel(
     private var openedFileUri: Uri? = null
     private var loadCounter = 0L
     private var prefsLoaded = false
+    private var lastKnownModified: Long? = null
     val undoStack = mutableStateListOf<TextSnapshot>()
     val redoStack = mutableStateListOf<TextSnapshot>()
 
@@ -123,6 +126,7 @@ class EditorViewModel(
             val fileName = fileUri?.let { uri ->
                 fileRepository.getDisplayName(uri) ?: ""
             } ?: ""
+            val lastModified = fileUri?.let { uri -> fileRepository.getLastModified(uri) }
             val autoInsertedText = if (fileUri == null && text.isBlank()) {
                 resolveAutoInsertText()
             } else {
@@ -142,11 +146,14 @@ class EditorViewModel(
                     text = initialText,
                     loadToken = loadCounter,
                     moveCursorToEndOnLoad = moveCursorToEndOnLoad,
-                    newFileExtension = newFileExtension
+                    newFileExtension = newFileExtension,
+                    externalChangeDetectedAt = null,
+                    showExternalChangeDialog = false
                 )
             }
             lastSavedText = if (fileUri == null) "" else initialText
             textChanges.value = initialText
+            lastKnownModified = lastModified
             isLoaded = true
         }
     }
@@ -182,6 +189,53 @@ class EditorViewModel(
             currentUri = currentUri,
             dirUri = state.dirUri
         )
+    }
+
+    fun hasExternalChangePending(): Boolean = _state.value.externalChangeDetectedAt != null
+
+    fun showExternalChangeDialog() {
+        if (_state.value.externalChangeDetectedAt == null) return
+        _state.update { it.copy(showExternalChangeDialog = true) }
+    }
+
+    fun dismissExternalChangeDialog() {
+        _state.update { it.copy(showExternalChangeDialog = false) }
+    }
+
+    fun reloadExternalChange() {
+        viewModelScope.launch {
+            val fileUri = _state.value.fileUri ?: return@launch
+            val modifiedAt = fileRepository.getLastModified(fileUri)
+                ?: _state.value.externalChangeDetectedAt
+                ?: System.currentTimeMillis()
+            reloadFromDisk(fileUri, modifiedAt)
+        }
+    }
+
+    fun overwriteExternalChange() {
+        viewModelScope.launch {
+            clearExternalChange()
+            saveIfNeeded(_state.value.text, ignoreExternalChange = true)
+        }
+    }
+
+    fun checkExternalChange() {
+        viewModelScope.launch {
+            if (!isLoaded) return@launch
+            if (_state.value.externalChangeDetectedAt != null) return@launch
+            val fileUri = _state.value.fileUri ?: return@launch
+            val modifiedAt = detectExternalChange(fileUri) ?: return@launch
+            if (_state.value.text == lastSavedText) {
+                reloadFromDisk(fileUri, modifiedAt)
+            } else {
+                _state.update {
+                    it.copy(
+                        externalChangeDetectedAt = modifiedAt,
+                        showExternalChangeDialog = true
+                    )
+                }
+            }
+        }
     }
 
     private fun restartAutosave() {
@@ -221,11 +275,31 @@ class EditorViewModel(
         redoStack.clear()
     }
 
-    private suspend fun saveIfNeeded(text: String): Boolean {
+    private suspend fun saveIfNeeded(text: String, ignoreExternalChange: Boolean = false): Boolean {
         if (!isLoaded) return false
-        if (text == lastSavedText) return false
+        if (!ignoreExternalChange && _state.value.externalChangeDetectedAt != null) {
+            _state.update { it.copy(showExternalChangeDialog = true) }
+            return false
+        }
         val dirUri = _state.value.dirUri
         var fileUri = _state.value.fileUri
+        if (!ignoreExternalChange && fileUri != null) {
+            val modifiedAt = detectExternalChange(fileUri)
+            if (modifiedAt != null) {
+                if (text == lastSavedText) {
+                    reloadFromDisk(fileUri, modifiedAt)
+                } else {
+                    _state.update {
+                        it.copy(
+                            externalChangeDetectedAt = modifiedAt,
+                            showExternalChangeDialog = true
+                        )
+                    }
+                }
+                return false
+            }
+        }
+        if (text == lastSavedText) return false
         if (fileUri == null) {
             if (dirUri == null || text.isBlank()) return false
             val rawExtension = _state.value.newFileExtension.ifBlank { "txt" }
@@ -240,6 +314,7 @@ class EditorViewModel(
         _state.update { it.copy(isSaving = true) }
         fileRepository.writeText(fileUri, text)
         lastSavedText = text
+        lastKnownModified = fileRepository.getLastModified(fileUri) ?: System.currentTimeMillis()
 
         if (_state.value.syncTitle) {
             val currentName = _state.value.fileName
@@ -258,6 +333,42 @@ class EditorViewModel(
         _state.update { it.copy(isSaving = false, lastSavedAt = System.currentTimeMillis()) }
         syncScheduler.scheduleDebounced()
         return true
+    }
+
+    private suspend fun detectExternalChange(fileUri: Uri): Long? {
+        val current = fileRepository.getLastModified(fileUri) ?: return null
+        val known = lastKnownModified
+        if (known == null) {
+            lastKnownModified = current
+            return null
+        }
+        return if (current > known) current else null
+    }
+
+    private suspend fun reloadFromDisk(fileUri: Uri, modifiedAt: Long) {
+        val updatedText = fileRepository.readText(fileUri)
+        val updatedName = fileRepository.getDisplayName(fileUri) ?: _state.value.fileName
+        clearHistory()
+        _state.update {
+            it.copy(
+                text = updatedText,
+                fileName = updatedName,
+                externalChangeDetectedAt = null,
+                showExternalChangeDialog = false
+            )
+        }
+        lastSavedText = updatedText
+        textChanges.value = updatedText
+        lastKnownModified = modifiedAt
+    }
+
+    private fun clearExternalChange() {
+        _state.update {
+            it.copy(
+                externalChangeDetectedAt = null,
+                showExternalChangeDialog = false
+            )
+        }
     }
 
     private suspend fun ensureUniqueName(dirUri: Uri, desiredName: String, currentName: String?): String {

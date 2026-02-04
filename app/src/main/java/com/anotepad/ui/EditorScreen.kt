@@ -39,7 +39,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -100,6 +102,11 @@ fun EditorScreen(
         backInProgress = true
         scope.launch {
             val result = viewModel.saveAndGetResult()
+            if (viewModel.hasExternalChangePending()) {
+                viewModel.showExternalChangeDialog()
+                backInProgress = false
+                return@launch
+            }
             onBack(result)
         }
     }
@@ -112,6 +119,8 @@ fun EditorScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
                 viewModel.saveNow()
+            } else if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.checkExternalChange()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -195,6 +204,24 @@ fun EditorScreen(
         val next = redoStack.removeAt(redoStack.lastIndex)
         undoStack.add(current)
         applySnapshot(next)
+    }
+
+    if (state.showExternalChangeDialog && state.externalChangeDetectedAt != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissExternalChangeDialog() },
+            title = { Text(text = stringResource(id = R.string.label_editor_external_change_title)) },
+            text = { Text(text = stringResource(id = R.string.label_editor_external_change_message)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.overwriteExternalChange() }) {
+                    Text(text = stringResource(id = R.string.action_overwrite))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.reloadExternalChange() }) {
+                    Text(text = stringResource(id = R.string.action_reload))
+                }
+            }
+        )
     }
 
     Scaffold(

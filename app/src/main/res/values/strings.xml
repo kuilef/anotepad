@@ -18,6 +18,8 @@
     <string name="action_move">Move</string>
     <string name="action_back">Back</string>
     <string name="action_refresh">Refresh</string>
+    <string name="action_reload">Reload</string>
+    <string name="action_overwrite">Overwrite</string>
     <string name="action_undo">Undo</string>
     <string name="action_redo">Redo</string>
     <string name="action_toggle_feed">Show feed</string>
@@ -57,6 +59,8 @@
     <string name="label_saved">Saved</string>
     <string name="label_autosave">Autosave</string>
     <string name="label_autosave_hint">Save when app is closed or minimized</string>
+    <string name="label_editor_external_change_title">File changed on disk</string>
+    <string name="label_editor_external_change_message">This file was modified outside the editor. Reload to discard local edits or overwrite to keep them.</string>
     <string name="label_pick_template">Pick a template</string>
     <string name="label_template_number">Number</string>
     <string name="label_create_note">Create note</string>
