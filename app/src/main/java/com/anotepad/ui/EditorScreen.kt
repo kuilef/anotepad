@@ -12,6 +12,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.EditText
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -267,6 +268,9 @@ fun EditorScreen(
                             InputType.TYPE_TEXT_FLAG_MULTI_LINE or
                             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
                             InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+                        imeOptions = imeOptions or
+                            EditorInfo.IME_FLAG_NO_EXTRACT_UI or
+                            EditorInfo.IME_FLAG_NO_FULLSCREEN
                         gravity = Gravity.TOP or Gravity.START
                         setSingleLine(false)
                         setHorizontallyScrolling(false)
