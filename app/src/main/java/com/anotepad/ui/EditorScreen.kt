@@ -282,6 +282,7 @@ fun EditorScreen(
                         setSingleLine(false)
                         setHorizontallyScrolling(false)
                         isNestedScrollingEnabled = false
+                        isVerticalScrollBarEnabled = true
                         overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
                         val density = context.resources.displayMetrics.density
                         val paddingPx = (4f * density).roundToInt()
@@ -375,9 +376,6 @@ fun EditorScreen(
                     ) {
                         editText.setPadding(basePaddingPx, basePaddingPx, basePaddingPx, targetBottom)
                     }
-                    val visibleHeight = editText.height - editText.paddingTop - editText.paddingBottom
-                    val contentHeight = editText.lineCount * editText.lineHeight
-                    editText.isVerticalScrollBarEnabled = visibleHeight > 0 && contentHeight > visibleHeight
                     ensureCursorVisible(editText, allowPost = false)
                 }
             )
