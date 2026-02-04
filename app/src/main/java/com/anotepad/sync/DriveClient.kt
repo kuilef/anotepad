@@ -155,7 +155,7 @@ class DriveClient(
         requestRaw(token, url, method = "DELETE")
     }
 
-    suspend fun downloadFile(token: String, fileId: String, consumer: (InputStream) -> Unit) {
+    suspend fun downloadFile(token: String, fileId: String, consumer: suspend (InputStream) -> Unit) {
         val url = "$DRIVE_BASE/files/$fileId?alt=media"
         val request = Request.Builder()
             .url(url)
