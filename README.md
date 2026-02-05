@@ -4,6 +4,7 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 
 ## Features and advantages
 - Synchronization with **Google Drive**
+- Optional auto sync on app start
 - **Undo/redo controls**: on-screen undo/redo buttons (Ctrl+Z / Ctrl+Shift+Z); redo is available only after an undo.
 - Folder-based workflow: pick a root directory and browse subfolders; create folders and notes inside it.
 - Plain-text first: supports `.txt` and keeps notes readable outside the app. 
@@ -21,7 +22,7 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 - **Editor**: `EditorViewModel` keeps state, performs debounced auto-save, creates a new file on first save, and optionally renames the file based on the first line (sync title).
 - **Search**: `SearchViewModel` walks the tree, reads each note, and matches either a plain query or a regex; results include a short snippet.
 - **Templates & preferences**: templates and settings live in DataStore; templates can format current time or auto-numbered items.
-- **Drive sync**: WorkManager runs a periodic sync (every 8 hours) and schedules a debounced sync about 10 seconds after local saves. Auto/periodic sync respects Wi-Fi/charging/battery constraints; manual sync only requires network connectivity. Sync auto-selects a Drive folder by name and can be triggered manually from settings.
+- **Drive sync**: WorkManager runs a periodic sync (every 8 hours), schedules a debounced sync about 10 seconds after local saves, and can run once on app start if enabled. Sync auto-selects a Drive folder by name and can be triggered manually from settings.
 
 ## Permissions shown on Google Play
 
@@ -36,7 +37,7 @@ prevent device from sleeping
 Google Play license check
 
 Short explanation (and when it applies):
-- **view network connections** (`ACCESS_NETWORK_STATE`): used to detect connectivity and respect Wi-Fi-only sync settings. Needed only when Drive sync is enabled.
+- **view network connections** (`ACCESS_NETWORK_STATE`): used to detect connectivity for Drive sync. Needed only when Drive sync is enabled.
 - **full network access** (`INTERNET`): required for Google Drive API calls, Google sign-in, and sync. Needed only when Drive sync is enabled.
 - **run at startup** (`RECEIVE_BOOT_COMPLETED` via WorkManager): lets periodic sync resume after device reboot. Only used when Drive sync is enabled.
 - **prevent device from sleeping** (`WAKE_LOCK` via WorkManager): used briefly while a sync task is running so the system doesn't kill it mid-sync. It does **not** keep the device awake for hours; it is held only during the short sync window and then released. Only used when Drive sync is enabled.
@@ -66,7 +67,7 @@ The app maintains a small local sync database:
 Each uploaded Drive file stores `appProperties.localRelativePath` so the app can map Drive changes back to local paths.
 
 ### Sync algorithm
-Sync runs on a manual tap, on a debounced schedule after local edits, and on a periodic WorkManager job.
+Sync runs on a manual tap, on a debounced schedule after local edits, on a periodic WorkManager job, and optionally once on app start.
 
 1) **Pre-checks**
 - Sync is skipped if it is disabled or paused.
