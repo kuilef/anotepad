@@ -39,7 +39,7 @@ Short explanation (and when it applies):
 - **view network connections** (`ACCESS_NETWORK_STATE`): used to detect connectivity and respect Wi-Fi-only sync settings. Needed only when Drive sync is enabled.
 - **full network access** (`INTERNET`): required for Google Drive API calls, Google sign-in, and sync. Needed only when Drive sync is enabled.
 - **run at startup** (`RECEIVE_BOOT_COMPLETED` via WorkManager): lets periodic sync resume after device reboot. Only used when Drive sync is enabled.
-- **prevent device from sleeping** (`WAKE_LOCK` via WorkManager): used briefly while a sync task is running so the system doesn't kill it mid-sync. It does **not** keep the device awake for hours; it is held only during the short sync window and then released.
+- **prevent device from sleeping** (`WAKE_LOCK` via WorkManager): used briefly while a sync task is running so the system doesn't kill it mid-sync. It does **not** keep the device awake for hours; it is held only during the short sync window and then released. Only used when Drive sync is enabled.
 - **Google Play license check**: may be reported by Google Play Services dependencies (used for Google sign-in). The app does not block usage based on license checks, and this is only relevant when Drive sync is enabled.
 
 If Drive sync is disabled, the app does not schedule background work and only uses local storage.
