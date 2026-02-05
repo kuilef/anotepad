@@ -50,10 +50,10 @@ class PreferencesRepository(private val context: Context) {
         val browserViewMode = BrowserViewMode.fromId(prefs[Keys.BROWSER_VIEW_MODE])
         AppPreferences(
             rootTreeUri = prefs[Keys.ROOT_URI],
-            autoLinkWeb = prefs[Keys.AUTO_LINK_WEB] ?: false,
-            autoLinkEmail = prefs[Keys.AUTO_LINK_EMAIL] ?: false,
+            autoLinkWeb = prefs[Keys.AUTO_LINK_WEB] ?: true,
+            autoLinkEmail = prefs[Keys.AUTO_LINK_EMAIL] ?: true,
             autoLinkTel = prefs[Keys.AUTO_LINK_TEL] ?: false,
-            syncTitle = prefs[Keys.SYNC_TITLE] ?: false,
+            syncTitle = prefs[Keys.SYNC_TITLE] ?: true,
             autoSaveDebounceMs = prefs[Keys.AUTO_SAVE_DEBOUNCE] ?: 1200L,
             autoSaveEnabled = prefs[Keys.AUTO_SAVE_ENABLED] ?: true,
             browserFontSizeSp = prefs[Keys.BROWSER_FONT_SIZE_SP] ?: 14f,
