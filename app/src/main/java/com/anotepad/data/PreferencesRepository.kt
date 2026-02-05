@@ -32,8 +32,6 @@ class PreferencesRepository(private val context: Context) {
         val BROWSER_VIEW_MODE = stringPreferencesKey("browser_view_mode")
         val DRIVE_SYNC_ENABLED = booleanPreferencesKey("drive_sync_enabled")
         val DRIVE_SYNC_AUTO_ON_START = booleanPreferencesKey("drive_sync_auto_on_start")
-        val DRIVE_SYNC_WIFI_ONLY = booleanPreferencesKey("drive_sync_wifi_only")
-        val DRIVE_SYNC_CHARGING_ONLY = booleanPreferencesKey("drive_sync_charging_only")
         val DRIVE_SYNC_PAUSED = booleanPreferencesKey("drive_sync_paused")
         val DRIVE_SYNC_IGNORE_REMOTE_DELETES = booleanPreferencesKey("drive_sync_ignore_remote_deletes")
         val DRIVE_SYNC_REMOTE_DELETE_POLICY = stringPreferencesKey("drive_sync_remote_delete_policy")
@@ -66,8 +64,6 @@ class PreferencesRepository(private val context: Context) {
             defaultFileExtension = defaultExt,
             driveSyncEnabled = prefs[Keys.DRIVE_SYNC_ENABLED] ?: false,
             driveSyncAutoOnStart = prefs[Keys.DRIVE_SYNC_AUTO_ON_START] ?: false,
-            driveSyncWifiOnly = prefs[Keys.DRIVE_SYNC_WIFI_ONLY] ?: false,
-            driveSyncChargingOnly = prefs[Keys.DRIVE_SYNC_CHARGING_ONLY] ?: false,
             driveSyncPaused = prefs[Keys.DRIVE_SYNC_PAUSED] ?: false,
             driveSyncIgnoreRemoteDeletes = prefs[Keys.DRIVE_SYNC_IGNORE_REMOTE_DELETES] ?: false,
             driveSyncRemoteDeletePolicy = prefs[Keys.DRIVE_SYNC_REMOTE_DELETE_POLICY] ?: "TRASH",
@@ -149,14 +145,6 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setDriveSyncRemoteDeletePolicy(policy: String) {
         context.dataStore.edit { it[Keys.DRIVE_SYNC_REMOTE_DELETE_POLICY] = policy }
-    }
-
-    suspend fun setDriveSyncWifiOnly(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.DRIVE_SYNC_WIFI_ONLY] = enabled }
-    }
-
-    suspend fun setDriveSyncChargingOnly(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.DRIVE_SYNC_CHARGING_ONLY] = enabled }
     }
 
     suspend fun setDriveSyncPaused(enabled: Boolean) {

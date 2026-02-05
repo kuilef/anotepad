@@ -2,10 +2,8 @@ package com.anotepad.sync
 
 import android.content.Context
 import androidx.work.BackoffPolicy
-import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -23,9 +21,7 @@ class SyncScheduler(
     suspend fun scheduleDebounced() {
         val prefs = preferencesRepository.preferencesFlow.first()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused) return
-        val constraints = buildConstraints(prefs, manual = false)
         val request = OneTimeWorkRequestBuilder<DriveSyncWorker>()
-            .setConstraints(constraints)
             .setInitialDelay(DEBOUNCE_SECONDS, TimeUnit.SECONDS)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
@@ -42,9 +38,7 @@ class SyncScheduler(
             workManager.cancelUniqueWork(WORK_SYNC_STARTUP)
             return
         }
-        val constraints = buildConstraints(prefs, manual = false)
         val request = PeriodicWorkRequestBuilder<DriveSyncWorker>(PERIODIC_HOURS, TimeUnit.HOURS)
-            .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.HOURS)
             .build()
         workManager.enqueueUniquePeriodicWork(WORK_SYNC_PERIODIC, ExistingPeriodicWorkPolicy.UPDATE, request)
@@ -56,9 +50,7 @@ class SyncScheduler(
         if (prefs.rootTreeUri.isNullOrBlank()) return
         val folderId = syncRepository.getDriveFolderId()
         if (folderId.isNullOrBlank()) return
-        val constraints = buildConstraints(prefs, manual = false)
         val request = OneTimeWorkRequestBuilder<DriveSyncWorker>()
-            .setConstraints(constraints)
             .setInitialDelay(STARTUP_DELAY_SECONDS, TimeUnit.SECONDS)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
@@ -69,29 +61,10 @@ class SyncScheduler(
     suspend fun syncNow() {
         val prefs = preferencesRepository.preferencesFlow.first()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused) return
-        val constraints = buildConstraints(prefs, manual = true)
         val request = OneTimeWorkRequestBuilder<DriveSyncWorker>()
-            .setConstraints(constraints)
             .build()
         syncRepository.setSyncStatus(SyncState.PENDING, "Sync scheduled")
         workManager.enqueueUniqueWork(WORK_SYNC_MANUAL, ExistingWorkPolicy.REPLACE, request)
-    }
-
-    private fun buildConstraints(prefs: com.anotepad.data.AppPreferences, manual: Boolean): Constraints {
-        val networkType = if (manual) {
-            NetworkType.CONNECTED
-        } else {
-            if (prefs.driveSyncWifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED
-        }
-        return Constraints.Builder()
-            .setRequiredNetworkType(networkType)
-            .apply {
-                if (!manual) {
-                    setRequiresCharging(prefs.driveSyncChargingOnly)
-                    setRequiresBatteryNotLow(true)
-                }
-            }
-            .build()
     }
 
     companion object {

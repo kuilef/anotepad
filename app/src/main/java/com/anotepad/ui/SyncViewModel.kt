@@ -126,20 +126,6 @@ class SyncViewModel(
         }
     }
 
-    fun setWifiOnly(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setDriveSyncWifiOnly(enabled)
-            syncScheduler.schedulePeriodic()
-        }
-    }
-
-    fun setChargingOnly(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setDriveSyncChargingOnly(enabled)
-            syncScheduler.schedulePeriodic()
-        }
-    }
-
     fun setPaused(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setDriveSyncPaused(enabled)

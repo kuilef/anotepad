@@ -17,8 +17,6 @@ data class AppPreferences(
     val defaultFileExtension: String = "txt",
     val driveSyncEnabled: Boolean = false,
     val driveSyncAutoOnStart: Boolean = false,
-    val driveSyncWifiOnly: Boolean = true,
-    val driveSyncChargingOnly: Boolean = false,
     val driveSyncPaused: Boolean = false,
     val driveSyncIgnoreRemoteDeletes: Boolean = false,
     val driveSyncRemoteDeletePolicy: String = "TRASH",
