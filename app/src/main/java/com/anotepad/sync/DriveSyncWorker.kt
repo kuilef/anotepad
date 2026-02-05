@@ -60,7 +60,12 @@ class DriveSyncWorker(
                 "sync_error code=${error.code} detail=${detail ?: "none"} " +
                     "method=${error.method ?: "unknown"} url=${error.url ?: "unknown"}"
             )
-            syncRepository.setSyncStatus(SyncState.ERROR, message)
+            if (error.code == 401) {
+                runCatching { authManager.revokeAccess() }
+                syncRepository.setSyncStatus(SyncState.ERROR, "Sign in required")
+            } else {
+                syncRepository.setSyncStatus(SyncState.ERROR, message)
+            }
             when {
                 auth -> Result.failure()
                 retryable -> Result.retry()
