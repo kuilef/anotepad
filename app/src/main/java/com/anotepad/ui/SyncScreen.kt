@@ -198,6 +198,11 @@ fun SyncScreen(viewModel: SyncViewModel, onBack: () -> Unit) {
                 checked = state.prefs.driveSyncAutoOnStart,
                 onToggle = viewModel::setAutoSyncOnStart
             )
+            Text(
+                text = stringResource(id = R.string.label_drive_sync_on_start_hint),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(start = 4.dp)
+            )
             SyncToggleRow(
                 title = stringResource(id = R.string.label_drive_ignore_deletes),
                 checked = state.prefs.driveSyncIgnoreRemoteDeletes,
