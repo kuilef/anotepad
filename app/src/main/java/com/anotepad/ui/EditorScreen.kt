@@ -17,12 +17,14 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
@@ -61,6 +63,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.util.LinkifyCompat
@@ -227,14 +231,7 @@ fun EditorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    val name = if (state.fileName.isBlank()) {
-                        stringResource(id = R.string.label_editor_title_new)
-                    } else {
-                        state.fileName
-                    }
-                    Text(text = name)
-                },
+                title = {},
                 navigationIcon = {
                     IconButton(
                         onClick = {
@@ -286,14 +283,31 @@ fun EditorScreen(
         val imeBottom = WindowInsets.ime.getBottom(density)
         val navBottom = WindowInsets.navigationBars.getBottom(density)
         val bottomInset = with(density) { imeBottom.coerceAtLeast(navBottom).toDp() }
-        Box(
+        val fileNameLabel = if (state.fileName.isBlank()) {
+            stringResource(id = R.string.label_editor_title_new)
+        } else {
+            state.fileName
+        }
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(bottom = bottomInset)
         ) {
+            Text(
+                text = fileNameLabel,
+                style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
             AndroidView(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
                 factory = { context ->
                     object : EditText(context) {
                         override fun onSelectionChanged(selStart: Int, selEnd: Int) {
