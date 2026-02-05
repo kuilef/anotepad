@@ -78,7 +78,7 @@ class DriveAuthManager(private val context: Context) {
 
 sealed class DriveAccessTokenResult {
     data class Success(val token: String) : DriveAccessTokenResult()
-    data class Recoverable(val intent: Intent) : DriveAccessTokenResult()
+    data class Recoverable(val intent: Intent?) : DriveAccessTokenResult()
     data object NoAccount : DriveAccessTokenResult()
     data object Error : DriveAccessTokenResult()
 }

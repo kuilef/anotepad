@@ -328,9 +328,14 @@ class SyncViewModel(
         return when (val result = authManager.getAccessTokenResult()) {
             is DriveAccessTokenResult.Success -> result.token
             is DriveAccessTokenResult.Recoverable -> {
-                authIntent.value = result.intent
-                updateFolderState(error = "Google Drive permission required")
-                null
+                if (result.intent != null) {
+                    authIntent.value = result.intent
+                    updateFolderState(error = "Google Drive permission required")
+                    null
+                } else {
+                    updateFolderState(error = "Unable to request Drive permission")
+                    null
+                }
             }
             DriveAccessTokenResult.NoAccount -> {
                 updateFolderState(error = "Sign in required")
