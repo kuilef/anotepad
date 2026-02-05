@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
 import com.anotepad.sync.db.SyncDatabase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -39,6 +40,10 @@ class DriveSyncWorker(
                     if (result.authError) Result.failure() else Result.retry()
                 }
             }
+        } catch (error: CancellationException) {
+            val detail = error.message?.ifBlank { null }
+            logger.log("sync_cancelled detail=${detail ?: "none"}")
+            throw error
         } catch (error: DriveNetworkException) {
             val description = error.description
             val message = description?.let { "Network error: $it" } ?: "Network error, will retry"
