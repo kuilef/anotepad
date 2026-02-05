@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.anotepad.data.AppPreferences
 import com.anotepad.data.PreferencesRepository
+import com.anotepad.sync.DriveAccessTokenResult
 import com.anotepad.sync.DriveAuthManager
 import com.anotepad.sync.DriveApiException
 import com.anotepad.sync.DriveClient
@@ -49,9 +50,11 @@ class SyncViewModel(
     private val driveClient = DriveClient()
     private val authState = MutableStateFlow(AuthState())
     private val folderState = MutableStateFlow(FolderState())
+    private val authIntent = MutableStateFlow<Intent?>(null)
 
     private val _state = MutableStateFlow(SyncUiState())
     val state: StateFlow<SyncUiState> = _state.asStateFlow()
+    val authIntentState: StateFlow<Intent?> = authIntent.asStateFlow()
 
     init {
         refreshAuthState()
@@ -111,6 +114,17 @@ class SyncViewModel(
         viewModelScope.launch {
             runCatching { authManager.signOut() }
             refreshAuthState()
+        }
+    }
+
+    fun consumeAuthIntent() {
+        authIntent.value = null
+    }
+
+    fun handleAuthPermissionResult() {
+        refreshAuthState()
+        if (authState.value.isSignedIn) {
+            checkAndConnectDriveFolder()
         }
     }
 
@@ -202,11 +216,7 @@ class SyncViewModel(
     }
 
     private suspend fun checkAndConnectDriveFolderInternal() {
-        val token = authManager.getAccessToken()
-        if (token.isNullOrBlank()) {
-            updateFolderState(error = "Sign in required")
-            return
-        }
+        val token = getAccessTokenOrRequestPermission() ?: return
         val existingId = syncRepository.getDriveFolderId()
         if (!existingId.isNullOrBlank()) {
             val existingName = syncRepository.getDriveFolderName()
@@ -255,7 +265,7 @@ class SyncViewModel(
     }
 
     private suspend fun createDriveFolderInternal(name: String, tokenOverride: String? = null) {
-        val token = tokenOverride ?: authManager.getAccessToken()
+        val token = tokenOverride ?: getAccessTokenOrRequestPermission()
         if (token.isNullOrBlank()) {
             updateFolderState(error = "Sign in required", isLoading = false)
             return
@@ -312,6 +322,25 @@ class SyncViewModel(
             isLoading = isLoading,
             errorMessage = error
         )
+    }
+
+    private suspend fun getAccessTokenOrRequestPermission(): String? {
+        return when (val result = authManager.getAccessTokenResult()) {
+            is DriveAccessTokenResult.Success -> result.token
+            is DriveAccessTokenResult.Recoverable -> {
+                authIntent.value = result.intent
+                updateFolderState(error = "Google Drive permission required")
+                null
+            }
+            DriveAccessTokenResult.NoAccount -> {
+                updateFolderState(error = "Sign in required")
+                null
+            }
+            DriveAccessTokenResult.Error -> {
+                updateFolderState(error = "Unable to get access token")
+                null
+            }
+        }
     }
 
     private data class AuthState(

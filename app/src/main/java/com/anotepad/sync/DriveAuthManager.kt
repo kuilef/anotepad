@@ -37,16 +37,29 @@ class DriveAuthManager(private val context: Context) {
 
     fun isSignedIn(): Boolean = getSignedInAccount() != null
 
-    suspend fun getAccessToken(): String? = withContext(Dispatchers.IO) {
-        val account = getSignedInAccount() ?: return@withContext null
+    suspend fun getAccessTokenResult(): DriveAccessTokenResult = withContext(Dispatchers.IO) {
+        val account = GoogleSignIn.getLastSignedInAccount(context)
+            ?: return@withContext DriveAccessTokenResult.NoAccount
         val scopeString = "oauth2:$DRIVE_SCOPE"
         return@withContext try {
-            val acct = account.account ?: return@withContext null
-            GoogleAuthUtil.getToken(context, acct, scopeString)
-        } catch (_: UserRecoverableAuthException) {
-            null
+            val acct = account.account ?: return@withContext DriveAccessTokenResult.NoAccount
+            val token = GoogleAuthUtil.getToken(context, acct, scopeString)
+            if (token.isBlank()) {
+                DriveAccessTokenResult.Error
+            } else {
+                DriveAccessTokenResult.Success(token)
+            }
+        } catch (error: UserRecoverableAuthException) {
+            DriveAccessTokenResult.Recoverable(error.intent)
         } catch (_: Exception) {
-            null
+            DriveAccessTokenResult.Error
+        }
+    }
+
+    suspend fun getAccessToken(): String? {
+        return when (val result = getAccessTokenResult()) {
+            is DriveAccessTokenResult.Success -> result.token
+            else -> null
         }
     }
 
@@ -61,4 +74,11 @@ class DriveAuthManager(private val context: Context) {
     companion object {
         const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
     }
+}
+
+sealed class DriveAccessTokenResult {
+    data class Success(val token: String) : DriveAccessTokenResult()
+    data class Recoverable(val intent: Intent) : DriveAccessTokenResult()
+    data object NoAccount : DriveAccessTokenResult()
+    data object Error : DriveAccessTokenResult()
 }
