@@ -40,6 +40,9 @@ class MainActivity : ComponentActivity() {
             ANotepadTheme {
                 LaunchedEffect(Unit) {
                     deps.syncScheduler.schedulePeriodic()
+                    if (deps.driveAuthManager.isSignedIn()) {
+                        deps.syncScheduler.scheduleStartup()
+                    }
                 }
                 AppNav(deps)
             }

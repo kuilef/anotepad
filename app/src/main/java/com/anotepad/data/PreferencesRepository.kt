@@ -31,6 +31,7 @@ class PreferencesRepository(private val context: Context) {
         val FILE_SORT_ORDER = stringPreferencesKey("file_sort_order")
         val BROWSER_VIEW_MODE = stringPreferencesKey("browser_view_mode")
         val DRIVE_SYNC_ENABLED = booleanPreferencesKey("drive_sync_enabled")
+        val DRIVE_SYNC_AUTO_ON_START = booleanPreferencesKey("drive_sync_auto_on_start")
         val DRIVE_SYNC_WIFI_ONLY = booleanPreferencesKey("drive_sync_wifi_only")
         val DRIVE_SYNC_CHARGING_ONLY = booleanPreferencesKey("drive_sync_charging_only")
         val DRIVE_SYNC_PAUSED = booleanPreferencesKey("drive_sync_paused")
@@ -64,6 +65,7 @@ class PreferencesRepository(private val context: Context) {
             autoInsertTemplate = prefs[Keys.AUTO_INSERT_TEMPLATE] ?: "yyyy-MM-dd",
             defaultFileExtension = defaultExt,
             driveSyncEnabled = prefs[Keys.DRIVE_SYNC_ENABLED] ?: false,
+            driveSyncAutoOnStart = prefs[Keys.DRIVE_SYNC_AUTO_ON_START] ?: false,
             driveSyncWifiOnly = prefs[Keys.DRIVE_SYNC_WIFI_ONLY] ?: false,
             driveSyncChargingOnly = prefs[Keys.DRIVE_SYNC_CHARGING_ONLY] ?: false,
             driveSyncPaused = prefs[Keys.DRIVE_SYNC_PAUSED] ?: false,
@@ -139,6 +141,10 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setDriveSyncEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.DRIVE_SYNC_ENABLED] = enabled }
+    }
+
+    suspend fun setDriveSyncAutoOnStart(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.DRIVE_SYNC_AUTO_ON_START] = enabled }
     }
 
     suspend fun setDriveSyncRemoteDeletePolicy(policy: String) {

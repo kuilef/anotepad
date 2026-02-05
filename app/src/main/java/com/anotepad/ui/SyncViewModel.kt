@@ -147,6 +147,12 @@ class SyncViewModel(
         }
     }
 
+    fun setAutoSyncOnStart(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setDriveSyncAutoOnStart(enabled)
+        }
+    }
+
     fun setIgnoreRemoteDeletes(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setDriveSyncIgnoreRemoteDeletes(enabled)

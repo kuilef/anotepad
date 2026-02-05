@@ -16,6 +16,7 @@ data class AppPreferences(
     val autoInsertTemplate: String = "yyyy-MM-dd",
     val defaultFileExtension: String = "txt",
     val driveSyncEnabled: Boolean = false,
+    val driveSyncAutoOnStart: Boolean = false,
     val driveSyncWifiOnly: Boolean = true,
     val driveSyncChargingOnly: Boolean = false,
     val driveSyncPaused: Boolean = false,

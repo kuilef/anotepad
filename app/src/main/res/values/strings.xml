@@ -97,6 +97,7 @@
     <string name="action_drive_sync_now">Sync</string>
     <string name="label_drive_constraints">Resources</string>
     <string name="label_drive_pause_sync">Pause sync</string>
+    <string name="label_drive_sync_on_start">Auto sync on start</string>
     <string name="label_drive_ignore_deletes">Ignore deletions from Drive</string>
     <string name="label_drive_pick_folder">Pick Drive folder</string>
     <string name="label_drive_create_folder">Create Drive folder</string>

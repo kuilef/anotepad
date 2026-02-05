@@ -39,6 +39,7 @@ class SyncScheduler(
             workManager.cancelUniqueWork(WORK_SYNC_PERIODIC)
             workManager.cancelUniqueWork(WORK_SYNC_AUTO)
             workManager.cancelUniqueWork(WORK_SYNC_MANUAL)
+            workManager.cancelUniqueWork(WORK_SYNC_STARTUP)
             return
         }
         val constraints = buildConstraints(prefs, manual = false)
@@ -47,6 +48,22 @@ class SyncScheduler(
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.HOURS)
             .build()
         workManager.enqueueUniquePeriodicWork(WORK_SYNC_PERIODIC, ExistingPeriodicWorkPolicy.UPDATE, request)
+    }
+
+    suspend fun scheduleStartup() {
+        val prefs = preferencesRepository.preferencesFlow.first()
+        if (!prefs.driveSyncEnabled || prefs.driveSyncPaused || !prefs.driveSyncAutoOnStart) return
+        if (prefs.rootTreeUri.isNullOrBlank()) return
+        val folderId = syncRepository.getDriveFolderId()
+        if (folderId.isNullOrBlank()) return
+        val constraints = buildConstraints(prefs, manual = false)
+        val request = OneTimeWorkRequestBuilder<DriveSyncWorker>()
+            .setConstraints(constraints)
+            .setInitialDelay(STARTUP_DELAY_SECONDS, TimeUnit.SECONDS)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .build()
+        syncRepository.setSyncStatus(SyncState.PENDING, "Sync scheduled")
+        workManager.enqueueUniqueWork(WORK_SYNC_STARTUP, ExistingWorkPolicy.KEEP, request)
     }
 
     suspend fun syncNow() {
@@ -81,7 +98,9 @@ class SyncScheduler(
         private const val WORK_SYNC_AUTO = "drive_sync_auto"
         private const val WORK_SYNC_MANUAL = "drive_sync_manual"
         private const val WORK_SYNC_PERIODIC = "drive_sync_periodic"
+        private const val WORK_SYNC_STARTUP = "drive_sync_startup"
         private const val DEBOUNCE_SECONDS = 10L
         private const val PERIODIC_HOURS = 8L
+        private const val STARTUP_DELAY_SECONDS = 5L
     }
 }

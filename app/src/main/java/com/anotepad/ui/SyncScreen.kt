@@ -194,6 +194,11 @@ fun SyncScreen(viewModel: SyncViewModel, onBack: () -> Unit) {
                 onToggle = viewModel::setPaused
             )
             SyncToggleRow(
+                title = stringResource(id = R.string.label_drive_sync_on_start),
+                checked = state.prefs.driveSyncAutoOnStart,
+                onToggle = viewModel::setAutoSyncOnStart
+            )
+            SyncToggleRow(
                 title = stringResource(id = R.string.label_drive_ignore_deletes),
                 checked = state.prefs.driveSyncIgnoreRemoteDeletes,
                 onToggle = viewModel::setIgnoreRemoteDeletes
