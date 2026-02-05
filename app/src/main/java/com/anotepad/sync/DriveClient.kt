@@ -11,6 +11,7 @@ import okio.BufferedSink
 import okio.source
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.InputStream
 
@@ -40,6 +41,30 @@ data class DriveListResult<T>(
 class DriveClient(
     private val httpClient: OkHttpClient = OkHttpClient()
 ) {
+    suspend fun findMarkerFolders(token: String): List<DriveFolder> {
+        val markers = findMarkerFiles(token)
+        if (markers.isEmpty()) return emptyList()
+        val parentIds = markers.mapNotNull { it.parents.firstOrNull() }.distinct()
+        return parentIds.mapNotNull { parentId ->
+            val marker = markers.firstOrNull { it.parents.contains(parentId) }
+            val name = marker?.appProperties?.get(MARKER_FOLDER_NAME_KEY)
+                ?: runCatching { getFileMetadata(token, parentId).name }.getOrNull()
+            name?.let { DriveFolder(id = parentId, name = it) }
+        }
+    }
+
+    suspend fun createFolderWithMarker(token: String, name: String): DriveFolder {
+        val folder = createFolder(token, name, null)
+        createMarkerFile(token, folder.id, folder.name)
+        return folder
+    }
+
+    suspend fun ensureMarkerFile(token: String, folderId: String, folderName: String) {
+        val markers = findMarkerFiles(token)
+        if (markers.any { it.parents.contains(folderId) }) return
+        createMarkerFile(token, folderId, folderName)
+    }
+
     suspend fun listFolders(token: String, pageToken: String?): DriveListResult<DriveFolder> {
         val query = "mimeType='application/vnd.google-apps.folder' and trashed=false"
         val url = buildString {
@@ -98,6 +123,26 @@ class DriveClient(
         return parseDriveFile(json)
     }
 
+    private suspend fun findMarkerFiles(token: String): List<DriveFile> {
+        val query = "appProperties has { key='$MARKER_APP_PROPERTY_KEY' and value='$MARKER_APP_PROPERTY_VALUE' } and trashed=false"
+        val items = mutableListOf<DriveFile>()
+        var pageToken: String? = null
+        do {
+            val url = buildString {
+                append("$DRIVE_BASE/files?spaces=drive&fields=files(id,name,mimeType,modifiedTime,parents,trashed,appProperties),nextPageToken&q=")
+                append(urlEncode(query))
+                if (!pageToken.isNullOrBlank()) append("&pageToken=${urlEncode(pageToken)}")
+            }
+            val json = requestJson(token, url)
+            val files = json.optJSONArray("files") ?: JSONArray()
+            for (i in 0 until files.length()) {
+                items.add(parseDriveFile(files.getJSONObject(i)))
+            }
+            pageToken = json.optString("nextPageToken", null)
+        } while (!pageToken.isNullOrBlank())
+        return items
+    }
+
     suspend fun createFolder(token: String, name: String, parentId: String?): DriveFolder {
         val body = JSONObject().apply {
             put("name", name)
@@ -109,6 +154,24 @@ class DriveClient(
         val url = "$DRIVE_BASE/files?fields=id,name"
         val json = requestJson(token, url, method = "POST", body = body)
         return DriveFolder(id = json.getString("id"), name = json.optString("name"))
+    }
+
+    private suspend fun createMarkerFile(token: String, folderId: String, folderName: String): DriveFile {
+        val content = ByteArray(0)
+        val props = mapOf(
+            MARKER_APP_PROPERTY_KEY to MARKER_APP_PROPERTY_VALUE,
+            MARKER_FOLDER_NAME_KEY to folderName
+        )
+        return createOrUpdateFile(
+            token = token,
+            fileId = null,
+            name = MARKER_FILE_NAME,
+            parentId = folderId,
+            mimeType = MARKER_MIME,
+            contentLength = content.size.toLong(),
+            contentProvider = { ByteArrayInputStream(content) },
+            appProperties = props
+        )
     }
 
     suspend fun createOrUpdateFile(
@@ -357,6 +420,11 @@ class DriveClient(
         private val EMPTY_JSON = "{}".toRequestBody(JSON_MEDIA)
         private const val DRIVE_BASE = "https://www.googleapis.com/drive/v3"
         private const val UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3"
+        private const val MARKER_FILE_NAME = "anotepad_config.json"
+        private const val MARKER_MIME = "application/json"
+        private const val MARKER_APP_PROPERTY_KEY = "anotepad_marker"
+        private const val MARKER_APP_PROPERTY_VALUE = "1"
+        private const val MARKER_FOLDER_NAME_KEY = "anotepad_folder_name"
     }
 }
 

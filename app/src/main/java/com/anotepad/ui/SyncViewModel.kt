@@ -217,6 +217,9 @@ class SyncViewModel(
         }
         val existingId = syncRepository.getDriveFolderId()
         if (!existingId.isNullOrBlank()) {
+            val existingName = syncRepository.getDriveFolderName()
+                ?: state.value.prefs.driveSyncFolderName
+            runCatching { driveClient.ensureMarkerFile(token, existingId, existingName) }
             refreshFolderMeta()
             updateFolderState(isLoading = false)
             return
@@ -229,7 +232,7 @@ class SyncViewModel(
             foundFolders = emptyList()
         )
         try {
-            val folders = driveClient.findFoldersByName(token, folderName)
+            val folders = driveClient.findMarkerFolders(token)
             when {
                 folders.isEmpty() -> {
                     updateFolderState(isLoading = false)
@@ -267,7 +270,7 @@ class SyncViewModel(
         }
         updateFolderState(isLoading = true, error = null)
         try {
-            val folder = driveClient.createFolder(token, name, null)
+            val folder = driveClient.createFolderWithMarker(token, name)
             syncRepository.resetForNewFolder(folder.id, folder.name)
             refreshFolderMeta()
             syncScheduler.syncNow()

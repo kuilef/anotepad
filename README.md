@@ -51,10 +51,10 @@ Anotepad uses Google Drive primarily as a backup. With the restricted `drive.fil
 
 ### Folder selection
 - Sign in with Google.
-- The app searches Drive for folders with the configured name (default: `Anotepad`).
-- If exactly one folder is found, it is connected automatically.
-- If none are found, a new folder is created.
-- If multiple folders are found, the app shows a native list and the user chooses one.
+- The app looks for an app-created marker file (`anotepad_config.json`) to find the Drive folder it created earlier.
+- If exactly one marker is found, its parent folder is connected automatically.
+- If none are found, a new folder is created and the marker file is written inside it.
+- If multiple markers are found, the app shows a native list and the user chooses one.
 - The chosen folder ID and name are stored locally; the user can disconnect and re-run auto-setup.
 
 ### Local metadata
@@ -73,7 +73,7 @@ Sync runs on a manual tap, on a debounced schedule after local edits, and on a p
 - A local root folder and a valid Google account are required.
 
 2) **Ensure Drive folder**
-- If a Drive folder ID is not stored yet, the app creates the folder (or reuses one from auto-setup) and stores the ID.
+- If a Drive folder ID is not stored yet, sync does not start. The user must run "Find or create" in settings, which either reuses the marker folder or creates a new one.
 
 3) **Initial sync (first run or after reset)**
 When there is no saved `startPageToken`, the app performs a one-time bootstrap:

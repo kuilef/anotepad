@@ -40,7 +40,13 @@ class SyncEngine(
         }
         syncRepository.setSyncStatus(SyncState.RUNNING, "Syncing...")
 
-        val folderId = ensureDriveFolder(token, prefs)
+        val folderId = when (val result = ensureDriveFolder(token, prefs)) {
+            is DriveFolderResult.Found -> result.id
+            is DriveFolderResult.Error -> {
+                syncRepository.setSyncStatus(SyncState.ERROR, result.message)
+                return SyncResult.Failure(authError = false)
+            }
+        }
         val startToken = syncRepository.getStartPageToken()
         if (startToken.isNullOrBlank()) {
             initialSync(token, rootUri, folderId)
@@ -57,15 +63,24 @@ class SyncEngine(
         return SyncResult.Success
     }
 
-    private suspend fun ensureDriveFolder(token: String, prefs: AppPreferences): String {
+    private suspend fun ensureDriveFolder(token: String, prefs: AppPreferences): DriveFolderResult {
         val storedId = syncRepository.getDriveFolderId()
-        if (!storedId.isNullOrBlank()) return storedId
-        val folderName = syncRepository.getDriveFolderName()
-            ?: prefs.driveSyncFolderName
-        val folder = driveClient.createFolder(token, folderName, null)
-        syncRepository.setDriveFolderId(folder.id)
-        syncRepository.setDriveFolderName(folder.name)
-        return folder.id
+        if (!storedId.isNullOrBlank()) {
+            val name = syncRepository.getDriveFolderName() ?: prefs.driveSyncFolderName
+            runCatching { driveClient.ensureMarkerFile(token, storedId, name) }
+            return DriveFolderResult.Found(storedId)
+        }
+        val folders = driveClient.findMarkerFolders(token)
+        return when {
+            folders.isEmpty() -> DriveFolderResult.Error("Drive folder not connected")
+            folders.size == 1 -> {
+                val folder = folders.first()
+                syncRepository.setDriveFolderId(folder.id)
+                syncRepository.setDriveFolderName(folder.name)
+                DriveFolderResult.Found(folder.id)
+            }
+            else -> DriveFolderResult.Error("Multiple Drive folders found. Open Sync settings to choose.")
+        }
     }
 
     private suspend fun initialSync(
@@ -779,6 +794,11 @@ class SyncEngine(
         } else {
             "folder-${folder.id.take(6)}"
         }
+    }
+
+    private sealed class DriveFolderResult {
+        data class Found(val id: String) : DriveFolderResult()
+        data class Error(val message: String) : DriveFolderResult()
     }
 
     private suspend fun computeHashIfNeeded(item: SyncItemEntity?, meta: LocalFileMeta): String {

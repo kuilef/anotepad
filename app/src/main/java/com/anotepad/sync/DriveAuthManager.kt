@@ -14,12 +14,11 @@ import kotlinx.coroutines.withContext
 
 class DriveAuthManager(private val context: Context) {
     private val scope = Scope(DRIVE_SCOPE)
-    private val metadataScope = Scope(DRIVE_METADATA_SCOPE)
 
     private fun buildSignInOptions(): GoogleSignInOptions {
         return GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .requestScopes(scope, metadataScope)
+            .requestScopes(scope)
             .build()
     }
 
@@ -33,14 +32,14 @@ class DriveAuthManager(private val context: Context) {
 
     fun getSignedInAccount(): GoogleSignInAccount? {
         val account = GoogleSignIn.getLastSignedInAccount(context) ?: return null
-        return if (GoogleSignIn.hasPermissions(account, scope, metadataScope)) account else null
+        return if (GoogleSignIn.hasPermissions(account, scope)) account else null
     }
 
     fun isSignedIn(): Boolean = getSignedInAccount() != null
 
     suspend fun getAccessToken(): String? = withContext(Dispatchers.IO) {
         val account = getSignedInAccount() ?: return@withContext null
-        val scopeString = "oauth2:$DRIVE_SCOPE $DRIVE_METADATA_SCOPE"
+        val scopeString = "oauth2:$DRIVE_SCOPE"
         return@withContext try {
             val acct = account.account ?: return@withContext null
             GoogleAuthUtil.getToken(context, acct, scopeString)
@@ -61,6 +60,5 @@ class DriveAuthManager(private val context: Context) {
 
     companion object {
         const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
-        const val DRIVE_METADATA_SCOPE = "https://www.googleapis.com/auth/drive.metadata.readonly"
     }
 }
