@@ -25,3 +25,7 @@ keystore.properties
 *.jks
 *.keystore
 *.p12
+
+.android-sdk/
+.jdks/
+.gradle-wsl/
