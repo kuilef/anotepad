@@ -129,3 +129,8 @@ This prevents duplicate files on Drive when local files already exist.
 
 ## Privacy policy link
 <a href="https://anotepad.tirmudam.org/PRIVACY_POLICY">https://anotepad.tirmudam.org/PRIVACY_POLICY</a>
+
+## License
+Licensed under the MIT licenst - see LICENSE.
+
+Trademark policy: see [TRADEMARK.md](TRADEMARK.md).
