@@ -664,7 +664,10 @@ private fun ToolbarOnboardingOverlay(
             maximumValue = bubbleLeft + bubbleWidthPx - with(density) { 20.dp.toPx() }
         )
         val bubbleAnchorY = if (placeBelow) bubbleTop else bubbleTop + estimatedBubbleHeightPx
-        val targetCenter = Offset(targetRect.center.x, targetRect.center.y)
+        val targetPoint = Offset(
+            x = step.targetRect.center.x,
+            y = step.targetRect.top + step.targetRect.height * if (placeBelow) 0.8f else 0.2f
+        )
 
         Canvas(
             modifier = Modifier
@@ -686,7 +689,7 @@ private fun ToolbarOnboardingOverlay(
             val arrowWidthPx = with(density) { 12.dp.toPx() }
             val arrowLengthPx = with(density) { 18.dp.toPx() }
             val start = Offset(bubbleAnchorX, bubbleAnchorY)
-            val end = targetCenter
+            val end = targetPoint
 
             drawLine(
                 color = arrowColor,
