@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Article
@@ -287,7 +288,7 @@ fun BrowserScreen(
                                         )
                                     }
                                     LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                        items(state.entries) { entry ->
+                                        itemsIndexed(state.entries) { index, entry ->
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -308,7 +309,12 @@ fun BrowserScreen(
                                                             }
                                                         }
                                                     )
-                                                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                                                    .padding(
+                                                        start = 16.dp,
+                                                        end = 16.dp,
+                                                        top = if (index == 0) 2.dp else 8.dp,
+                                                        bottom = 8.dp
+                                                    ),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                                             ) {
@@ -582,7 +588,7 @@ private fun FeedList(
         state = listState,
         modifier = Modifier.fillMaxSize()
     ) {
-        items(items, key = { it.node.uri.toString() }) { item ->
+        itemsIndexed(items, key = { _, item -> item.node.uri.toString() }) { index, item ->
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -591,7 +597,12 @@ private fun FeedList(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 2.dp)
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = if (index == 0) 2.dp else 12.dp,
+                            bottom = 8.dp
+                        )
                 ) {
                     Text(text = buildFeedAnnotatedText(item.text), style = textStyle)
                 }
