@@ -18,6 +18,9 @@
     <string name="action_move">Move</string>
     <string name="action_back">Back</string>
     <string name="action_refresh">Refresh</string>
+    <string name="action_next">Next</string>
+    <string name="action_done">Done</string>
+    <string name="action_skip">Skip</string>
     <string name="action_reload">Reload</string>
     <string name="action_overwrite">Overwrite</string>
     <string name="action_undo">Undo</string>
@@ -34,6 +37,7 @@
     <string name="label_copy_to">Copy to</string>
     <string name="label_move_to">Move to</string>
     <string name="label_no_folder">No folder selected</string>
+    <string name="label_pick_folder_message">Select a folder on your phone once. Files will be in this folder.</string>
     <string name="label_empty_folder">Tap the bottom-right button\nto create a new file.</string>
     <string name="label_folder_access_title">Folder access</string>
     <string name="label_folder_access_message">Anotepad stores notes in the folder you choose. We will open the system folder picker to grant access.</string>
@@ -120,4 +124,9 @@
     <string name="label_none">None</string>
     <string name="label_no_notes">No notes in folder</string>
     <string name="label_loading_more">Loading more...</string>
+    <string name="label_toolbar_hint_new_folder">Create a new folder in the current location.</string>
+    <string name="label_toolbar_hint_refresh">Refresh files and folders from storage.</string>
+    <string name="label_toolbar_hint_search">Search notes in the current folder.</string>
+    <string name="label_toolbar_hint_view_mode">Switch between notes list and notes feed view.</string>
+    <string name="label_toolbar_hint_settings">Open app settings and sync options.</string>
 </resources>

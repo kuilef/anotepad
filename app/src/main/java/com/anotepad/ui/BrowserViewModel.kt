@@ -43,7 +43,8 @@ data class BrowserState(
     val feedScrollIndex: Int = 0,
     val feedScrollOffset: Int = 0,
     val feedResetSignal: Int = 0,
-    val showFolderAccessHint: Boolean = false
+    val showFolderAccessHint: Boolean = false,
+    val showToolbarOnboarding: Boolean = false
 )
 
 class BrowserViewModel(
@@ -75,7 +76,8 @@ class BrowserViewModel(
                         fileSortOrder = prefs.fileSortOrder,
                         defaultFileExtension = prefs.defaultFileExtension,
                         viewMode = prefs.browserViewMode,
-                        showFolderAccessHint = !prefs.folderAccessHintShown
+                        showFolderAccessHint = !prefs.folderAccessHintShown,
+                        showToolbarOnboarding = root != null && !prefs.toolbarOnboardingShown
                     )
                 }
                 val currentDir = _state.value.currentDirUri
@@ -93,7 +95,8 @@ class BrowserViewModel(
                             feedScrollOffset = 0,
                             feedResetSignal = state.feedResetSignal + 1,
                             isLoading = false,
-                            isLoadingMore = false
+                            isLoadingMore = false,
+                            showToolbarOnboarding = false
                         )
                     }
                     feedFiles = emptyList()
@@ -274,6 +277,12 @@ class BrowserViewModel(
         if (!_state.value.showFolderAccessHint) return
         _state.update { it.copy(showFolderAccessHint = false) }
         viewModelScope.launch { preferencesRepository.setFolderAccessHintShown(true) }
+    }
+
+    fun markToolbarOnboardingShown() {
+        if (!_state.value.showToolbarOnboarding) return
+        _state.update { it.copy(showToolbarOnboarding = false) }
+        viewModelScope.launch { preferencesRepository.setToolbarOnboardingShown(true) }
     }
 
     fun ensureFeedLoaded() {

@@ -21,5 +21,6 @@ data class AppPreferences(
     val driveSyncIgnoreRemoteDeletes: Boolean = false,
     val driveSyncRemoteDeletePolicy: String = "TRASH",
     val driveSyncFolderName: String = "Anotepad",
-    val folderAccessHintShown: Boolean = false
+    val folderAccessHintShown: Boolean = false,
+    val toolbarOnboardingShown: Boolean = false
 )

@@ -1,21 +1,29 @@
 package com.anotepad.ui
 
 import android.net.Uri
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.getBottom
+import androidx.compose.foundation.layout.getTop
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -37,6 +45,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -51,6 +60,17 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -58,12 +78,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anotepad.R
 import com.anotepad.data.BrowserViewMode
 import com.anotepad.file.DocumentNode
 import kotlinx.coroutines.flow.collect
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +107,12 @@ fun BrowserScreen(
     var renameInput by remember { mutableStateOf("") }
     var pendingDestinationAction by remember { mutableStateOf<FileAction?>(null) }
     var actionTarget by remember { mutableStateOf<DocumentNode?>(null) }
+    var newFolderButtonRect by remember { mutableStateOf<Rect?>(null) }
+    var refreshButtonRect by remember { mutableStateOf<Rect?>(null) }
+    var searchButtonRect by remember { mutableStateOf<Rect?>(null) }
+    var viewModeButtonRect by remember { mutableStateOf<Rect?>(null) }
+    var settingsButtonRect by remember { mutableStateOf<Rect?>(null) }
+    var onboardingStepIndex by remember { mutableStateOf(0) }
 
     LaunchedEffect(state.viewMode, state.feedResetSignal) {
         if (state.viewMode == BrowserViewMode.FEED) {
@@ -97,251 +126,320 @@ fun BrowserScreen(
         parentLabel = stringResource(id = R.string.label_parent_folder)
     )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    // Никакого null: просто условно рисуем кнопку внутри composable-лямбды
-                    if (state.dirStack.size > 1) {
-                        IconButton(onClick = { viewModel.navigateUp() }) {
-                            Icon(
-                                Icons.Default.ArrowUpward,
-                                contentDescription = stringResource(id = R.string.action_back)
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = { showNewFolderDialog = true },
-                        enabled = state.currentDirUri != null
-                    ) {
-                        Icon(
-                            Icons.Default.CreateNewFolder,
-                            contentDescription = stringResource(id = R.string.action_new_folder)
-                        )
-                    }
-                    IconButton(onClick = { viewModel.refresh(force = true) }) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = stringResource(id = R.string.action_refresh)
-                        )
-                    }
-                    state.currentDirUri?.let { dir ->
-                        IconButton(onClick = { onSearch(dir) }) {
-                            Icon(
-                                Icons.Default.Search,
-                                contentDescription = stringResource(id = R.string.action_search)
-                            )
-                        }
-                    }
-                    IconButton(onClick = { viewModel.toggleViewMode() }) {
-                        val icon = if (state.viewMode == BrowserViewMode.FEED) {
-                            Icons.Default.List
-                        } else {
-                            Icons.Default.Article
-                        }
-                        val description = if (state.viewMode == BrowserViewMode.FEED) {
-                            stringResource(id = R.string.action_toggle_list)
-                        } else {
-                            stringResource(id = R.string.action_toggle_feed)
-                        }
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = description
-                        )
-                    }
-                    IconButton(onClick = onSettings) {
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = stringResource(id = R.string.action_settings)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+    val onboardingSteps = if (
+        state.showToolbarOnboarding &&
+        newFolderButtonRect != null &&
+        refreshButtonRect != null &&
+        searchButtonRect != null &&
+        viewModeButtonRect != null &&
+        settingsButtonRect != null
+    ) {
+        listOf(
+            ToolbarOnboardingStep(
+                targetRect = newFolderButtonRect!!,
+                message = stringResource(id = R.string.label_toolbar_hint_new_folder)
+            ),
+            ToolbarOnboardingStep(
+                targetRect = refreshButtonRect!!,
+                message = stringResource(id = R.string.label_toolbar_hint_refresh)
+            ),
+            ToolbarOnboardingStep(
+                targetRect = searchButtonRect!!,
+                message = stringResource(id = R.string.label_toolbar_hint_search)
+            ),
+            ToolbarOnboardingStep(
+                targetRect = viewModeButtonRect!!,
+                message = stringResource(id = R.string.label_toolbar_hint_view_mode)
+            ),
+            ToolbarOnboardingStep(
+                targetRect = settingsButtonRect!!,
+                message = stringResource(id = R.string.label_toolbar_hint_settings)
             )
-        },
-        floatingActionButton = {
-            if (state.currentDirUri != null) {
-                FloatingActionButton(
-                    onClick = {
-                        val extension = state.defaultFileExtension.ifBlank { "txt" }
-                        val dir = state.currentDirUri
-                        if (dir != null) {
-                            onNewFile(dir, extension)
-                        }
-                    }
-                ) {
-                    Icon(
-                        Icons.Default.Create,
-                        contentDescription = stringResource(id = R.string.action_new_note)
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        when {
-            state.rootUri == null -> {
-                EmptyState(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    message = stringResource(id = R.string.label_no_folder),
-                    actionLabel = stringResource(id = R.string.action_pick_folder),
-                    onAction = {
-                        if (state.showFolderAccessHint) {
-                            showFolderAccessDialog = true
-                        } else {
-                            onPickDirectory()
-                        }
-                    }
-                )
-            }
+        )
+    } else {
+        emptyList()
+    }
 
-            else -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
-                    state.currentDirLabel?.let { path ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = path,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    when {
-                        state.isLoading && state.entries.isEmpty() -> {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(text = stringResource(id = R.string.label_searching))
+    LaunchedEffect(state.showToolbarOnboarding, onboardingSteps.size) {
+        if (!state.showToolbarOnboarding) {
+            onboardingStepIndex = 0
+        } else if (onboardingSteps.isNotEmpty() && onboardingStepIndex > onboardingSteps.lastIndex) {
+            onboardingStepIndex = onboardingSteps.lastIndex
+        }
+    }
+
+    val currentOnboardingStep = onboardingSteps.getOrNull(onboardingStepIndex)
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {},
+                    navigationIcon = {
+                        if (state.dirStack.size > 1) {
+                            IconButton(onClick = { viewModel.navigateUp() }) {
+                                Icon(
+                                    Icons.Default.ArrowUpward,
+                                    contentDescription = stringResource(id = R.string.action_back)
+                                )
                             }
                         }
-
-                        state.entries.isEmpty() -> {
-                            EmptyState(
-                                modifier = Modifier.fillMaxSize(),
-                                message = stringResource(id = R.string.label_empty_folder)
+                    },
+                    actions = {
+                        IconButton(
+                            modifier = Modifier.onGloballyPositioned { coordinates ->
+                                newFolderButtonRect = coordinates.boundsInWindow()
+                            },
+                            onClick = { showNewFolderDialog = true },
+                            enabled = state.currentDirUri != null
+                        ) {
+                            Icon(
+                                Icons.Default.CreateNewFolder,
+                                contentDescription = stringResource(id = R.string.action_new_folder)
                             )
                         }
-
-                        else -> {
-                            val entryTextStyle = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = state.fileListFontSizeSp.sp
+                        IconButton(
+                            modifier = Modifier.onGloballyPositioned { coordinates ->
+                                refreshButtonRect = coordinates.boundsInWindow()
+                            },
+                            onClick = { viewModel.refresh(force = true) }
+                        ) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = stringResource(id = R.string.action_refresh)
                             )
-                            if (state.viewMode == BrowserViewMode.FEED) {
-                                if ((state.isLoading || state.isLoadingMore) && state.feedItems.isEmpty()) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(text = stringResource(id = R.string.label_searching))
-                                    }
-                                } else {
-                                    val hasFiles = state.entries.any { !it.isDirectory }
-                                    if (!hasFiles) {
+                        }
+                        state.currentDirUri?.let { dir ->
+                            IconButton(
+                                modifier = Modifier.onGloballyPositioned { coordinates ->
+                                    searchButtonRect = coordinates.boundsInWindow()
+                                },
+                                onClick = { onSearch(dir) }
+                            ) {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = stringResource(id = R.string.action_search)
+                                )
+                            }
+                        }
+                        IconButton(
+                            modifier = Modifier.onGloballyPositioned { coordinates ->
+                                viewModeButtonRect = coordinates.boundsInWindow()
+                            },
+                            onClick = { viewModel.toggleViewMode() }
+                        ) {
+                            val icon = if (state.viewMode == BrowserViewMode.FEED) {
+                                Icons.Default.List
+                            } else {
+                                Icons.Default.Article
+                            }
+                            val description = if (state.viewMode == BrowserViewMode.FEED) {
+                                stringResource(id = R.string.action_toggle_list)
+                            } else {
+                                stringResource(id = R.string.action_toggle_feed)
+                            }
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = description
+                            )
+                        }
+                        IconButton(
+                            modifier = Modifier.onGloballyPositioned { coordinates ->
+                                settingsButtonRect = coordinates.boundsInWindow()
+                            },
+                            onClick = onSettings
+                        ) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = stringResource(id = R.string.action_settings)
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            },
+            floatingActionButton = {
+                if (state.currentDirUri != null) {
+                    FloatingActionButton(
+                        onClick = {
+                            val extension = state.defaultFileExtension.ifBlank { "txt" }
+                            val dir = state.currentDirUri
+                            if (dir != null) {
+                                onNewFile(dir, extension)
+                            }
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.Create,
+                            contentDescription = stringResource(id = R.string.action_new_note)
+                        )
+                    }
+                }
+            }
+        ) { padding ->
+            when {
+                state.rootUri == null -> {
+                    EmptyState(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding),
+                        message = stringResource(id = R.string.label_no_folder),
+                        supportingText = stringResource(id = R.string.label_pick_folder_message),
+                        actionLabel = stringResource(id = R.string.action_pick_folder),
+                        onAction = {
+                            if (state.showFolderAccessHint) {
+                                showFolderAccessDialog = true
+                            } else {
+                                onPickDirectory()
+                            }
+                        }
+                    )
+                }
+
+                else -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                    ) {
+                        state.currentDirLabel?.let { path ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = path,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        when {
+                            state.isLoading && state.entries.isEmpty() -> {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = stringResource(id = R.string.label_searching))
+                                }
+                            }
+
+                            state.entries.isEmpty() -> {
+                                EmptyState(
+                                    modifier = Modifier.fillMaxSize(),
+                                    message = stringResource(id = R.string.label_empty_folder)
+                                )
+                            }
+
+                            else -> {
+                                val entryTextStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = state.fileListFontSizeSp.sp
+                                )
+                                if (state.viewMode == BrowserViewMode.FEED) {
+                                    if ((state.isLoading || state.isLoadingMore) && state.feedItems.isEmpty()) {
                                         Box(
                                             modifier = Modifier.fillMaxSize(),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text(text = stringResource(id = R.string.label_no_notes))
+                                            Text(text = stringResource(id = R.string.label_searching))
                                         }
                                     } else {
-                                        FeedList(
-                                            items = state.feedItems,
-                                            hasMore = state.feedHasMore,
-                                            loading = state.feedLoading,
-                                            fontSizeSp = state.fileListFontSizeSp,
-                                            initialIndex = state.feedScrollIndex,
-                                            initialOffset = state.feedScrollOffset,
-                                            resetSignal = state.feedResetSignal,
-                                            onLoadMore = viewModel::loadMoreFeed,
-                                            onScrollChange = viewModel::updateFeedScroll,
-                                            onOpenFile = { node ->
-                                                state.currentDirUri?.let { dir ->
-                                                    onOpenFile(node.uri, dir)
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-                            } else {
-                                Column(modifier = Modifier.fillMaxSize()) {
-                                    if (state.isLoadingMore) {
-                                        Text(
-                                            text = stringResource(id = R.string.label_loading_more),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                                        )
-                                    }
-                                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                        itemsIndexed(state.entries) { index, entry ->
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .combinedClickable(
-                                                        onClick = {
-                                                            if (entry.isDirectory) {
-                                                                viewModel.navigateInto(entry.uri)
-                                                            } else {
-                                                                state.currentDirUri?.let { dir ->
-                                                                    onOpenFile(entry.uri, dir)
-                                                                }
-                                                            }
-                                                        },
-                                                        onLongClick = {
-                                                            if (!entry.isDirectory) {
-                                                                actionTarget = entry
-                                                                showFileActions = true
-                                                            }
-                                                        }
-                                                    )
-                                                    .padding(
-                                                        start = 16.dp,
-                                                        end = 16.dp,
-                                                        top = if (index == 0) 2.dp else 8.dp,
-                                                        bottom = 8.dp
-                                                    ),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        val hasFiles = state.entries.any { !it.isDirectory }
+                                        if (!hasFiles) {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentAlignment = Alignment.Center
                                             ) {
-                                                Icon(
-                                                    imageVector = if (entry.isDirectory) {
-                                                        Icons.Default.FolderOpen // или Folder, если хотите отдельную иконку
-                                                    } else {
-                                                        Icons.Default.InsertDriveFile
-                                                    },
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                                Text(
-                                                    text = entry.name,
-                                                    style = entryTextStyle
-                                                )
+                                                Text(text = stringResource(id = R.string.label_no_notes))
                                             }
+                                        } else {
+                                            FeedList(
+                                                items = state.feedItems,
+                                                hasMore = state.feedHasMore,
+                                                loading = state.feedLoading,
+                                                fontSizeSp = state.fileListFontSizeSp,
+                                                initialIndex = state.feedScrollIndex,
+                                                initialOffset = state.feedScrollOffset,
+                                                resetSignal = state.feedResetSignal,
+                                                onLoadMore = viewModel::loadMoreFeed,
+                                                onScrollChange = viewModel::updateFeedScroll,
+                                                onOpenFile = { node ->
+                                                    state.currentDirUri?.let { dir ->
+                                                        onOpenFile(node.uri, dir)
+                                                    }
+                                                }
+                                            )
                                         }
+                                    }
+                                } else {
+                                    Column(modifier = Modifier.fillMaxSize()) {
                                         if (state.isLoadingMore) {
-                                            item {
-                                                Box(
+                                            Text(
+                                                text = stringResource(id = R.string.label_loading_more),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                            itemsIndexed(state.entries) { index, entry ->
+                                                Row(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .padding(16.dp),
-                                                    contentAlignment = Alignment.Center
+                                                        .combinedClickable(
+                                                            onClick = {
+                                                                if (entry.isDirectory) {
+                                                                    viewModel.navigateInto(entry.uri)
+                                                                } else {
+                                                                    state.currentDirUri?.let { dir ->
+                                                                        onOpenFile(entry.uri, dir)
+                                                                    }
+                                                                }
+                                                            },
+                                                            onLongClick = {
+                                                                if (!entry.isDirectory) {
+                                                                    actionTarget = entry
+                                                                    showFileActions = true
+                                                                }
+                                                            }
+                                                        )
+                                                        .padding(
+                                                            start = 16.dp,
+                                                            end = 16.dp,
+                                                            top = if (index == 0) 2.dp else 8.dp,
+                                                            bottom = 8.dp
+                                                        ),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                                 ) {
-                                                    Text(text = stringResource(id = R.string.label_loading_more))
+                                                    Icon(
+                                                        imageVector = if (entry.isDirectory) {
+                                                            Icons.Default.FolderOpen
+                                                        } else {
+                                                            Icons.Default.InsertDriveFile
+                                                        },
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                    Text(
+                                                        text = entry.name,
+                                                        style = entryTextStyle
+                                                    )
+                                                }
+                                            }
+                                            if (state.isLoadingMore) {
+                                                item {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(16.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(text = stringResource(id = R.string.label_loading_more))
+                                                    }
                                                 }
                                             }
                                         }
@@ -352,6 +450,26 @@ fun BrowserScreen(
                     }
                 }
             }
+        }
+
+        if (currentOnboardingStep != null) {
+            ToolbarOnboardingOverlay(
+                step = currentOnboardingStep,
+                stepIndex = onboardingStepIndex,
+                totalSteps = onboardingSteps.size,
+                onSkip = {
+                    onboardingStepIndex = 0
+                    viewModel.markToolbarOnboardingShown()
+                },
+                onNext = {
+                    if (onboardingStepIndex < onboardingSteps.lastIndex) {
+                        onboardingStepIndex += 1
+                    } else {
+                        onboardingStepIndex = 0
+                        viewModel.markToolbarOnboardingShown()
+                    }
+                }
+            )
         }
     }
 
@@ -482,10 +600,172 @@ fun BrowserScreen(
     }
 }
 
+private data class ToolbarOnboardingStep(
+    val targetRect: Rect,
+    val message: String
+)
+
+@Composable
+private fun ToolbarOnboardingOverlay(
+    step: ToolbarOnboardingStep,
+    stepIndex: Int,
+    totalSteps: Int,
+    onSkip: () -> Unit,
+    onNext: () -> Unit
+) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
+    ) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val screenWidthPx = with(density) { maxWidth.toPx() }
+        val screenHeightPx = with(density) { maxHeight.toPx() }
+        val marginPx = with(density) { 16.dp.toPx() }
+        val highlightPaddingPx = with(density) { 8.dp.toPx() }
+        val highlightCornerPx = with(density) { 12.dp.toPx() }
+        val topInsetPx = WindowInsets.systemBars.getTop(density).toFloat()
+        val bottomInsetPx = WindowInsets.systemBars.getBottom(density).toFloat()
+        val maxBubbleWidthPx = with(density) { 320.dp.toPx() }
+        val bubbleWidthPx = maxBubbleWidthPx.coerceAtMost(screenWidthPx - marginPx * 2f)
+        var bubbleSize by remember(stepIndex) { mutableStateOf(IntSize.Zero) }
+
+        val targetRect = Rect(
+            left = step.targetRect.left - highlightPaddingPx,
+            top = step.targetRect.top - highlightPaddingPx,
+            right = step.targetRect.right + highlightPaddingPx,
+            bottom = step.targetRect.bottom + highlightPaddingPx
+        )
+        val estimatedBubbleHeightPx = if (bubbleSize.height > 0) {
+            bubbleSize.height.toFloat()
+        } else {
+            with(density) { 168.dp.toPx() }
+        }
+        val availableAbove = targetRect.top - topInsetPx - marginPx
+        val availableBelow = screenHeightPx - bottomInsetPx - targetRect.bottom - marginPx
+        val placeBelow = availableBelow >= estimatedBubbleHeightPx || availableBelow >= availableAbove
+
+        val minBubbleLeft = marginPx
+        val maxBubbleLeft = (screenWidthPx - bubbleWidthPx - marginPx).coerceAtLeast(minBubbleLeft)
+        val bubbleLeft = (targetRect.center.x - bubbleWidthPx / 2f).coerceIn(minBubbleLeft, maxBubbleLeft)
+        val minBubbleTop = topInsetPx + marginPx
+        val maxBubbleTop = (screenHeightPx - bottomInsetPx - estimatedBubbleHeightPx - marginPx).coerceAtLeast(minBubbleTop)
+        val rawBubbleTop = if (placeBelow) {
+            targetRect.bottom + marginPx
+        } else {
+            targetRect.top - estimatedBubbleHeightPx - marginPx
+        }
+        val bubbleTop = rawBubbleTop.coerceIn(minBubbleTop, maxBubbleTop)
+
+        val bubbleAnchorX = targetRect.center.x.coerceIn(
+            minimumValue = bubbleLeft + with(density) { 20.dp.toPx() },
+            maximumValue = bubbleLeft + bubbleWidthPx - with(density) { 20.dp.toPx() }
+        )
+        val bubbleAnchorY = if (placeBelow) bubbleTop else bubbleTop + estimatedBubbleHeightPx
+        val targetCenter = Offset(targetRect.center.x, targetRect.center.y)
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+        ) {
+            drawRect(color = Color.Black.copy(alpha = 0.64f))
+            drawRoundRect(
+                color = Color.Transparent,
+                topLeft = Offset(targetRect.left, targetRect.top),
+                size = Size(targetRect.width, targetRect.height),
+                cornerRadius = CornerRadius(highlightCornerPx, highlightCornerPx),
+                blendMode = BlendMode.Clear
+            )
+        }
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val arrowColor = Color.White
+            val arrowWidthPx = with(density) { 12.dp.toPx() }
+            val arrowLengthPx = with(density) { 18.dp.toPx() }
+            val start = Offset(bubbleAnchorX, bubbleAnchorY)
+            val end = targetCenter
+
+            drawLine(
+                color = arrowColor,
+                start = start,
+                end = end,
+                strokeWidth = with(density) { 2.dp.toPx() }
+            )
+
+            val dx = end.x - start.x
+            val dy = end.y - start.y
+            val length = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
+            val ux = dx / length
+            val uy = dy / length
+            val px = -uy
+            val py = ux
+            val baseX = end.x - ux * arrowLengthPx
+            val baseY = end.y - uy * arrowLengthPx
+            val arrowHead = Path().apply {
+                moveTo(end.x, end.y)
+                lineTo(baseX + px * (arrowWidthPx / 2f), baseY + py * (arrowWidthPx / 2f))
+                lineTo(baseX - px * (arrowWidthPx / 2f), baseY - py * (arrowWidthPx / 2f))
+                close()
+            }
+            drawPath(path = arrowHead, color = arrowColor)
+        }
+
+        Surface(
+            modifier = Modifier
+                .offset { IntOffset(bubbleLeft.roundToInt(), bubbleTop.roundToInt()) }
+                .width(with(density) { bubbleWidthPx.toDp() })
+                .onGloballyPositioned { coordinates ->
+                    bubbleSize = coordinates.size
+                },
+            shape = RoundedCornerShape(16.dp),
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "${stepIndex + 1}/$totalSteps",
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    text = step.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onSkip) {
+                        Text(text = stringResource(id = R.string.action_skip))
+                    }
+                    Button(onClick = onNext) {
+                        val actionId = if (stepIndex == totalSteps - 1) {
+                            R.string.action_done
+                        } else {
+                            R.string.action_next
+                        }
+                        Text(text = stringResource(id = actionId))
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun EmptyState(
     modifier: Modifier,
     message: String,
+    supportingText: String? = null,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null
 ) {
@@ -500,6 +780,16 @@ private fun EmptyState(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
+        if (!supportingText.isNullOrBlank()) {
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp, start = 24.dp, end = 24.dp)
+            )
+        }
         if (actionLabel != null && onAction != null) {
             Button(onClick = onAction, modifier = Modifier.padding(top = 16.dp)) {
                 Text(text = actionLabel)

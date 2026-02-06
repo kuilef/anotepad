@@ -37,6 +37,7 @@ class PreferencesRepository(private val context: Context) {
         val DRIVE_SYNC_REMOTE_DELETE_POLICY = stringPreferencesKey("drive_sync_remote_delete_policy")
         val DRIVE_SYNC_FOLDER_NAME = stringPreferencesKey("drive_sync_folder_name")
         val FOLDER_ACCESS_HINT_SHOWN = booleanPreferencesKey("folder_access_hint_shown")
+        val TOOLBAR_ONBOARDING_SHOWN = booleanPreferencesKey("toolbar_onboarding_shown")
     }
 
     val preferencesFlow: Flow<AppPreferences> = context.dataStore.data.map { prefs ->
@@ -68,7 +69,8 @@ class PreferencesRepository(private val context: Context) {
             driveSyncIgnoreRemoteDeletes = prefs[Keys.DRIVE_SYNC_IGNORE_REMOTE_DELETES] ?: false,
             driveSyncRemoteDeletePolicy = prefs[Keys.DRIVE_SYNC_REMOTE_DELETE_POLICY] ?: "TRASH",
             driveSyncFolderName = prefs[Keys.DRIVE_SYNC_FOLDER_NAME] ?: "Anotepad",
-            folderAccessHintShown = prefs[Keys.FOLDER_ACCESS_HINT_SHOWN] ?: false
+            folderAccessHintShown = prefs[Keys.FOLDER_ACCESS_HINT_SHOWN] ?: false,
+            toolbarOnboardingShown = prefs[Keys.TOOLBAR_ONBOARDING_SHOWN] ?: false
         )
     }
 
@@ -161,6 +163,10 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setFolderAccessHintShown(shown: Boolean) {
         context.dataStore.edit { it[Keys.FOLDER_ACCESS_HINT_SHOWN] = shown }
+    }
+
+    suspend fun setToolbarOnboardingShown(shown: Boolean) {
+        context.dataStore.edit { it[Keys.TOOLBAR_ONBOARDING_SHOWN] = shown }
     }
 
     internal val dataStore = context.dataStore
