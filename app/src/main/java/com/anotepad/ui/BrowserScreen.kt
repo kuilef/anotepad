@@ -308,7 +308,7 @@ fun BrowserScreen(
                                                             }
                                                         }
                                                     )
-                                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                                    .padding(horizontal = 16.dp, vertical = 2.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                                             ) {
@@ -591,7 +591,7 @@ private fun FeedList(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)
+                        .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 2.dp)
                 ) {
                     Text(text = buildFeedAnnotatedText(item.text), style = textStyle)
                 }

@@ -333,7 +333,7 @@ fun EditorScreen(
                         isVerticalScrollBarEnabled = true
                         overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
                         val density = context.resources.displayMetrics.density
-                        val paddingPx = (4f * density).roundToInt()
+                        val paddingPx = (2f * density).roundToInt()
                         setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
                         scrollBarSize = (2f * density).roundToInt()
                         isScrollbarFadingEnabled = true
@@ -413,7 +413,7 @@ fun EditorScreen(
                     editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
                     editText.setBackgroundColor(backgroundColor)
                     val density = editText.resources.displayMetrics.density
-                    val basePaddingPx = (4f * density).roundToInt()
+                    val basePaddingPx = (2f * density).roundToInt()
                     val extraLinePx = editText.lineHeight.coerceAtLeast(0)
                     val targetBottom = basePaddingPx + extraLinePx
                     if (
