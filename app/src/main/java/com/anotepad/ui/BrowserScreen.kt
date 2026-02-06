@@ -67,7 +67,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -186,7 +186,7 @@ fun BrowserScreen(
                     actions = {
                         IconButton(
                             modifier = Modifier.onGloballyPositioned { coordinates ->
-                                newFolderButtonRect = coordinates.boundsInWindow()
+                                newFolderButtonRect = coordinates.boundsInRoot()
                             },
                             onClick = { showNewFolderDialog = true },
                             enabled = state.currentDirUri != null
@@ -198,7 +198,7 @@ fun BrowserScreen(
                         }
                         IconButton(
                             modifier = Modifier.onGloballyPositioned { coordinates ->
-                                refreshButtonRect = coordinates.boundsInWindow()
+                                refreshButtonRect = coordinates.boundsInRoot()
                             },
                             onClick = { viewModel.refresh(force = true) }
                         ) {
@@ -210,7 +210,7 @@ fun BrowserScreen(
                         state.currentDirUri?.let { dir ->
                             IconButton(
                                 modifier = Modifier.onGloballyPositioned { coordinates ->
-                                    searchButtonRect = coordinates.boundsInWindow()
+                                    searchButtonRect = coordinates.boundsInRoot()
                                 },
                                 onClick = { onSearch(dir) }
                             ) {
@@ -222,7 +222,7 @@ fun BrowserScreen(
                         }
                         IconButton(
                             modifier = Modifier.onGloballyPositioned { coordinates ->
-                                viewModeButtonRect = coordinates.boundsInWindow()
+                                viewModeButtonRect = coordinates.boundsInRoot()
                             },
                             onClick = { viewModel.toggleViewMode() }
                         ) {
@@ -243,7 +243,7 @@ fun BrowserScreen(
                         }
                         IconButton(
                             modifier = Modifier.onGloballyPositioned { coordinates ->
-                                settingsButtonRect = coordinates.boundsInWindow()
+                                settingsButtonRect = coordinates.boundsInRoot()
                             },
                             onClick = onSettings
                         ) {
