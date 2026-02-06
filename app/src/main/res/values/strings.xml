@@ -129,4 +129,5 @@
     <string name="label_toolbar_hint_search">Search notes in the current folder.</string>
     <string name="label_toolbar_hint_view_mode">Switch between notes list and notes feed view.</string>
     <string name="label_toolbar_hint_settings">Open app settings and sync options.</string>
+    <string name="label_toolbar_hint_new_note">Create a new note in the current folder.</string>
 </resources>

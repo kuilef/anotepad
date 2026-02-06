@@ -110,6 +110,7 @@ fun BrowserScreen(
     var searchButtonRect by remember { mutableStateOf<Rect?>(null) }
     var viewModeButtonRect by remember { mutableStateOf<Rect?>(null) }
     var settingsButtonRect by remember { mutableStateOf<Rect?>(null) }
+    var newNoteFabRect by remember { mutableStateOf<Rect?>(null) }
     var onboardingStepIndex by remember { mutableStateOf(0) }
 
     LaunchedEffect(state.viewMode, state.feedResetSignal) {
@@ -126,11 +127,13 @@ fun BrowserScreen(
 
     val onboardingSteps = if (
         state.showToolbarOnboarding &&
+        state.currentDirUri != null &&
         newFolderButtonRect != null &&
         refreshButtonRect != null &&
         searchButtonRect != null &&
         viewModeButtonRect != null &&
-        settingsButtonRect != null
+        settingsButtonRect != null &&
+        newNoteFabRect != null
     ) {
         listOf(
             ToolbarOnboardingStep(
@@ -152,6 +155,10 @@ fun BrowserScreen(
             ToolbarOnboardingStep(
                 targetRect = settingsButtonRect!!,
                 message = stringResource(id = R.string.label_toolbar_hint_settings)
+            ),
+            ToolbarOnboardingStep(
+                targetRect = newNoteFabRect!!,
+                message = stringResource(id = R.string.label_toolbar_hint_new_note)
             )
         )
     } else {
@@ -261,6 +268,9 @@ fun BrowserScreen(
             floatingActionButton = {
                 if (state.currentDirUri != null) {
                     FloatingActionButton(
+                        modifier = Modifier.onGloballyPositioned { coordinates ->
+                            newNoteFabRect = coordinates.boundsInRoot()
+                        },
                         onClick = {
                             val extension = state.defaultFileExtension.ifBlank { "txt" }
                             val dir = state.currentDirUri
