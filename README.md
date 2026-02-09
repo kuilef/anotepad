@@ -2,6 +2,12 @@
 
 Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It works directly with files in a folder you choose (SAF), so notes are just `.txt` or `.md` files.
 
+<p align="center">
+  <img src="screenshots/phone/phone%202.png" alt="Anotepad screenshot 1" width="23%" />
+  <img src="screenshots/phone/phone%204.png" alt="Anotepad screenshot 2" width="23%" />
+  <img src="screenshots/phone/phone%205.png" alt="Anotepad screenshot 3" width="23%" />
+</p>
+
 ## Features and advantages
 - Synchronization with **Google Drive**
 - Optional auto sync on app start
