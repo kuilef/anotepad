@@ -1,6 +1,6 @@
 # Anotepad
 
-Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It works directly with files in a folder you choose (SAF), so notes are just `.txt` or `.md` files.
+Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It works directly with files in a folder you choose (SAF), so notes are just `.txt` files.
 
 <p align="center">
   <img src="screenshots/phone/phone%202.png" alt="Anotepad screenshot 1" width="23%" />
@@ -23,7 +23,7 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 - Long tap on the file: shows the menu to open, delete, rename, copy or move file.
 
 ## How it works
-- **Storage access**: `FileRepository` uses the Storage Access Framework (DocumentFile/DocumentsContract) to read/write files in the user-picked tree. Only `.txt` and `.md` files are listed or searched.
+- **Storage access**: `FileRepository` uses the Storage Access Framework (DocumentFile/DocumentsContract) to read/write files in the user-picked tree. Only `.txt` files are listed or searched.
 - **Browser**: `BrowserViewModel` loads folder contents in batches, caches recent listings, and exposes list or feed modes. Feed mode reads note text in pages to keep scrolling smooth.
 - **Editor**: `EditorViewModel` keeps state, performs debounced auto-save, creates a new file on first save, and optionally renames the file based on the first line (sync title).
 - **Search**: `SearchViewModel` walks the tree, reads each note, and matches either a plain query or a regex; results include a short snippet.
@@ -103,7 +103,7 @@ This prevents duplicate files on Drive when local files already exist.
 
 ## Limitations
 - No encrypted file support (unlike Tombo).
-- Only `.txt` and `.md` files are supported; other file types are ignored.
+- Only `.txt` files are supported; other file types are ignored.
 
 ## Tech stack
 - Kotlin 2.0
