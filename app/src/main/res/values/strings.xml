@@ -31,9 +31,13 @@
     <string name="label_current_folder">Current folder</string>
     <string name="label_parent_folder">Parent folder</string>
     <string name="label_file_actions">File actions</string>
+    <string name="label_folder_actions">Folder actions</string>
     <string name="label_delete_file">Delete file?</string>
     <string name="label_delete_file_message">This will delete %1$s.</string>
+    <string name="label_delete_folder">Delete folder?</string>
+    <string name="label_delete_folder_message">This will delete %1$s and its contents.</string>
     <string name="label_rename_file">Rename file</string>
+    <string name="label_rename_folder">Rename folder</string>
     <string name="label_copy_to">Copy to</string>
     <string name="label_move_to">Move to</string>
     <string name="label_no_folder">No folder selected</string>

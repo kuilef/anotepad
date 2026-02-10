@@ -187,7 +187,6 @@ class BrowserViewModel(
     }
 
     fun deleteFile(node: DocumentNode) {
-        if (node.isDirectory) return
         viewModelScope.launch {
             fileRepository.deleteFile(node.uri)
             refresh(force = true)
@@ -195,11 +194,14 @@ class BrowserViewModel(
     }
 
     fun renameFile(node: DocumentNode, newName: String) {
-        if (node.isDirectory) return
         val dirUri = _state.value.currentDirUri ?: return
         val trimmed = newName.trim()
         if (trimmed.isBlank()) return
-        val resolvedName = appendExtensionIfMissing(trimmed, node.name)
+        val resolvedName = if (node.isDirectory) {
+            trimmed
+        } else {
+            appendExtensionIfMissing(trimmed, node.name)
+        }
         if (resolvedName == node.name) return
         viewModelScope.launch {
             val uniqueName = ensureUniqueName(dirUri, resolvedName, node.name)

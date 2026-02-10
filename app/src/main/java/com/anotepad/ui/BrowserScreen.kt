@@ -412,10 +412,8 @@ fun BrowserScreen(
                                                                 }
                                                             },
                                                             onLongClick = {
-                                                                if (!entry.isDirectory) {
-                                                                    actionTarget = entry
-                                                                    showFileActions = true
-                                                                }
+                                                                actionTarget = entry
+                                                                showFileActions = true
                                                             }
                                                         )
                                                         .padding(
@@ -496,40 +494,73 @@ fun BrowserScreen(
     }
 
     if (showFileActions && actionTarget != null) {
-        FileActionsDialog(
-            onOpen = {
-                val target = actionTarget
-                showFileActions = false
-                if (target != null) {
-                    state.currentDirUri?.let { dir -> onOpenFile(target.uri, dir) }
+        if (actionTarget?.isDirectory == true) {
+            FolderActionsDialog(
+                onOpen = {
+                    val target = actionTarget
+                    showFileActions = false
+                    if (target != null) {
+                        viewModel.navigateInto(target.uri)
+                    }
+                },
+                onDelete = {
+                    showFileActions = false
+                    showDeleteDialog = true
+                },
+                onRename = {
+                    showFileActions = false
+                    renameInput = actionTarget?.name.orEmpty()
+                    showRenameDialog = true
+                },
+                onCancel = {
+                    showFileActions = false
                 }
-            },
-            onDelete = {
-                showFileActions = false
-                showDeleteDialog = true
-            },
-            onRename = {
-                showFileActions = false
-                renameInput = actionTarget?.name.orEmpty()
-                showRenameDialog = true
-            },
-            onCopy = {
-                showFileActions = false
-                pendingDestinationAction = FileAction.COPY
-            },
-            onMove = {
-                showFileActions = false
-                pendingDestinationAction = FileAction.MOVE
-            },
-            onCancel = {
-                showFileActions = false
-            }
-        )
+            )
+        } else {
+            FileActionsDialog(
+                onOpen = {
+                    val target = actionTarget
+                    showFileActions = false
+                    if (target != null) {
+                        state.currentDirUri?.let { dir -> onOpenFile(target.uri, dir) }
+                    }
+                },
+                onDelete = {
+                    showFileActions = false
+                    showDeleteDialog = true
+                },
+                onRename = {
+                    showFileActions = false
+                    renameInput = actionTarget?.name.orEmpty()
+                    showRenameDialog = true
+                },
+                onCopy = {
+                    showFileActions = false
+                    pendingDestinationAction = FileAction.COPY
+                },
+                onMove = {
+                    showFileActions = false
+                    pendingDestinationAction = FileAction.MOVE
+                },
+                onCancel = {
+                    showFileActions = false
+                }
+            )
+        }
     }
 
     if (showDeleteDialog && actionTarget != null) {
         ConfirmDeleteDialog(
-            fileName = actionTarget?.name.orEmpty(),
+            title = if (actionTarget?.isDirectory == true) {
+                stringResource(id = R.string.label_delete_folder)
+            } else {
+                stringResource(id = R.string.label_delete_file)
+            },
+            message = if (actionTarget?.isDirectory == true) {
+                stringResource(id = R.string.label_delete_folder_message, actionTarget?.name.orEmpty())
+            } else {
+                stringResource(id = R.string.label_delete_file_message, actionTarget?.name.orEmpty())
+            },
             onConfirm = {
                 val target = actionTarget
                 showDeleteDialog = false
@@ -576,6 +607,16 @@ fun BrowserScreen(
     if (showRenameDialog && actionTarget != null) {
         RenameFileDialog(
             initialName = renameInput,
+            title = if (actionTarget?.isDirectory == true) {
+                stringResource(id = R.string.label_rename_folder)
+            } else {
+                stringResource(id = R.string.label_rename_file)
+            },
+            nameFieldLabel = if (actionTarget?.isDirectory == true) {
+                stringResource(id = R.string.hint_folder_name)
+            } else {
+                stringResource(id = R.string.hint_file_name)
+            },
             onRename = { name ->
                 val target = actionTarget
                 showRenameDialog = false
@@ -976,15 +1017,47 @@ private fun FileActionsDialog(
 }
 
 @Composable
+private fun FolderActionsDialog(
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+    onRename: () -> Unit,
+    onCancel: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(text = stringResource(id = R.string.label_folder_actions)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_open))
+                }
+                TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_delete))
+                }
+                TextButton(onClick = onRename, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_rename))
+                }
+                TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_cancel))
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {}
+    )
+}
+
+@Composable
 private fun ConfirmDeleteDialog(
-    fileName: String,
+    title: String,
+    message: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(id = R.string.label_delete_file)) },
-        text = { Text(text = stringResource(id = R.string.label_delete_file_message, fileName)) },
+        title = { Text(text = title) },
+        text = { Text(text = message) },
         confirmButton = {
             Button(onClick = onConfirm) {
                 Text(text = stringResource(id = R.string.action_delete))
@@ -1001,19 +1074,21 @@ private fun ConfirmDeleteDialog(
 @Composable
 private fun RenameFileDialog(
     initialName: String,
+    title: String,
+    nameFieldLabel: String,
     onRename: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var name by remember(initialName) { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(id = R.string.label_rename_file)) },
+        title = { Text(text = title) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
-                label = { Text(text = stringResource(id = R.string.hint_file_name)) }
+                label = { Text(text = nameFieldLabel) }
             )
         },
         confirmButton = {
