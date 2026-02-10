@@ -769,8 +769,7 @@ class SyncEngine(
     }
 
     private fun isSupportedNote(name: String): Boolean {
-        return name.lowercase(Locale.getDefault()).endsWith(".txt") ||
-            name.lowercase(Locale.getDefault()).endsWith(".md")
+        return name.lowercase(Locale.getDefault()).endsWith(".txt")
     }
 
     private fun isIgnoredPath(relativePath: String): Boolean {

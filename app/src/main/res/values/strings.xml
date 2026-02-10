@@ -4,7 +4,6 @@
     <string name="action_change_folder">Change folder</string>
     <string name="action_new_folder">New folder</string>
     <string name="action_new_note">New note</string>
-    <string name="action_new_markdown">New markdown</string>
     <string name="action_open">Open</string>
     <string name="action_search">Search</string>
     <string name="action_templates">Templates</string>
@@ -74,7 +73,6 @@
     <string name="label_create_note">Create note</string>
     <string name="label_extension">Extension</string>
     <string name="label_extension_txt">.txt</string>
-    <string name="label_extension_md">.md</string>
     <string name="label_new_folder">New folder</string>
     <string name="hint_folder_name">Folder name</string>
     <string name="hint_file_name">File name</string>

@@ -378,7 +378,7 @@ class FileRepository(private val context: Context) {
 
     fun isSupportedExtension(name: String): Boolean {
         val lower = name.lowercase(Locale.getDefault())
-        return lower.endsWith(".txt") || lower.endsWith(".md")
+        return lower.endsWith(".txt")
     }
 
     fun sanitizeFileName(input: String): String {
@@ -391,8 +391,7 @@ class FileRepository(private val context: Context) {
     }
 
     fun guessMimeType(name: String): String {
-        val lower = name.lowercase(Locale.getDefault())
-        return if (lower.endsWith(".md")) "text/markdown" else "text/plain"
+        return "text/plain"
     }
 
     fun getDisplayName(uri: Uri): String? {

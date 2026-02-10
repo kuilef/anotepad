@@ -10,7 +10,6 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import java.util.Locale
 
 private val Context.dataStore by preferencesDataStore(name = "anotepad_settings")
 
@@ -41,11 +40,7 @@ class PreferencesRepository(private val context: Context) {
     }
 
     val preferencesFlow: Flow<AppPreferences> = context.dataStore.data.map { prefs ->
-        val defaultExt = prefs[Keys.DEFAULT_FILE_EXTENSION]
-            ?.trim()
-            ?.lowercase(Locale.US)
-            ?.let { if (it == "md") "md" else "txt" }
-            ?: "txt"
+        val defaultExt = "txt"
         val fileSortOrder = FileSortOrder.fromId(prefs[Keys.FILE_SORT_ORDER])
         val browserViewMode = BrowserViewMode.fromId(prefs[Keys.BROWSER_VIEW_MODE])
         AppPreferences(
@@ -125,8 +120,7 @@ class PreferencesRepository(private val context: Context) {
     }
 
     suspend fun setDefaultFileExtension(extension: String) {
-        val normalized = extension.trim().lowercase(Locale.US).let { if (it == "md") "md" else "txt" }
-        context.dataStore.edit { it[Keys.DEFAULT_FILE_EXTENSION] = normalized }
+        context.dataStore.edit { it[Keys.DEFAULT_FILE_EXTENSION] = "txt" }
     }
 
     suspend fun setFileSortOrder(order: FileSortOrder) {

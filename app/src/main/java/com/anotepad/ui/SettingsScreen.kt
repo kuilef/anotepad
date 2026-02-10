@@ -204,12 +204,6 @@ fun SettingsScreen(
                     selected = prefs.defaultFileExtension == "txt",
                     onSelect = viewModel::setDefaultFileExtension
                 )
-                ExtensionOption(
-                    label = stringResource(id = R.string.label_extension_md),
-                    value = "md",
-                    selected = prefs.defaultFileExtension == "md",
-                    onSelect = viewModel::setDefaultFileExtension
-                )
             }
         }
     }
