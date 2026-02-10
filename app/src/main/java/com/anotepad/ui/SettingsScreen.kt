@@ -192,19 +192,6 @@ fun SettingsScreen(
                 )
             }
 
-            Text(
-                text = stringResource(id = R.string.label_default_extension),
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                ExtensionOption(
-                    label = stringResource(id = R.string.label_extension_txt),
-                    value = "txt",
-                    selected = prefs.defaultFileExtension == "txt",
-                    onSelect = viewModel::setDefaultFileExtension
-                )
-            }
         }
     }
 }
@@ -259,24 +246,6 @@ private fun FontSizeSetting(
             steps = steps,
             onValueChangeFinished = { onCommit(sliderValue) }
         )
-    }
-}
-
-@Composable
-private fun ExtensionOption(
-    label: String,
-    value: String,
-    selected: Boolean,
-    onSelect: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onSelect(value) },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(selected = selected, onClick = { onSelect(value) })
-        Text(text = label)
     }
 }
 

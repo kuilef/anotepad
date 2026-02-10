@@ -117,12 +117,11 @@
     <string name="label_no_folders">No folders found</string>
     <string name="label_file_list_font_size">File list font size</string>
     <string name="label_file_sort_order">File sorting</string>
-    <string name="label_sort_name_desc">Name (Z to A)</string>
-    <string name="label_sort_name_asc">Name (A to Z)</string>
+    <string name="label_sort_name_desc">Z to A</string>
+    <string name="label_sort_name_asc">A to Z</string>
     <string name="label_editor_font_size">Editor font size</string>
     <string name="label_auto_insert_template">Auto-insert template</string>
     <string name="label_auto_insert_template_format">Template format (e.g., yyyy-MM-dd)</string>
-    <string name="label_default_extension">Default file extension</string>
     <string name="label_none">None</string>
     <string name="label_no_notes">No notes in folder</string>
     <string name="label_loading_more">Loading more...</string>
