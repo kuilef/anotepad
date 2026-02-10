@@ -379,6 +379,10 @@ fun BrowserScreen(
                                                     state.currentDirUri?.let { dir ->
                                                         onOpenFile(node.uri, dir)
                                                     }
+                                                },
+                                                onLongPressFile = { node ->
+                                                    actionTarget = node
+                                                    showFileActions = true
                                                 }
                                             )
                                         }
@@ -843,6 +847,7 @@ private fun NewFolderDialog(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun FeedList(
     items: List<FeedItem>,
     hasMore: Boolean,
@@ -853,7 +858,8 @@ private fun FeedList(
     resetSignal: Int,
     onLoadMore: () -> Unit,
     onScrollChange: (Int, Int) -> Unit,
-    onOpenFile: (DocumentNode) -> Unit
+    onOpenFile: (DocumentNode) -> Unit,
+    onLongPressFile: (DocumentNode) -> Unit
 ) {
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = initialIndex,
@@ -893,7 +899,10 @@ private fun FeedList(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onOpenFile(item.node) }
+                    .combinedClickable(
+                        onClick = { onOpenFile(item.node) },
+                        onLongClick = { onLongPressFile(item.node) }
+                    )
             ) {
                 Column(
                     modifier = Modifier
