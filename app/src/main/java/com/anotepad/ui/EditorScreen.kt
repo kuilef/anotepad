@@ -59,12 +59,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.util.LinkifyCompat
@@ -100,6 +105,10 @@ fun EditorScreen(
     var lastCursorToken by remember { mutableStateOf<Long?>(null) }
     var backInProgress by remember { mutableStateOf(false) }
     var linkifyJob by remember { mutableStateOf<Job?>(null) }
+    var saveButtonRightPx by remember { mutableStateOf(0f) }
+    var saveButtonBottomPx by remember { mutableStateOf(0f) }
+    var savedBubbleSize by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
 
     fun triggerBack() {
         if (backInProgress) return
@@ -228,8 +237,9 @@ fun EditorScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
             TopAppBar(
                 title = {},
                 navigationIcon = {
@@ -254,21 +264,18 @@ fun EditorScreen(
                             onRedo = ::performRedo,
                             modifier = Modifier.padding(end = 8.dp)
                         )
-                        Box {
-                            IconButton(onClick = { viewModel.saveNow(manual = state.fileUri != null) }) {
-                                Icon(
-                                    Icons.Default.Save,
-                                    contentDescription = stringResource(id = R.string.action_save)
-                                )
+                        IconButton(
+                            onClick = { viewModel.saveNow(manual = state.fileUri != null) },
+                            modifier = Modifier.onGloballyPositioned { coordinates ->
+                                val bounds = coordinates.boundsInRoot()
+                                saveButtonRightPx = bounds.right
+                                saveButtonBottomPx = bounds.bottom
                             }
-                            if (showSavedBubble) {
-                                SavedBubble(
-                                    text = savedMessage,
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .offset(x = (-8).dp, y = 16.dp)
-                                )
-                            }
+                        ) {
+                            Icon(
+                                Icons.Default.Save,
+                                contentDescription = stringResource(id = R.string.action_save)
+                            )
                         }
                     }
                 },
@@ -276,156 +283,168 @@ fun EditorScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
-        },
-        contentWindowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
-    ) { padding ->
-        val density = LocalDensity.current
-        val imeBottom = WindowInsets.ime.getBottom(density)
-        val navBottom = WindowInsets.navigationBars.getBottom(density)
-        val bottomInset = with(density) { imeBottom.coerceAtLeast(navBottom).toDp() }
-        val fileNameLabel = if (state.fileName.isBlank()) {
-            stringResource(id = R.string.label_editor_title_new)
-        } else {
-            state.fileName
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(bottom = bottomInset)
-        ) {
-            Text(
-                text = fileNameLabel,
-                style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+            },
+            contentWindowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+        ) { padding ->
+            val imeBottom = WindowInsets.ime.getBottom(density)
+            val navBottom = WindowInsets.navigationBars.getBottom(density)
+            val bottomInset = with(density) { imeBottom.coerceAtLeast(navBottom).toDp() }
+            val fileNameLabel = if (state.fileName.isBlank()) {
+                stringResource(id = R.string.label_editor_title_new)
+            } else {
+                state.fileName
+            }
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp)
-            )
-            AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                factory = { context ->
-                    object : EditText(context) {
-                        override fun onSelectionChanged(selStart: Int, selEnd: Int) {
-                            super.onSelectionChanged(selStart, selEnd)
-                            ensureCursorVisible(this, allowPost = false)
-                        }
-                    }.apply {
-                        setText(state.text)
-                        setBackgroundColor(backgroundColor)
-                        setTextColor(textColor)
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
-                        inputType = InputType.TYPE_CLASS_TEXT or
-                            InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                            InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
-                            InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
-                        imeOptions = imeOptions or
-                            EditorInfo.IME_FLAG_NO_EXTRACT_UI or
-                            EditorInfo.IME_FLAG_NO_FULLSCREEN
-                        gravity = Gravity.TOP or Gravity.START
-                        setSingleLine(false)
-                        setHorizontallyScrolling(false)
-                        isNestedScrollingEnabled = false
-                        isVerticalScrollBarEnabled = true
-                        overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-                        val density = context.resources.displayMetrics.density
-                        val paddingPx = (2f * density).roundToInt()
-                        setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-                        scrollBarSize = (2f * density).roundToInt()
-                        isScrollbarFadingEnabled = true
-                        addTextChangedListener(object : TextWatcher {
-                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-                                if (ignoreChanges || ignoreHistory) {
-                                    pendingSnapshot = null
-                                    return
-                                }
-                                val text = s?.toString().orEmpty()
-                                val selectionStart = selectionStart.coerceAtLeast(0)
-                                val selectionEnd = selectionEnd.coerceAtLeast(0)
-                                pendingSnapshot = TextSnapshot(text, selectionStart, selectionEnd)
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(bottom = bottomInset)
+            ) {
+                Text(
+                    text = fileNameLabel,
+                    style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp)
+                )
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    factory = { context ->
+                        object : EditText(context) {
+                            override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+                                super.onSelectionChanged(selStart, selEnd)
+                                ensureCursorVisible(this, allowPost = false)
                             }
-                            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-                            override fun afterTextChanged(s: Editable?) {
-                                if (ignoreChanges) return
-                                if (!ignoreHistory) {
-                                    pendingSnapshot?.let { snapshot ->
-                                        val newText = s?.toString().orEmpty()
-                                        if (snapshot.text != newText) {
-                                            undoStack.add(snapshot)
-                                            if (undoStack.size > UNDO_HISTORY_LIMIT) {
-                                                undoStack.removeAt(0)
+                        }.apply {
+                            setText(state.text)
+                            setBackgroundColor(backgroundColor)
+                            setTextColor(textColor)
+                            setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
+                            inputType = InputType.TYPE_CLASS_TEXT or
+                                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                                InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+                            imeOptions = imeOptions or
+                                EditorInfo.IME_FLAG_NO_EXTRACT_UI or
+                                EditorInfo.IME_FLAG_NO_FULLSCREEN
+                            gravity = Gravity.TOP or Gravity.START
+                            setSingleLine(false)
+                            setHorizontallyScrolling(false)
+                            isNestedScrollingEnabled = false
+                            isVerticalScrollBarEnabled = true
+                            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                            val density = context.resources.displayMetrics.density
+                            val paddingPx = (2f * density).roundToInt()
+                            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                            scrollBarSize = (2f * density).roundToInt()
+                            isScrollbarFadingEnabled = true
+                            addTextChangedListener(object : TextWatcher {
+                                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                                    if (ignoreChanges || ignoreHistory) {
+                                        pendingSnapshot = null
+                                        return
+                                    }
+                                    val text = s?.toString().orEmpty()
+                                    val selectionStart = selectionStart.coerceAtLeast(0)
+                                    val selectionEnd = selectionEnd.coerceAtLeast(0)
+                                    pendingSnapshot = TextSnapshot(text, selectionStart, selectionEnd)
+                                }
+                                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                                override fun afterTextChanged(s: Editable?) {
+                                    if (ignoreChanges) return
+                                    if (!ignoreHistory) {
+                                        pendingSnapshot?.let { snapshot ->
+                                            val newText = s?.toString().orEmpty()
+                                            if (snapshot.text != newText) {
+                                                undoStack.add(snapshot)
+                                                if (undoStack.size > UNDO_HISTORY_LIMIT) {
+                                                    undoStack.removeAt(0)
+                                                }
+                                                redoStack.clear()
                                             }
-                                            redoStack.clear()
                                         }
                                     }
+                                    pendingSnapshot = null
+                                    viewModel.updateText(s?.toString().orEmpty())
+                                    ensureCursorVisible(this@apply, allowPost = true)
                                 }
-                                pendingSnapshot = null
-                                viewModel.updateText(s?.toString().orEmpty())
-                                ensureCursorVisible(this@apply, allowPost = true)
-                            }
-                        })
-                        setOnKeyListener { _, keyCode, event ->
-                            if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-                            val isUndo = event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_Z && !event.isShiftPressed
-                            val isRedo = event.isCtrlPressed &&
-                                ((keyCode == KeyEvent.KEYCODE_Z && event.isShiftPressed) || keyCode == KeyEvent.KEYCODE_Y)
-                            when {
-                                isUndo -> {
-                                    performUndo()
-                                    true
-                                }
+                            })
+                            setOnKeyListener { _, keyCode, event ->
+                                if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                                val isUndo = event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_Z && !event.isShiftPressed
+                                val isRedo = event.isCtrlPressed &&
+                                    ((keyCode == KeyEvent.KEYCODE_Z && event.isShiftPressed) || keyCode == KeyEvent.KEYCODE_Y)
+                                when {
+                                    isUndo -> {
+                                        performUndo()
+                                        true
+                                    }
 
-                                isRedo -> {
-                                    performRedo()
-                                    true
-                                }
+                                    isRedo -> {
+                                        performRedo()
+                                        true
+                                    }
 
-                                else -> false
+                                    else -> false
+                                }
                             }
+                            editTextRef = this
                         }
-                        editTextRef = this
-                    }
-                },
-                update = { editText ->
-                    if (editText.text.toString() != state.text) {
-                        ignoreChanges = true
-                        val selection = editText.selectionStart
-                        editText.setText(state.text)
-                        if (state.moveCursorToEndOnLoad && lastCursorToken != state.loadToken) {
-                            editText.setSelection(state.text.length)
+                    },
+                    update = { editText ->
+                        if (editText.text.toString() != state.text) {
+                            ignoreChanges = true
+                            val selection = editText.selectionStart
+                            editText.setText(state.text)
+                            if (state.moveCursorToEndOnLoad && lastCursorToken != state.loadToken) {
+                                editText.setSelection(state.text.length)
+                                lastCursorToken = state.loadToken
+                            } else {
+                                val newSelection = selection.coerceAtMost(state.text.length)
+                                editText.setSelection(newSelection)
+                            }
+                            ignoreChanges = false
+                        } else if (state.moveCursorToEndOnLoad && lastCursorToken != state.loadToken) {
+                            editText.setSelection(editText.text.length)
                             lastCursorToken = state.loadToken
-                        } else {
-                            val newSelection = selection.coerceAtMost(state.text.length)
-                            editText.setSelection(newSelection)
                         }
-                        ignoreChanges = false
-                    } else if (state.moveCursorToEndOnLoad && lastCursorToken != state.loadToken) {
-                        editText.setSelection(editText.text.length)
-                        lastCursorToken = state.loadToken
+                        if (editText.currentTextColor != textColor) {
+                            editText.setTextColor(textColor)
+                        }
+                        editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
+                        editText.setBackgroundColor(backgroundColor)
+                        val density = editText.resources.displayMetrics.density
+                        val basePaddingPx = (2f * density).roundToInt()
+                        val extraLinePx = editText.lineHeight.coerceAtLeast(0)
+                        val targetBottom = basePaddingPx + extraLinePx
+                        if (
+                            editText.paddingLeft != basePaddingPx ||
+                            editText.paddingTop != basePaddingPx ||
+                            editText.paddingRight != basePaddingPx ||
+                            editText.paddingBottom != targetBottom
+                        ) {
+                            editText.setPadding(basePaddingPx, basePaddingPx, basePaddingPx, targetBottom)
+                        }
+                        ensureCursorVisible(editText, allowPost = false)
                     }
-                    if (editText.currentTextColor != textColor) {
-                        editText.setTextColor(textColor)
-                    }
-                    editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
-                    editText.setBackgroundColor(backgroundColor)
-                    val density = editText.resources.displayMetrics.density
-                    val basePaddingPx = (2f * density).roundToInt()
-                    val extraLinePx = editText.lineHeight.coerceAtLeast(0)
-                    val targetBottom = basePaddingPx + extraLinePx
-                    if (
-                        editText.paddingLeft != basePaddingPx ||
-                        editText.paddingTop != basePaddingPx ||
-                        editText.paddingRight != basePaddingPx ||
-                        editText.paddingBottom != targetBottom
-                    ) {
-                        editText.setPadding(basePaddingPx, basePaddingPx, basePaddingPx, targetBottom)
-                    }
-                    ensureCursorVisible(editText, allowPost = false)
-                }
+                )
+            }
+        }
+
+        if (showSavedBubble && saveButtonRightPx > 0f && saveButtonBottomPx > 0f) {
+            val gapPx = with(density) { 8.dp.roundToPx() }
+            val bubbleX = (saveButtonRightPx.roundToInt() - savedBubbleSize.width - gapPx).coerceAtLeast(0)
+            val bubbleY = saveButtonBottomPx.roundToInt() + gapPx
+            SavedBubble(
+                text = savedMessage,
+                modifier = Modifier
+                    .offset { IntOffset(bubbleX, bubbleY) }
+                    .onSizeChanged { savedBubbleSize = it }
             )
         }
     }
