@@ -437,7 +437,7 @@ fun EditorScreen(
         }
 
         if (showSavedBubble && saveButtonRightPx > 0f && saveButtonBottomPx > 0f) {
-            val gapPx = with(density) { 8.dp.roundToPx() }
+            val gapPx = with(density) { 4.dp.roundToPx() }
             val bubbleX = (saveButtonRightPx.roundToInt() - savedBubbleSize.width - gapPx).coerceAtLeast(0)
             val bubbleY = saveButtonBottomPx.roundToInt() + gapPx
             SavedBubble(
