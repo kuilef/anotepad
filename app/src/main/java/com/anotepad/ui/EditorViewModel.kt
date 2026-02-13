@@ -9,7 +9,6 @@ import com.anotepad.file.FileRepository
 import com.anotepad.sync.SyncScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,6 +20,8 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -76,7 +77,7 @@ class EditorViewModel(
     private var loadCounter = 0L
     private var prefsLoaded = false
     private var lastKnownModified: Long? = null
-    private val saveRaceDebugDelayMs = 3000L
+    private val saveMutex = Mutex()
     val undoStack = mutableStateListOf<TextSnapshot>()
     val redoStack = mutableStateListOf<TextSnapshot>()
 
@@ -287,70 +288,68 @@ class EditorViewModel(
     }
 
     private suspend fun saveIfNeeded(text: String, ignoreExternalChange: Boolean = false): Boolean {
-        if (!isLoaded) return false
-        if (!ignoreExternalChange && _state.value.externalChangeDetectedAt != null) {
-            _state.update { it.copy(showExternalChangeDialog = true) }
-            return false
-        }
-        val dirUri = _state.value.dirUri
-        var fileUri = _state.value.fileUri
-        if (!ignoreExternalChange && fileUri != null) {
-            val modifiedAt = detectExternalChange(fileUri)
-            if (modifiedAt != null) {
-                if (text == lastSavedText) {
-                    reloadFromDisk(fileUri, modifiedAt)
-                } else {
-                    _state.update {
-                        it.copy(
-                            externalChangeDetectedAt = modifiedAt,
-                            showExternalChangeDialog = true
-                        )
-                    }
-                }
-                return false
+        return saveMutex.withLock {
+            if (!isLoaded) return@withLock false
+            if (!ignoreExternalChange && _state.value.externalChangeDetectedAt != null) {
+                _state.update { it.copy(showExternalChangeDialog = true) }
+                return@withLock false
             }
-        }
-        if (text == lastSavedText) return false
-        if (fileUri == null) {
-            if (dirUri == null || text.isBlank()) return false
-            val rawExtension = _state.value.newFileExtension.ifBlank { "txt" }
-            val extension = ".${rawExtension.lowercase(Locale.getDefault())}"
-            val desiredName = buildNameFromText(text, extension)
-            val uniqueName = ensureUniqueName(dirUri, desiredName, null)
-            fileUri = fileRepository.createFile(dirUri, uniqueName, fileRepository.guessMimeType(uniqueName))
-            if (fileUri == null) return false
-            _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
-        }
-
-        _state.update { it.copy(isSaving = true) }
-        try {
-            if (saveRaceDebugDelayMs > 0) {
-                // Test-only delay to widen the autosave/manual-save race window.
-                delay(saveRaceDebugDelayMs)
-            }
-            fileRepository.writeText(fileUri, text)
-            lastSavedText = text
-            lastKnownModified = fileRepository.getLastModified(fileUri) ?: System.currentTimeMillis()
-
-            if (_state.value.syncTitle) {
-                val currentName = _state.value.fileName
-                val ext = currentName.substringAfterLast('.', "txt")
-                val desiredName = buildNameFromText(text, ".${ext}")
-                if (desiredName.isNotBlank() && desiredName != currentName && dirUri != null) {
-                    val uniqueName = ensureUniqueName(dirUri, desiredName, currentName)
-                    val renamedUri = fileRepository.renameFile(fileUri, uniqueName)
-                    if (renamedUri != null) {
-                        fileUri = renamedUri
-                        _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
+            val dirUri = _state.value.dirUri
+            var fileUri = _state.value.fileUri
+            if (!ignoreExternalChange && fileUri != null) {
+                val modifiedAt = detectExternalChange(fileUri)
+                if (modifiedAt != null) {
+                    if (text == lastSavedText) {
+                        reloadFromDisk(fileUri, modifiedAt)
+                    } else {
+                        _state.update {
+                            it.copy(
+                                externalChangeDetectedAt = modifiedAt,
+                                showExternalChangeDialog = true
+                            )
+                        }
                     }
+                    return@withLock false
                 }
             }
+            if (text == lastSavedText) return@withLock false
+            if (fileUri == null) {
+                if (dirUri == null || text.isBlank()) return@withLock false
+                val rawExtension = _state.value.newFileExtension.ifBlank { "txt" }
+                val extension = ".${rawExtension.lowercase(Locale.getDefault())}"
+                val desiredName = buildNameFromText(text, extension)
+                val uniqueName = ensureUniqueName(dirUri, desiredName, null)
+                fileUri = fileRepository.createFile(dirUri, uniqueName, fileRepository.guessMimeType(uniqueName))
+                if (fileUri == null) return@withLock false
+                _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
+            }
 
-            _state.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
-            syncScheduler.scheduleDebounced()
-            return true
-        } finally {
-            _state.update { it.copy(isSaving = false) }
+            _state.update { it.copy(isSaving = true) }
+            try {
+                fileRepository.writeText(fileUri, text)
+                lastSavedText = text
+                lastKnownModified = fileRepository.getLastModified(fileUri) ?: System.currentTimeMillis()
+
+                if (_state.value.syncTitle) {
+                    val currentName = _state.value.fileName
+                    val ext = currentName.substringAfterLast('.', "txt")
+                    val desiredName = buildNameFromText(text, ".${ext}")
+                    if (desiredName.isNotBlank() && desiredName != currentName && dirUri != null) {
+                        val uniqueName = ensureUniqueName(dirUri, desiredName, currentName)
+                        val renamedUri = fileRepository.renameFile(fileUri, uniqueName)
+                        if (renamedUri != null) {
+                            fileUri = renamedUri
+                            _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
+                        }
+                    }
+                }
+
+                _state.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
+                syncScheduler.scheduleDebounced()
+                return@withLock true
+            } finally {
+                _state.update { it.copy(isSaving = false) }
+            }
         }
     }
 
