@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
 import com.anotepad.sync.SyncScheduler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -175,7 +176,9 @@ class EditorViewModel(
 
     fun saveNow(manual: Boolean = false) {
         viewModelScope.launch {
-            val saved = saveIfNeeded(_state.value.text)
+            val saved = runSaveCatching {
+                saveIfNeeded(_state.value.text)
+            }
             if (manual && saved) {
                 _manualSaveEvents.emit(Unit)
             }
@@ -183,7 +186,9 @@ class EditorViewModel(
     }
 
     suspend fun saveAndGetResult(): EditorSaveResult? {
-        saveIfNeeded(_state.value.text)
+        runSaveCatching {
+            saveIfNeeded(_state.value.text)
+        }
         val state = _state.value
         val currentUri = state.fileUri ?: return null
         return EditorSaveResult(
@@ -217,7 +222,9 @@ class EditorViewModel(
     fun overwriteExternalChange() {
         viewModelScope.launch {
             clearExternalChange()
-            saveIfNeeded(_state.value.text, ignoreExternalChange = true)
+            runSaveCatching {
+                saveIfNeeded(_state.value.text, ignoreExternalChange = true)
+            }
         }
     }
 
@@ -248,7 +255,9 @@ class EditorViewModel(
         }
         autosaveJob = viewModelScope.launch {
             textChanges.debounce(debounceMs).collectLatest { text ->
-                saveIfNeeded(text)
+                runSaveCatching {
+                    saveIfNeeded(text)
+                }
             }
         }
     }
@@ -314,31 +323,46 @@ class EditorViewModel(
         }
 
         _state.update { it.copy(isSaving = true) }
-        if (saveRaceDebugDelayMs > 0) {
-            // Test-only delay to widen the autosave/manual-save race window.
-            delay(saveRaceDebugDelayMs)
-        }
-        fileRepository.writeText(fileUri, text)
-        lastSavedText = text
-        lastKnownModified = fileRepository.getLastModified(fileUri) ?: System.currentTimeMillis()
+        try {
+            if (saveRaceDebugDelayMs > 0) {
+                // Test-only delay to widen the autosave/manual-save race window.
+                delay(saveRaceDebugDelayMs)
+            }
+            fileRepository.writeText(fileUri, text)
+            lastSavedText = text
+            lastKnownModified = fileRepository.getLastModified(fileUri) ?: System.currentTimeMillis()
 
-        if (_state.value.syncTitle) {
-            val currentName = _state.value.fileName
-            val ext = currentName.substringAfterLast('.', "txt")
-            val desiredName = buildNameFromText(text, ".${ext}")
-            if (desiredName.isNotBlank() && desiredName != currentName && dirUri != null) {
-                val uniqueName = ensureUniqueName(dirUri, desiredName, currentName)
-                val renamedUri = fileRepository.renameFile(fileUri, uniqueName)
-                if (renamedUri != null) {
-                    fileUri = renamedUri
-                    _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
+            if (_state.value.syncTitle) {
+                val currentName = _state.value.fileName
+                val ext = currentName.substringAfterLast('.', "txt")
+                val desiredName = buildNameFromText(text, ".${ext}")
+                if (desiredName.isNotBlank() && desiredName != currentName && dirUri != null) {
+                    val uniqueName = ensureUniqueName(dirUri, desiredName, currentName)
+                    val renamedUri = fileRepository.renameFile(fileUri, uniqueName)
+                    if (renamedUri != null) {
+                        fileUri = renamedUri
+                        _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
+                    }
                 }
             }
-        }
 
-        _state.update { it.copy(isSaving = false, lastSavedAt = System.currentTimeMillis()) }
-        syncScheduler.scheduleDebounced()
-        return true
+            _state.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
+            syncScheduler.scheduleDebounced()
+            return true
+        } finally {
+            _state.update { it.copy(isSaving = false) }
+        }
+    }
+
+    private suspend fun runSaveCatching(block: suspend () -> Boolean): Boolean {
+        return try {
+            block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            _state.update { it.copy(isSaving = false) }
+            false
+        }
     }
 
     private suspend fun detectExternalChange(fileUri: Uri): Long? {
