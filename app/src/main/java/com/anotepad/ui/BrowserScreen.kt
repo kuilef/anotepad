@@ -2,6 +2,7 @@ package com.anotepad.ui
 
 import android.net.Uri
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -10,9 +11,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -106,6 +109,7 @@ fun BrowserScreen(
     var renameInput by remember { mutableStateOf("") }
     var pendingDestinationAction by remember { mutableStateOf<FileAction?>(null) }
     var actionTarget by remember { mutableStateOf<DocumentNode?>(null) }
+    var newFileButtonRect by remember { mutableStateOf<Rect?>(null) }
     var newFolderButtonRect by remember { mutableStateOf<Rect?>(null) }
     var refreshButtonRect by remember { mutableStateOf<Rect?>(null) }
     var searchButtonRect by remember { mutableStateOf<Rect?>(null) }
@@ -125,10 +129,18 @@ fun BrowserScreen(
         currentLabel = stringResource(id = R.string.label_current_folder),
         parentLabel = stringResource(id = R.string.label_parent_folder)
     )
+    val createNewFile: () -> Unit = {
+        val extension = state.defaultFileExtension.ifBlank { "txt" }
+        val dir = state.currentDirUri
+        if (dir != null) {
+            onNewFile(dir, extension)
+        }
+    }
 
     val onboardingSteps = if (
         state.showToolbarOnboarding &&
         state.currentDirUri != null &&
+        newFileButtonRect != null &&
         newFolderButtonRect != null &&
         refreshButtonRect != null &&
         searchButtonRect != null &&
@@ -138,27 +150,44 @@ fun BrowserScreen(
     ) {
         listOf(
             ToolbarOnboardingStep(
+                targetRect = newFileButtonRect!!,
+                title = stringResource(id = R.string.action_new_file),
+                message = stringResource(id = R.string.label_toolbar_hint_new_file)
+            ),
+            ToolbarOnboardingStep(
                 targetRect = newFolderButtonRect!!,
+                title = stringResource(id = R.string.action_new_folder),
                 message = stringResource(id = R.string.label_toolbar_hint_new_folder)
             ),
             ToolbarOnboardingStep(
                 targetRect = refreshButtonRect!!,
+                title = stringResource(id = R.string.action_refresh),
                 message = stringResource(id = R.string.label_toolbar_hint_refresh)
             ),
             ToolbarOnboardingStep(
                 targetRect = searchButtonRect!!,
+                title = stringResource(id = R.string.action_search),
                 message = stringResource(id = R.string.label_toolbar_hint_search)
             ),
             ToolbarOnboardingStep(
                 targetRect = viewModeButtonRect!!,
+                title = stringResource(
+                    id = if (state.viewMode == BrowserViewMode.FEED) {
+                        R.string.action_toggle_list
+                    } else {
+                        R.string.action_toggle_feed
+                    }
+                ),
                 message = stringResource(id = R.string.label_toolbar_hint_view_mode)
             ),
             ToolbarOnboardingStep(
                 targetRect = settingsButtonRect!!,
+                title = stringResource(id = R.string.action_settings),
                 message = stringResource(id = R.string.label_toolbar_hint_settings)
             ),
             ToolbarOnboardingStep(
                 targetRect = newNoteFabRect!!,
+                title = stringResource(id = R.string.action_new_note),
                 message = stringResource(id = R.string.label_toolbar_hint_new_note)
             )
         )
@@ -192,6 +221,18 @@ fun BrowserScreen(
                         }
                     },
                     actions = {
+                        IconButton(
+                            modifier = Modifier.onGloballyPositioned { coordinates ->
+                                newFileButtonRect = coordinates.boundsInRoot()
+                            },
+                            onClick = createNewFile,
+                            enabled = state.currentDirUri != null
+                        ) {
+                            Icon(
+                                Icons.Default.Create,
+                                contentDescription = stringResource(id = R.string.action_new_file)
+                            )
+                        }
                         IconButton(
                             modifier = Modifier.onGloballyPositioned { coordinates ->
                                 newFolderButtonRect = coordinates.boundsInRoot()
@@ -274,13 +315,7 @@ fun BrowserScreen(
                             .onGloballyPositioned { coordinates ->
                                 newNoteFabRect = coordinates.boundsInRoot()
                             },
-                        onClick = {
-                            val extension = state.defaultFileExtension.ifBlank { "txt" }
-                            val dir = state.currentDirUri
-                            if (dir != null) {
-                                onNewFile(dir, extension)
-                            }
-                        }
+                        onClick = createNewFile
                     ) {
                         Icon(
                             Icons.Default.Create,
@@ -658,6 +693,7 @@ fun BrowserScreen(
 
 private data class ToolbarOnboardingStep(
     val targetRect: Rect,
+    val title: String,
     val message: String
 )
 
@@ -686,7 +722,7 @@ private fun ToolbarOnboardingOverlay(
         val highlightCornerPx = with(density) { 12.dp.toPx() }
         val topInsetPx = WindowInsets.systemBars.getTop(density).toFloat()
         val bottomInsetPx = WindowInsets.systemBars.getBottom(density).toFloat()
-        val maxBubbleWidthPx = with(density) { 320.dp.toPx() }
+        val maxBubbleWidthPx = with(density) { 340.dp.toPx() }
         val bubbleWidthPx = maxBubbleWidthPx.coerceAtMost(screenWidthPx - marginPx * 2f)
         var bubbleSize by remember(stepIndex) { mutableStateOf(IntSize.Zero) }
 
@@ -732,7 +768,7 @@ private fun ToolbarOnboardingOverlay(
                 .fillMaxSize()
                 .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
         ) {
-            drawRect(color = Color.Black.copy(alpha = 0.64f))
+            drawRect(color = Color(0xE6101217))
             drawRoundRect(
                 color = Color.Transparent,
                 topLeft = Offset(targetRect.left, targetRect.top),
@@ -743,7 +779,7 @@ private fun ToolbarOnboardingOverlay(
         }
 
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val arrowColor = Color.White
+            val arrowColor = MaterialTheme.colorScheme.primary
             val arrowWidthPx = with(density) { 12.dp.toPx() }
             val arrowLengthPx = with(density) { 18.dp.toPx() }
             val start = Offset(bubbleAnchorX, bubbleAnchorY)
@@ -782,19 +818,58 @@ private fun ToolbarOnboardingOverlay(
                     bubbleSize = coordinates.size
                 },
             shape = RoundedCornerShape(16.dp),
-            shadowElevation = 8.dp
+            tonalElevation = 2.dp,
+            shadowElevation = 10.dp
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.label_toolbar_onboarding_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "${stepIndex + 1}/$totalSteps",
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+                Spacer(modifier = Modifier.size(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    repeat(totalSteps) { index ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(4.dp)
+                                .graphicsLayer {
+                                    alpha = if (index <= stepIndex) 1f else 0.3f
+                                }
+                                .background(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(50)
+                                )
+                        )
+                    }
+                }
+                Divider(modifier = Modifier.padding(top = 12.dp))
                 Text(
-                    text = "${stepIndex + 1}/$totalSteps",
-                    style = MaterialTheme.typography.labelSmall
+                    text = step.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 12.dp)
                 )
                 Text(
                     text = step.message,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 6.dp)
                 )
                 Row(
                     modifier = Modifier
