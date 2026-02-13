@@ -762,6 +762,7 @@ private fun ToolbarOnboardingOverlay(
             x = step.targetRect.center.x,
             y = step.targetRect.top + step.targetRect.height * if (placeBelow) 0.8f else 0.2f
         )
+        val arrowColor = MaterialTheme.colorScheme.primary
 
         Canvas(
             modifier = Modifier
@@ -779,7 +780,6 @@ private fun ToolbarOnboardingOverlay(
         }
 
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val arrowColor = MaterialTheme.colorScheme.primary
             val arrowWidthPx = with(density) { 12.dp.toPx() }
             val arrowLengthPx = with(density) { 18.dp.toPx() }
             val start = Offset(bubbleAnchorX, bubbleAnchorY)
