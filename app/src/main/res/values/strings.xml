@@ -42,7 +42,7 @@
     <string name="label_move_to">Move to</string>
     <string name="label_no_folder">No folder selected</string>
     <string name="label_pick_folder_message">Select a folder on your phone once. Files will be in this folder.</string>
-    <string name="label_empty_folder">Tap New file in the top bar\nor the bottom-right button\nto create a new file.</string>
+    <string name="label_empty_folder">Tap New file in the top bar\nor the bottom button\nto create a new file.</string>
     <string name="label_folder_access_title">Folder access</string>
     <string name="label_folder_access_message">Anotepad stores notes in the folder you choose. We will open the system folder picker to grant access.</string>
     <string name="label_search_query">Search query</string>
