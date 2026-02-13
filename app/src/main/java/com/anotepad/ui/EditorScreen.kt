@@ -114,6 +114,10 @@ fun EditorScreen(
         if (backInProgress) return
         backInProgress = true
         scope.launch {
+            editTextRef?.let {
+                hideKeyboard(it)
+                it.clearFocus()
+            }
             val result = viewModel.saveAndGetResult()
             if (viewModel.hasExternalChangePending()) {
                 viewModel.showExternalChangeDialog()
@@ -555,6 +559,12 @@ private fun focusAndShowKeyboard(editText: EditText) {
             .getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
         imm?.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
     }
+}
+
+private fun hideKeyboard(editText: EditText) {
+    val imm = editText.context
+        .getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+    imm?.hideSoftInputFromWindow(editText.windowToken, 0)
 }
 
 private const val UNDO_HISTORY_LIMIT = 200

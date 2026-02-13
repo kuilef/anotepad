@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -268,9 +269,11 @@ fun BrowserScreen(
             floatingActionButton = {
                 if (state.currentDirUri != null) {
                     FloatingActionButton(
-                        modifier = Modifier.onGloballyPositioned { coordinates ->
-                            newNoteFabRect = coordinates.boundsInRoot()
-                        },
+                        modifier = Modifier
+                            .imePadding()
+                            .onGloballyPositioned { coordinates ->
+                                newNoteFabRect = coordinates.boundsInRoot()
+                            },
                         onClick = {
                             val extension = state.defaultFileExtension.ifBlank { "txt" }
                             val dir = state.currentDirUri
