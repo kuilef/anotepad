@@ -8,6 +8,7 @@ import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
 import com.anotepad.sync.SyncScheduler
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -74,6 +75,7 @@ class EditorViewModel(
     private var loadCounter = 0L
     private var prefsLoaded = false
     private var lastKnownModified: Long? = null
+    private val saveRaceDebugDelayMs = 3000L
     val undoStack = mutableStateListOf<TextSnapshot>()
     val redoStack = mutableStateListOf<TextSnapshot>()
 
@@ -312,6 +314,10 @@ class EditorViewModel(
         }
 
         _state.update { it.copy(isSaving = true) }
+        if (saveRaceDebugDelayMs > 0) {
+            // Test-only delay to widen the autosave/manual-save race window.
+            delay(saveRaceDebugDelayMs)
+        }
         fileRepository.writeText(fileUri, text)
         lastSavedText = text
         lastKnownModified = fileRepository.getLastModified(fileUri) ?: System.currentTimeMillis()
