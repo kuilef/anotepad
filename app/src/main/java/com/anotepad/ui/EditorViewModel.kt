@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
 import com.anotepad.sync.SyncScheduler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,8 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -40,7 +43,8 @@ data class EditorState(
     val newFileExtension: String = "txt",
     val editorFontSizeSp: Float = 16f,
     val externalChangeDetectedAt: Long? = null,
-    val showExternalChangeDialog: Boolean = false
+    val showExternalChangeDialog: Boolean = false,
+    val canSave: Boolean = false
 )
 
 data class EditorSaveResult(
@@ -74,6 +78,7 @@ class EditorViewModel(
     private var loadCounter = 0L
     private var prefsLoaded = false
     private var lastKnownModified: Long? = null
+    private val saveMutex = Mutex()
     val undoStack = mutableStateListOf<TextSnapshot>()
     val redoStack = mutableStateListOf<TextSnapshot>()
 
@@ -148,19 +153,22 @@ class EditorViewModel(
                     moveCursorToEndOnLoad = moveCursorToEndOnLoad,
                     newFileExtension = newFileExtension,
                     externalChangeDetectedAt = null,
-                    showExternalChangeDialog = false
+                    showExternalChangeDialog = false,
+                    canSave = false
                 )
             }
             lastSavedText = if (fileUri == null) "" else initialText
             textChanges.value = initialText
             lastKnownModified = lastModified
             isLoaded = true
+            updateCanSaveState()
         }
     }
 
     fun updateText(text: String) {
         _state.update { it.copy(text = text) }
         textChanges.value = text
+        updateCanSaveState()
     }
 
     fun queueTemplate(text: String) {
@@ -173,7 +181,9 @@ class EditorViewModel(
 
     fun saveNow(manual: Boolean = false) {
         viewModelScope.launch {
-            val saved = saveIfNeeded(_state.value.text)
+            val saved = runSaveCatching {
+                saveIfNeeded(_state.value.text)
+            }
             if (manual && saved) {
                 _manualSaveEvents.emit(Unit)
             }
@@ -181,7 +191,9 @@ class EditorViewModel(
     }
 
     suspend fun saveAndGetResult(): EditorSaveResult? {
-        saveIfNeeded(_state.value.text)
+        runSaveCatching {
+            saveIfNeeded(_state.value.text)
+        }
         val state = _state.value
         val currentUri = state.fileUri ?: return null
         return EditorSaveResult(
@@ -215,7 +227,9 @@ class EditorViewModel(
     fun overwriteExternalChange() {
         viewModelScope.launch {
             clearExternalChange()
-            saveIfNeeded(_state.value.text, ignoreExternalChange = true)
+            runSaveCatching {
+                saveIfNeeded(_state.value.text, ignoreExternalChange = true)
+            }
         }
     }
 
@@ -246,7 +260,9 @@ class EditorViewModel(
         }
         autosaveJob = viewModelScope.launch {
             textChanges.debounce(debounceMs).collectLatest { text ->
-                saveIfNeeded(text)
+                runSaveCatching {
+                    saveIfNeeded(text)
+                }
             }
         }
     }
@@ -276,63 +292,81 @@ class EditorViewModel(
     }
 
     private suspend fun saveIfNeeded(text: String, ignoreExternalChange: Boolean = false): Boolean {
-        if (!isLoaded) return false
-        if (!ignoreExternalChange && _state.value.externalChangeDetectedAt != null) {
-            _state.update { it.copy(showExternalChangeDialog = true) }
-            return false
-        }
-        val dirUri = _state.value.dirUri
-        var fileUri = _state.value.fileUri
-        if (!ignoreExternalChange && fileUri != null) {
-            val modifiedAt = detectExternalChange(fileUri)
-            if (modifiedAt != null) {
-                if (text == lastSavedText) {
-                    reloadFromDisk(fileUri, modifiedAt)
-                } else {
-                    _state.update {
-                        it.copy(
-                            externalChangeDetectedAt = modifiedAt,
-                            showExternalChangeDialog = true
-                        )
+        return saveMutex.withLock {
+            if (!isLoaded) return@withLock false
+            if (!ignoreExternalChange && _state.value.externalChangeDetectedAt != null) {
+                _state.update { it.copy(showExternalChangeDialog = true) }
+                return@withLock false
+            }
+            val dirUri = _state.value.dirUri
+            var fileUri = _state.value.fileUri
+            if (!ignoreExternalChange && fileUri != null) {
+                val modifiedAt = detectExternalChange(fileUri)
+                if (modifiedAt != null) {
+                    if (text == lastSavedText) {
+                        reloadFromDisk(fileUri, modifiedAt)
+                    } else {
+                        _state.update {
+                            it.copy(
+                                externalChangeDetectedAt = modifiedAt,
+                                showExternalChangeDialog = true
+                            )
+                        }
+                    }
+                    return@withLock false
+                }
+            }
+            if (text == lastSavedText) return@withLock false
+            if (fileUri == null) {
+                if (dirUri == null || text.isBlank()) return@withLock false
+                val rawExtension = _state.value.newFileExtension.ifBlank { "txt" }
+                val extension = ".${rawExtension.lowercase(Locale.getDefault())}"
+                val desiredName = buildNameFromText(text, extension)
+                val uniqueName = ensureUniqueName(dirUri, desiredName, null)
+                fileUri = fileRepository.createFile(dirUri, uniqueName, fileRepository.guessMimeType(uniqueName))
+                if (fileUri == null) return@withLock false
+                _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
+            }
+
+            _state.update { it.copy(isSaving = true) }
+            try {
+                fileRepository.writeText(fileUri, text)
+                lastSavedText = text
+                lastKnownModified = fileRepository.getLastModified(fileUri) ?: System.currentTimeMillis()
+
+                if (_state.value.syncTitle) {
+                    val currentName = _state.value.fileName
+                    val ext = currentName.substringAfterLast('.', "txt")
+                    val desiredName = buildNameFromText(text, ".${ext}")
+                    if (desiredName.isNotBlank() && desiredName != currentName && dirUri != null) {
+                        val uniqueName = ensureUniqueName(dirUri, desiredName, currentName)
+                        val renamedUri = fileRepository.renameFile(fileUri, uniqueName)
+                        if (renamedUri != null) {
+                            fileUri = renamedUri
+                            _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
+                        }
                     }
                 }
-                return false
+
+                _state.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
+                updateCanSaveState()
+                syncScheduler.scheduleDebounced()
+                return@withLock true
+            } finally {
+                _state.update { it.copy(isSaving = false) }
             }
         }
-        if (text == lastSavedText) return false
-        if (fileUri == null) {
-            if (dirUri == null || text.isBlank()) return false
-            val rawExtension = _state.value.newFileExtension.ifBlank { "txt" }
-            val extension = ".${rawExtension.lowercase(Locale.getDefault())}"
-            val desiredName = buildNameFromText(text, extension)
-            val uniqueName = ensureUniqueName(dirUri, desiredName, null)
-            fileUri = fileRepository.createFile(dirUri, uniqueName, fileRepository.guessMimeType(uniqueName))
-            if (fileUri == null) return false
-            _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
+    }
+
+    private suspend fun runSaveCatching(block: suspend () -> Boolean): Boolean {
+        return try {
+            block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            _state.update { it.copy(isSaving = false) }
+            false
         }
-
-        _state.update { it.copy(isSaving = true) }
-        fileRepository.writeText(fileUri, text)
-        lastSavedText = text
-        lastKnownModified = fileRepository.getLastModified(fileUri) ?: System.currentTimeMillis()
-
-        if (_state.value.syncTitle) {
-            val currentName = _state.value.fileName
-            val ext = currentName.substringAfterLast('.', "txt")
-            val desiredName = buildNameFromText(text, ".${ext}")
-            if (desiredName.isNotBlank() && desiredName != currentName && dirUri != null) {
-                val uniqueName = ensureUniqueName(dirUri, desiredName, currentName)
-                val renamedUri = fileRepository.renameFile(fileUri, uniqueName)
-                if (renamedUri != null) {
-                    fileUri = renamedUri
-                    _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
-                }
-            }
-        }
-
-        _state.update { it.copy(isSaving = false, lastSavedAt = System.currentTimeMillis()) }
-        syncScheduler.scheduleDebounced()
-        return true
     }
 
     private suspend fun detectExternalChange(fileUri: Uri): Long? {
@@ -360,6 +394,7 @@ class EditorViewModel(
         lastSavedText = updatedText
         textChanges.value = updatedText
         lastKnownModified = modifiedAt
+        updateCanSaveState()
     }
 
     private fun clearExternalChange() {
@@ -390,5 +425,14 @@ class EditorViewModel(
         val cleaned = fileRepository.sanitizeFileName(firstLine)
         val base = if (cleaned.isBlank()) "Untitled" else cleaned
         return base + extension
+    }
+
+    private fun updateCanSaveState() {
+        val current = _state.value
+        val canSave = isLoaded &&
+            current.text != lastSavedText &&
+            (current.fileUri != null || (current.dirUri != null && current.text.isNotBlank()))
+        if (current.canSave == canSave) return
+        _state.update { it.copy(canSave = canSave) }
     }
 }
