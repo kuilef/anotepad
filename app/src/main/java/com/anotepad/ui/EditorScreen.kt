@@ -266,6 +266,7 @@ fun EditorScreen(
                         )
                         IconButton(
                             onClick = { viewModel.saveNow(manual = state.fileUri != null) },
+                            enabled = state.canSave && !state.isSaving,
                             modifier = Modifier.onGloballyPositioned { coordinates ->
                                 val bounds = coordinates.boundsInRoot()
                                 saveButtonRightPx = bounds.right

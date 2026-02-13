@@ -43,7 +43,8 @@ data class EditorState(
     val newFileExtension: String = "txt",
     val editorFontSizeSp: Float = 16f,
     val externalChangeDetectedAt: Long? = null,
-    val showExternalChangeDialog: Boolean = false
+    val showExternalChangeDialog: Boolean = false,
+    val canSave: Boolean = false
 )
 
 data class EditorSaveResult(
@@ -152,19 +153,22 @@ class EditorViewModel(
                     moveCursorToEndOnLoad = moveCursorToEndOnLoad,
                     newFileExtension = newFileExtension,
                     externalChangeDetectedAt = null,
-                    showExternalChangeDialog = false
+                    showExternalChangeDialog = false,
+                    canSave = false
                 )
             }
             lastSavedText = if (fileUri == null) "" else initialText
             textChanges.value = initialText
             lastKnownModified = lastModified
             isLoaded = true
+            updateCanSaveState()
         }
     }
 
     fun updateText(text: String) {
         _state.update { it.copy(text = text) }
         textChanges.value = text
+        updateCanSaveState()
     }
 
     fun queueTemplate(text: String) {
@@ -345,6 +349,7 @@ class EditorViewModel(
                 }
 
                 _state.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
+                updateCanSaveState()
                 syncScheduler.scheduleDebounced()
                 return@withLock true
             } finally {
@@ -389,6 +394,7 @@ class EditorViewModel(
         lastSavedText = updatedText
         textChanges.value = updatedText
         lastKnownModified = modifiedAt
+        updateCanSaveState()
     }
 
     private fun clearExternalChange() {
@@ -419,5 +425,14 @@ class EditorViewModel(
         val cleaned = fileRepository.sanitizeFileName(firstLine)
         val base = if (cleaned.isBlank()) "Untitled" else cleaned
         return base + extension
+    }
+
+    private fun updateCanSaveState() {
+        val current = _state.value
+        val canSave = isLoaded &&
+            current.text != lastSavedText &&
+            (current.fileUri != null || (current.dirUri != null && current.text.isNotBlank()))
+        if (current.canSave == canSave) return
+        _state.update { it.copy(canSave = canSave) }
     }
 }
