@@ -70,16 +70,34 @@ class SyncEngine(
             runCatching { driveClient.ensureMarkerFile(token, storedId, name) }
             return DriveFolderResult.Found(storedId)
         }
-        val folders = driveClient.findMarkerFolders(token)
-        return when {
-            folders.isEmpty() -> DriveFolderResult.Error("Drive folder not connected")
-            folders.size == 1 -> {
-                val folder = folders.first()
+        val markerFolders = driveClient.findMarkerFolders(token)
+        when {
+            markerFolders.size == 1 -> {
+                val folder = markerFolders.first()
                 syncRepository.setDriveFolderId(folder.id)
                 syncRepository.setDriveFolderName(folder.name)
+                return DriveFolderResult.Found(folder.id)
+            }
+            markerFolders.size > 1 -> {
+                return DriveFolderResult.Error("Multiple Drive folders found. Open Sync settings to choose.")
+            }
+        }
+
+        val preferredName = syncRepository.getDriveFolderName()
+            ?: prefs.driveSyncFolderName
+        val foldersByName = driveClient.findFoldersByName(token, preferredName)
+        return when {
+            foldersByName.size == 1 -> {
+                val folder = foldersByName.first()
+                syncRepository.setDriveFolderId(folder.id)
+                syncRepository.setDriveFolderName(folder.name)
+                runCatching { driveClient.ensureMarkerFile(token, folder.id, folder.name) }
                 DriveFolderResult.Found(folder.id)
             }
-            else -> DriveFolderResult.Error("Multiple Drive folders found. Open Sync settings to choose.")
+            foldersByName.size > 1 -> {
+                DriveFolderResult.Error("Multiple Drive folders found by name. Open Sync settings to choose.")
+            }
+            else -> DriveFolderResult.Error("Drive folder not connected")
         }
     }
 
@@ -219,11 +237,16 @@ class SyncEngine(
     ): DriveFile {
         val parentId = ensureDriveFolderForPath(token, driveFolderId, relativePath)
         val name = relativePath.substringAfterLast('/')
+        val existingByName = if (driveFileId == null) {
+            driveClient.findChildByName(token, parentId, name)
+        } else {
+            null
+        }
         val mimeType = fileRepository.guessMimeType(name)
         val appProps = mapOf("localRelativePath" to relativePath)
         return driveClient.createOrUpdateFile(
             token = token,
-            fileId = driveFileId,
+            fileId = driveFileId ?: existingByName?.id,
             name = name,
             parentId = parentId,
             mimeType = mimeType,

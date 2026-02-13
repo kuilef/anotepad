@@ -84,7 +84,7 @@ class DriveClient(
     }
 
     suspend fun findFoldersByName(token: String, name: String): List<DriveFolder> {
-        val safeName = name.replace("'", "\\'")
+        val safeName = escapeQueryValue(name)
         val query = "mimeType='application/vnd.google-apps.folder' and trashed=false and name='$safeName'"
         val url = buildString {
             append("$DRIVE_BASE/files?spaces=drive&fields=files(id,name)&q=")
@@ -98,6 +98,27 @@ class DriveClient(
                 add(DriveFolder(id = item.getString("id"), name = item.optString("name")))
             }
         }
+    }
+
+    suspend fun findChildByName(token: String, parentId: String, name: String): DriveFile? {
+        val safeParentId = escapeQueryValue(parentId)
+        val safeName = escapeQueryValue(name)
+        val query = "'$safeParentId' in parents and trashed=false and name='$safeName'"
+        val url = buildString {
+            append("$DRIVE_BASE/files?spaces=drive&fields=files(id,name,mimeType,modifiedTime,parents,trashed,appProperties)&pageSize=20&q=")
+            append(urlEncode(query))
+        }
+        val json = requestJson(token, url)
+        val files = json.optJSONArray("files") ?: JSONArray()
+        var selected: DriveFile? = null
+        for (i in 0 until files.length()) {
+            val candidate = parseDriveFile(files.getJSONObject(i))
+            val current = selected
+            if (current == null || (candidate.modifiedTime ?: 0L) >= (current.modifiedTime ?: 0L)) {
+                selected = candidate
+            }
+        }
+        return selected
     }
 
     suspend fun listChildren(token: String, folderId: String, pageToken: String?): DriveListResult<DriveFile> {
@@ -414,6 +435,8 @@ class DriveClient(
 
     private fun urlEncode(value: String): String =
         java.net.URLEncoder.encode(value, Charsets.UTF_8.name())
+
+    private fun escapeQueryValue(value: String): String = value.replace("'", "\\'")
 
     companion object {
         private val JSON_MEDIA = "application/json; charset=UTF-8".toMediaType()

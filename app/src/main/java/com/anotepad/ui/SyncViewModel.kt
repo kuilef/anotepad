@@ -234,22 +234,38 @@ class SyncViewModel(
             foundFolders = emptyList()
         )
         try {
-            val folders = driveClient.findMarkerFolders(token)
+            val markerFolders = driveClient.findMarkerFolders(token)
             when {
-                folders.isEmpty() -> {
+                markerFolders.size == 1 -> {
                     updateFolderState(isLoading = false)
-                    createDriveFolderInternal(folderName, token)
+                    selectDriveFolderInternal(markerFolders.first(), token)
                 }
-                folders.size == 1 -> {
-                    updateFolderState(isLoading = false)
-                    selectDriveFolderInternal(folders.first())
-                }
-                else -> {
+                markerFolders.size > 1 -> {
                     updateFolderState(
                         showFolderConflictDialog = true,
-                        foundFolders = folders,
+                        foundFolders = markerFolders,
                         isLoading = false
                     )
+                }
+                else -> {
+                    val foldersByName = driveClient.findFoldersByName(token, folderName)
+                    when {
+                        foldersByName.isEmpty() -> {
+                            updateFolderState(isLoading = false)
+                            createDriveFolderInternal(folderName, token)
+                        }
+                        foldersByName.size == 1 -> {
+                            updateFolderState(isLoading = false)
+                            selectDriveFolderInternal(foldersByName.first(), token)
+                        }
+                        else -> {
+                            updateFolderState(
+                                showFolderConflictDialog = true,
+                                foundFolders = foldersByName,
+                                isLoading = false
+                            )
+                        }
+                    }
                 }
             }
         } catch (error: DriveApiException) {
@@ -294,7 +310,11 @@ class SyncViewModel(
         }
     }
 
-    private suspend fun selectDriveFolderInternal(folder: DriveFolder) {
+    private suspend fun selectDriveFolderInternal(folder: DriveFolder, tokenOverride: String? = null) {
+        val token = tokenOverride ?: authManager.getAccessToken()
+        if (!token.isNullOrBlank()) {
+            runCatching { driveClient.ensureMarkerFile(token, folder.id, folder.name) }
+        }
         updateFolderState(
             showFolderConflictDialog = false,
             foundFolders = emptyList(),
