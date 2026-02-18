@@ -273,7 +273,10 @@ class SyncEngine(
         for ((path, meta) in localMap) {
             val item = existing[path]
             val localHash = computeHashIfNeeded(item, meta)
-            val shouldUpload = item == null || item.localHash != localHash
+            val shouldUpload = item == null ||
+                item.localHash != localHash ||
+                item.driveFileId == null ||
+                item.syncState == SyncItemState.PENDING_UPLOAD.name
             if (!shouldUpload) continue
             if (item != null && item.driveFileId != null && item.lastSyncedAt != null) {
                 val localChangedAfterSync = meta.lastModified > item.lastSyncedAt
@@ -309,9 +312,10 @@ class SyncEngine(
             val mimeType = fileRepository.guessMimeType(name)
             val contentLength = fileRepository.getSize(meta.uri) ?: -1L
             val appProps = mapOf("localRelativePath" to path)
+            val driveFileId = item?.driveFileId ?: driveClient.findChildByName(token, parentId, name)?.id
             val updated = driveClient.createOrUpdateFile(
                 token = token,
-                fileId = item?.driveFileId,
+                fileId = driveFileId,
                 name = name,
                 parentId = parentId,
                 mimeType = mimeType,
@@ -440,7 +444,7 @@ class SyncEngine(
     ) {
         val safeName = sanitizeRemoteFileName(remoteFile)
         if (!isSupportedNote(safeName)) return
-        val existingById = syncRepository.getItemByDriveId(remoteFile.id)
+        var existingById = syncRepository.getItemByDriveId(remoteFile.id)
         val parentPath = resolveParentPathWithFetch(token, driveFolderId, remoteFile.parents)
         val resolvedPath = when {
             parentPath != null -> {
@@ -454,6 +458,9 @@ class SyncEngine(
         }
         if (resolvedPath.isNullOrBlank()) return
         if (isIgnoredPath(resolvedPath)) return
+        if (existingById == null) {
+            existingById = adoptLocalItemForRemoteIfNeeded(rootUri, resolvedPath, remoteFile)
+        }
         val uniquePath = ensureUniqueLocalPath(rootUri, resolvedPath, remoteFile.id)
         var movedLocally = false
         if (existingById != null && existingById.localRelativePath != uniquePath) {
@@ -469,6 +476,51 @@ class SyncEngine(
             movedLocally = movedUri != null
         }
         pullFileIfNeeded(token, rootUri, uniquePath, remoteFile, suppressLocalConflict = movedLocally)
+    }
+
+    private suspend fun adoptLocalItemForRemoteIfNeeded(
+        rootUri: Uri,
+        relativePath: String,
+        remoteFile: DriveFile
+    ): SyncItemEntity? {
+        val existingByPath = syncRepository.getItemByPath(relativePath)
+        if (existingByPath != null) {
+            if (existingByPath.driveFileId == remoteFile.id) return existingByPath
+            if (existingByPath.driveFileId == null) {
+                val repaired = existingByPath.copy(
+                    driveFileId = remoteFile.id,
+                    driveModifiedTime = remoteFile.modifiedTime,
+                    syncState = existingByPath.syncState,
+                    lastError = null
+                )
+                syncRepository.upsertItem(repaired)
+                return repaired
+            }
+            return null
+        }
+        val localUri = fileRepository.findFileByRelativePath(rootUri, relativePath) ?: return null
+        val localModified = fileRepository.getLastModified(localUri) ?: 0L
+        val remoteModified = remoteFile.modifiedTime ?: 0L
+        val baseline = when {
+            localModified > 0L && remoteModified > 0L -> minOf(localModified, remoteModified)
+            localModified > 0L -> localModified
+            remoteModified > 0L -> remoteModified
+            else -> 0L
+        }
+        val localIsNewer = localModified > remoteModified
+        val adopted = SyncItemEntity(
+            localRelativePath = relativePath,
+            localLastModified = localModified,
+            localSize = fileRepository.getSize(localUri) ?: 0L,
+            localHash = fileRepository.computeHash(localUri),
+            driveFileId = remoteFile.id,
+            driveModifiedTime = remoteFile.modifiedTime,
+            lastSyncedAt = baseline.takeIf { it > 0L },
+            syncState = if (localIsNewer) SyncItemState.PENDING_UPLOAD.name else SyncItemState.SYNCED.name,
+            lastError = null
+        )
+        syncRepository.upsertItem(adopted)
+        return adopted
     }
 
     private suspend fun handleRemoteFolderChange(
