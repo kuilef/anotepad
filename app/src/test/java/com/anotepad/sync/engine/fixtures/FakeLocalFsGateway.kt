@@ -57,7 +57,7 @@ class FakeLocalFsGateway : LocalFsGateway {
         return filesByRoot[rootId]?.containsKey(relativePath) == true
     }
 
-    override suspend fun openInputStream(rootId: String, relativePath: String): InputStream? {
+    override fun openInputStream(rootId: String, relativePath: String): InputStream? {
         calls += "openInputStream:$rootId:$relativePath"
         val file = filesByRoot[rootId]?.get(relativePath) ?: return null
         return ByteArrayInputStream(file.content)

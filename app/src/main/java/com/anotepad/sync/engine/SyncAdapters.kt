@@ -127,7 +127,7 @@ class LocalFsGatewayAdapter(
         return fileRepository.findFileByRelativePath(rootUri, relativePath) != null
     }
 
-    override suspend fun openInputStream(rootId: String, relativePath: String): InputStream? {
+    override fun openInputStream(rootId: String, relativePath: String): InputStream? {
         val rootUri = rootUriOrNull(rootId) ?: return null
         val uri = fileRepository.findFileByRelativePath(rootUri, relativePath) ?: return null
         return fileRepository.openInputStream(uri)

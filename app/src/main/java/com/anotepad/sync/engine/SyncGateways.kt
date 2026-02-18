@@ -60,7 +60,7 @@ interface LocalFsGateway {
     suspend fun listFilesRecursive(rootId: String): List<LocalFileEntry>
     suspend fun getFileMeta(rootId: String, relativePath: String): LocalFileEntry?
     suspend fun exists(rootId: String, relativePath: String): Boolean
-    suspend fun openInputStream(rootId: String, relativePath: String): InputStream?
+    fun openInputStream(rootId: String, relativePath: String): InputStream?
     suspend fun createFile(rootId: String, relativePath: String, mimeType: String): Boolean
     suspend fun writeStream(rootId: String, relativePath: String, input: InputStream): Boolean
     suspend fun computeHash(rootId: String, relativePath: String): String
