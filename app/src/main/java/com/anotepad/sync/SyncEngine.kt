@@ -237,16 +237,11 @@ class SyncEngine(
     ): DriveFile {
         val parentId = ensureDriveFolderForPath(token, driveFolderId, relativePath)
         val name = relativePath.substringAfterLast('/')
-        val existingByName = if (driveFileId == null) {
-            driveClient.findChildByName(token, parentId, name)
-        } else {
-            null
-        }
         val mimeType = fileRepository.guessMimeType(name)
         val appProps = mapOf("localRelativePath" to relativePath)
         return driveClient.createOrUpdateFile(
             token = token,
-            fileId = driveFileId ?: existingByName?.id,
+            fileId = driveFileId,
             name = name,
             parentId = parentId,
             mimeType = mimeType,

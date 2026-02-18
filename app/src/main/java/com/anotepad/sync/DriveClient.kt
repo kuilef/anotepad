@@ -3,6 +3,7 @@ package com.anotepad.sync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -214,18 +215,73 @@ class DriveClient(
                 put("parents", JSONArray().put(parentId))
             }
         }
-        val uploadUrl = if (fileId == null) {
-            "$UPLOAD_BASE/files?uploadType=resumable&fields=id,name,mimeType,modifiedTime,parents,trashed,appProperties"
-        } else {
-            "$UPLOAD_BASE/files/$fileId?uploadType=resumable&fields=id,name,mimeType,modifiedTime,parents,trashed,appProperties"
+        val uploadBase = if (fileId == null) "$UPLOAD_BASE/files" else "$UPLOAD_BASE/files/$fileId"
+        val method = if (fileId == null) "POST" else "PATCH"
+        if (contentLength != null && contentLength in 0..MULTIPART_MAX_BYTES) {
+            val bytes = withContext(Dispatchers.IO) {
+                try {
+                    val stream = contentProvider()
+                        ?: throw IOException("Unable to open content stream for upload")
+                    stream.use { it.readBytes() }
+                } catch (io: IOException) {
+                    throw DriveNetworkException(io)
+                }
+            }
+            return createOrUpdateFileMultipart(
+                token = token,
+                urlBase = uploadBase,
+                method = method,
+                metadata = metadata,
+                mimeType = mimeType,
+                bytes = bytes
+            )
         }
+        val uploadUrl = "$uploadBase?uploadType=resumable&fields=$DRIVE_FILE_FIELDS"
         val sessionLocation = startResumableSession(
             token,
             uploadUrl,
             metadata,
-            method = if (fileId == null) "POST" else "PATCH"
+            method = method
         )
         return uploadToSession(token, sessionLocation, mimeType, contentLength, contentProvider)
+    }
+
+    private suspend fun createOrUpdateFileMultipart(
+        token: String,
+        urlBase: String,
+        method: String,
+        metadata: JSONObject,
+        mimeType: String,
+        bytes: ByteArray
+    ): DriveFile {
+        val url = "$urlBase?uploadType=multipart&fields=$DRIVE_FILE_FIELDS"
+        val multipartBody = MultipartBody.Builder()
+            .setType(MULTIPART_RELATED_MEDIA)
+            .addPart(metadata.toString().toRequestBody(JSON_MEDIA))
+            .addPart(bytes.toRequestBody(mimeType.toMediaType()))
+            .build()
+        val builder = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $token")
+        when (method) {
+            "PATCH" -> builder.patch(multipartBody)
+            else -> builder.post(multipartBody)
+        }
+        return withContext(Dispatchers.IO) {
+            try {
+                httpClient.newCall(builder.build()).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw DriveApiException(response.code, response.body?.string(), url, method)
+                    }
+                    val json = JSONObject(response.body?.string().orEmpty())
+                    parseDriveFile(json)
+                }
+            } catch (api: DriveApiException) {
+                throw api
+            } catch (io: IOException) {
+                throw DriveNetworkException(io)
+            }
+        }
     }
 
     suspend fun trashFile(token: String, fileId: String) {
@@ -440,9 +496,12 @@ class DriveClient(
 
     companion object {
         private val JSON_MEDIA = "application/json; charset=UTF-8".toMediaType()
+        private val MULTIPART_RELATED_MEDIA = "multipart/related".toMediaType()
         private val EMPTY_JSON = "{}".toRequestBody(JSON_MEDIA)
         private const val DRIVE_BASE = "https://www.googleapis.com/drive/v3"
         private const val UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3"
+        private const val DRIVE_FILE_FIELDS = "id,name,mimeType,modifiedTime,parents,trashed,appProperties"
+        private const val MULTIPART_MAX_BYTES = 256L * 1024L
         private const val MARKER_FILE_NAME = "anotepad_config.json"
         private const val MARKER_MIME = "application/json"
         private const val MARKER_APP_PROPERTY_KEY = "anotepad_marker"
