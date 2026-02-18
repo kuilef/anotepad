@@ -22,6 +22,16 @@ class SyncRepository(private val db: SyncDatabase) {
 
     suspend fun deleteItemByPath(path: String) = itemDao.deleteByPath(path)
 
+    suspend fun getItemsByPathPrefix(path: String): List<SyncItemEntity> {
+        val prefixPattern = if (path.isBlank()) "%" else "$path/%"
+        return itemDao.getByPathPrefix(path, prefixPattern)
+    }
+
+    suspend fun deleteItemsByPathPrefix(path: String) {
+        val prefixPattern = if (path.isBlank()) "%" else "$path/%"
+        itemDao.deleteByPathPrefix(path, prefixPattern)
+    }
+
     suspend fun clearItems() = itemDao.deleteAll()
 
     suspend fun getFolderByPath(path: String): SyncFolderEntity? = folderDao.getByPath(path)
@@ -34,6 +44,16 @@ class SyncRepository(private val db: SyncDatabase) {
         folderDao.upsert(SyncFolderEntity(path, driveFolderId))
 
     suspend fun deleteFolderByPath(path: String) = folderDao.deleteByPath(path)
+
+    suspend fun getFoldersByPathPrefix(path: String): List<SyncFolderEntity> {
+        val prefixPattern = if (path.isBlank()) "%" else "$path/%"
+        return folderDao.getByPathPrefix(path, prefixPattern)
+    }
+
+    suspend fun deleteFoldersByPathPrefix(path: String) {
+        val prefixPattern = if (path.isBlank()) "%" else "$path/%"
+        folderDao.deleteByPathPrefix(path, prefixPattern)
+    }
 
     suspend fun clearFolders() = folderDao.deleteAll()
 

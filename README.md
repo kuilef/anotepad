@@ -75,6 +75,14 @@ Each uploaded Drive file stores `appProperties.localRelativePath` so the app can
 ### Sync algorithm
 Sync runs on a manual tap, on a debounced schedule after local edits, on a periodic WorkManager job, and optionally once on app start.
 
+Internal sync modules:
+- `SyncPreflight`: guard checks + Drive folder resolution.
+- `InitialSyncUseCase`: first-run timestamp merge.
+- `IncrementalPushUseCase`: local-to-Drive updates/deletes.
+- `IncrementalPullUseCase`: Drive Changes API apply (create/update/move/delete).
+- `FolderPathResolver`, `ConflictResolver`, `DeleteResolver`: path mapping, conflict safety, deletion safety.
+- `SyncPlan` + `SyncOperation` + `SyncExecutor`: explicit operation planning/execution.
+
 1) **Pre-checks**
 - Sync is skipped if it is disabled or paused.
 - A local root folder and a valid Google account are required.
@@ -96,6 +104,7 @@ This prevents duplicate files on Drive when local files already exist.
 4) **Regular sync (incremental)**
 - **Push local changes**: upload modified files, create missing files, and optionally trash/delete Drive files that were removed locally (policy-driven).
 - **Pull remote changes**: use the Drive Changes API with `startPageToken` to apply adds/updates/moves/deletes. Folder moves are reflected locally.
+- Token safety: after paged `changes.list`, sync stores the `newStartPageToken` returned by the last page and does not overwrite it with a separate token call. This avoids missing changes between calls.
 
 ### Conflicts and deletes
 - If the same file changed both locally and remotely since the last sync, the app writes a `conflict ...` copy to avoid data loss.
@@ -119,7 +128,8 @@ This prevents duplicate files on Drive when local files already exist.
     - `ui/` — Compose screens and ViewModels
     - `data/` — DataStore models and repositories
     - `file/` — SAF file access
-    - `sync/` — Drive auth/client, sync engine, WorkManager workers
+    - `sync/` — Drive auth/client, scheduler/worker glue
+    - `sync/engine/` — sync preflight, use-cases, conflict/delete/path resolvers, operation executor
   - `src/main/res/` — strings, themes
 - `build.gradle.kts`, `settings.gradle.kts` — build configuration
 

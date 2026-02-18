@@ -39,6 +39,12 @@ data class DriveListResult<T>(
     val nextPageToken: String?
 )
 
+data class DriveChangesResult(
+    val items: List<DriveChange>,
+    val nextPageToken: String?,
+    val newStartPageToken: String?
+)
+
 class DriveClient(
     private val httpClient: OkHttpClient = OkHttpClient()
 ) {
@@ -321,7 +327,7 @@ class DriveClient(
         return json.getString("startPageToken")
     }
 
-    suspend fun listChanges(token: String, pageToken: String): DriveListResult<DriveChange> {
+    suspend fun listChanges(token: String, pageToken: String): DriveChangesResult {
         val url = buildString {
             append("$DRIVE_BASE/changes?pageToken=${urlEncode(pageToken)}")
             append("&spaces=drive")
@@ -344,7 +350,12 @@ class DriveClient(
             }
         }
         val nextPage = json.optString("nextPageToken")
-        return DriveListResult(items, nextPage.ifBlank { null })
+        val newStart = json.optString("newStartPageToken").ifBlank { null }
+        return DriveChangesResult(
+            items = items,
+            nextPageToken = nextPage.ifBlank { null },
+            newStartPageToken = newStart
+        )
     }
 
     private fun parseDriveFile(json: JSONObject): DriveFile {

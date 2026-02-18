@@ -1,79 +1,57 @@
 package com.anotepad.sync
 
 import android.content.Context
-import androidx.work.BackoffPolicy
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import com.anotepad.data.PreferencesRepository
-import kotlinx.coroutines.flow.first
-import java.util.concurrent.TimeUnit
+import com.anotepad.sync.engine.PrefsGateway
+import com.anotepad.sync.engine.PrefsGatewayAdapter
+import com.anotepad.sync.engine.SyncStore
+import com.anotepad.sync.engine.SyncStoreAdapter
 
 class SyncScheduler(
-    private val context: Context,
-    private val preferencesRepository: PreferencesRepository,
-    private val syncRepository: SyncRepository
+    private val prefsGateway: PrefsGateway,
+    private val syncStore: SyncStore,
+    private val workGateway: SyncWorkGateway
 ) {
-    private val workManager = WorkManager.getInstance(context)
+    constructor(
+        context: Context,
+        preferencesRepository: PreferencesRepository,
+        syncRepository: SyncRepository
+    ) : this(
+        prefsGateway = PrefsGatewayAdapter(preferencesRepository),
+        syncStore = SyncStoreAdapter(syncRepository),
+        workGateway = WorkManagerSyncWorkGateway(context)
+    )
 
     suspend fun scheduleDebounced() {
-        val prefs = preferencesRepository.preferencesFlow.first()
+        val prefs = prefsGateway.getPreferences()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused) return
-        val request = OneTimeWorkRequestBuilder<DriveSyncWorker>()
-            .setInitialDelay(DEBOUNCE_SECONDS, TimeUnit.SECONDS)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .build()
-        workManager.enqueueUniqueWork(WORK_SYNC_AUTO, ExistingWorkPolicy.REPLACE, request)
-        syncRepository.setSyncStatus(SyncState.PENDING, "Waiting for sync")
+        workGateway.enqueueDebounced()
+        syncStore.setSyncStatus(SyncState.PENDING, "Waiting for sync")
     }
 
     suspend fun schedulePeriodic() {
-        val prefs = preferencesRepository.preferencesFlow.first()
+        val prefs = prefsGateway.getPreferences()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused) {
-            workManager.cancelUniqueWork(WORK_SYNC_PERIODIC)
-            workManager.cancelUniqueWork(WORK_SYNC_AUTO)
-            workManager.cancelUniqueWork(WORK_SYNC_MANUAL)
-            workManager.cancelUniqueWork(WORK_SYNC_STARTUP)
+            workGateway.cancelAllSyncWork()
             return
         }
-        val request = PeriodicWorkRequestBuilder<DriveSyncWorker>(PERIODIC_HOURS, TimeUnit.HOURS)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.HOURS)
-            .build()
-        workManager.enqueueUniquePeriodicWork(WORK_SYNC_PERIODIC, ExistingPeriodicWorkPolicy.UPDATE, request)
+        workGateway.enqueuePeriodic()
     }
 
     suspend fun scheduleStartup() {
-        val prefs = preferencesRepository.preferencesFlow.first()
+        val prefs = prefsGateway.getPreferences()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused || !prefs.driveSyncAutoOnStart) return
         if (prefs.rootTreeUri.isNullOrBlank()) return
-        val folderId = syncRepository.getDriveFolderId()
+        val folderId = syncStore.getDriveFolderId()
         if (folderId.isNullOrBlank()) return
-        val request = OneTimeWorkRequestBuilder<DriveSyncWorker>()
-            .setInitialDelay(STARTUP_DELAY_SECONDS, TimeUnit.SECONDS)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .build()
-        syncRepository.setSyncStatus(SyncState.PENDING, "Sync scheduled")
-        workManager.enqueueUniqueWork(WORK_SYNC_STARTUP, ExistingWorkPolicy.KEEP, request)
+        syncStore.setSyncStatus(SyncState.PENDING, "Sync scheduled")
+        workGateway.enqueueStartup()
     }
 
     suspend fun syncNow() {
-        val prefs = preferencesRepository.preferencesFlow.first()
+        val prefs = prefsGateway.getPreferences()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused) return
-        val request = OneTimeWorkRequestBuilder<DriveSyncWorker>()
-            .build()
-        syncRepository.setSyncStatus(SyncState.PENDING, "Sync scheduled")
-        workManager.enqueueUniqueWork(WORK_SYNC_MANUAL, ExistingWorkPolicy.REPLACE, request)
-    }
-
-    companion object {
-        private const val WORK_SYNC_AUTO = "drive_sync_auto"
-        private const val WORK_SYNC_MANUAL = "drive_sync_manual"
-        private const val WORK_SYNC_PERIODIC = "drive_sync_periodic"
-        private const val WORK_SYNC_STARTUP = "drive_sync_startup"
-        private const val DEBOUNCE_SECONDS = 10L
-        private const val PERIODIC_HOURS = 8L
-        private const val STARTUP_DELAY_SECONDS = 5L
+        syncStore.setSyncStatus(SyncState.PENDING, "Sync scheduled")
+        workGateway.enqueueManual()
     }
 }

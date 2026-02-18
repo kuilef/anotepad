@@ -17,11 +17,23 @@ interface SyncItemDao {
     @Query("SELECT * FROM sync_items WHERE driveFileId = :driveFileId LIMIT 1")
     suspend fun getByDriveId(driveFileId: String): SyncItemEntity?
 
+    @Query(
+        "SELECT * FROM sync_items " +
+            "WHERE localRelativePath = :exactPath OR localRelativePath LIKE :prefixPattern"
+    )
+    suspend fun getByPathPrefix(exactPath: String, prefixPattern: String): List<SyncItemEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: SyncItemEntity)
 
     @Query("DELETE FROM sync_items WHERE localRelativePath = :path")
     suspend fun deleteByPath(path: String)
+
+    @Query(
+        "DELETE FROM sync_items " +
+            "WHERE localRelativePath = :exactPath OR localRelativePath LIKE :prefixPattern"
+    )
+    suspend fun deleteByPathPrefix(exactPath: String, prefixPattern: String)
 
     @Query("DELETE FROM sync_items")
     suspend fun deleteAll()
@@ -38,11 +50,23 @@ interface SyncFolderDao {
     @Query("SELECT * FROM sync_folders WHERE driveFolderId = :driveFolderId LIMIT 1")
     suspend fun getByDriveId(driveFolderId: String): SyncFolderEntity?
 
+    @Query(
+        "SELECT * FROM sync_folders " +
+            "WHERE localRelativePath = :exactPath OR localRelativePath LIKE :prefixPattern"
+    )
+    suspend fun getByPathPrefix(exactPath: String, prefixPattern: String): List<SyncFolderEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(folder: SyncFolderEntity)
 
     @Query("DELETE FROM sync_folders WHERE localRelativePath = :path")
     suspend fun deleteByPath(path: String)
+
+    @Query(
+        "DELETE FROM sync_folders " +
+            "WHERE localRelativePath = :exactPath OR localRelativePath LIKE :prefixPattern"
+    )
+    suspend fun deleteByPathPrefix(exactPath: String, prefixPattern: String)
 
     @Query("DELETE FROM sync_folders")
     suspend fun deleteAll()

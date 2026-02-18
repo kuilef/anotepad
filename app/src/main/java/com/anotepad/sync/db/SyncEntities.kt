@@ -20,7 +20,10 @@ data class SyncItemEntity(
     val lastError: String?
 )
 
-@Entity(tableName = "sync_folders")
+@Entity(
+    tableName = "sync_folders",
+    indices = [Index(value = ["driveFolderId"])]
+)
 data class SyncFolderEntity(
     @PrimaryKey val localRelativePath: String,
     val driveFolderId: String
