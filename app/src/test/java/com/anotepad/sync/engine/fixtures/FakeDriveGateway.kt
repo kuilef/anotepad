@@ -141,7 +141,7 @@ class FakeDriveGateway : DriveGateway {
     ): DriveFile {
         val id = fileId ?: "file-${idCounter++}"
         calls += "createOrUpdateFile:$id:$name:$parentId"
-        val bytes = contentProvider()?.use { it.readBytes() }.orEmpty()
+        val bytes = contentProvider()?.use { it.readBytes() } ?: ByteArray(0)
         val file = DriveFile(
             id = id,
             name = name,
