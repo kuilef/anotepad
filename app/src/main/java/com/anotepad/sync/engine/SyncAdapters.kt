@@ -10,6 +10,7 @@ import com.anotepad.sync.SyncState
 import com.anotepad.sync.db.SyncFolderEntity
 import com.anotepad.sync.db.SyncItemEntity
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import java.io.InputStream
 
 class PrefsGatewayAdapter(
@@ -129,7 +130,7 @@ class LocalFsGatewayAdapter(
 
     override fun openInputStream(rootId: String, relativePath: String): InputStream? {
         val rootUri = rootUriOrNull(rootId) ?: return null
-        val uri = fileRepository.findFileByRelativePath(rootUri, relativePath) ?: return null
+        val uri = runBlocking { fileRepository.findFileByRelativePath(rootUri, relativePath) } ?: return null
         return fileRepository.openInputStream(uri)
     }
 
