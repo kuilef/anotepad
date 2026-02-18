@@ -42,7 +42,7 @@ class IncrementalPullTest {
     fun pull_appliesRemoteFileUpdate_toLocal() = runTest {
         // Given
         val builder = SyncFixtureBuilder()
-            .withLocalFile("note.txt", "old", 110L)
+            .withLocalFile("note.txt", "old", 100L)
             .withStoreItem(path = "note.txt", driveFileId = "r1", lastSyncedAt = 100L, driveModifiedTime = 100L)
         val file = driveFile("r1", "note.txt", parents = listOf("drive-root"), modified = 250L)
         builder.drive.putFile("r1", "note.txt", "drive-root", content = "new", modifiedTime = 250L)

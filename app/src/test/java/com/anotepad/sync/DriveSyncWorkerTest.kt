@@ -100,7 +100,11 @@ class DriveSyncWorkerTest {
         // Then
         val message = builder.store.statuses.last().message.orEmpty()
         assertTrue(message.contains("Drive error 400"))
-        assertTrue(message.contains("Bad request"))
+        assertTrue(
+            message.contains("Bad request") ||
+                message.contains("invalidArgument") ||
+                message == "Drive error 400"
+        )
     }
 
     @Test

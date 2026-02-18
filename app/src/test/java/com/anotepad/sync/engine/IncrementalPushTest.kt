@@ -146,7 +146,7 @@ class IncrementalPushTest {
         push.execute("token", builder.prefs.prefs, FakeLocalFsGateway.DEFAULT_ROOT, "drive-root")
 
         // Then
-        assertTrue(builder.drive.calls.any { it.startsWith("findChildByName:drive-root:note.txt") })
+        assertTrue(builder.drive.calls.any { it.startsWith("listChildren:drive-root:") })
         assertTrue(builder.drive.calls.any { it.contains("createOrUpdateFile:remote-id:note.txt") })
     }
 
