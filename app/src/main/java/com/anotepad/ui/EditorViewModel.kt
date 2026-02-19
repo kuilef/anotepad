@@ -339,14 +339,15 @@ class EditorViewModel(
                 if (fileUri == null) return@withLock false
                 _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
             }
+            var currentFileUri = fileUri ?: return@withLock false
 
             _state.update { it.copy(isSaving = true) }
             try {
                 runNonCancellableWrite {
-                    fileRepository.writeText(fileUri, text)
+                    fileRepository.writeText(currentFileUri, text)
                 }
                 lastSavedText = text
-                lastKnownModified = fileRepository.getLastModified(fileUri) ?: System.currentTimeMillis()
+                lastKnownModified = fileRepository.getLastModified(currentFileUri) ?: System.currentTimeMillis()
 
                 if (_state.value.syncTitle) {
                     val currentName = _state.value.fileName
@@ -354,10 +355,10 @@ class EditorViewModel(
                     val desiredName = buildNameFromText(text, ".${ext}")
                     if (desiredName.isNotBlank() && desiredName != currentName && dirUri != null) {
                         val uniqueName = ensureUniqueName(dirUri, desiredName, currentName)
-                        val renamedUri = fileRepository.renameFile(fileUri, uniqueName)
+                        val renamedUri = fileRepository.renameFile(currentFileUri, uniqueName)
                         if (renamedUri != null) {
-                            fileUri = renamedUri
-                            _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
+                            currentFileUri = renamedUri
+                            _state.update { it.copy(fileUri = currentFileUri, fileName = uniqueName) }
                         }
                     }
                 }
