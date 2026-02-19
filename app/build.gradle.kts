@@ -22,8 +22,8 @@ android {
         applicationId = "com.anotepad"
         minSdk = 29
         targetSdk = 35
-        versionCode = 27
-        versionName = "2.9"
+        versionCode = 28
+        versionName = "3.0"
     }
 
     val releaseSigning = if (hasKeystoreProperties) {
