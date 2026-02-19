@@ -1,20 +1,11 @@
 package com.anotepad.ui
 
 import android.content.Context
-import android.text.Editable
-import android.text.InputType
-import android.text.TextWatcher
 import android.text.method.ArrowKeyMovementMethod
 import android.text.method.LinkMovementMethod
 import android.text.util.Linkify
-import android.util.TypedValue
-import android.view.Gravity
-import android.view.KeyEvent
-import android.view.MotionEvent
-import android.view.View
 import android.widget.EditText
 import android.widget.Toast
-import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -73,7 +64,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.util.LinkifyCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -95,7 +85,6 @@ fun EditorScreen(
     var editTextRef by remember { mutableStateOf<EditText?>(null) }
     var ignoreChanges by remember { mutableStateOf(false) }
     var ignoreHistory by remember { mutableStateOf(false) }
-    var pendingSnapshot by remember { mutableStateOf<TextSnapshot?>(null) }
     val undoStack = viewModel.undoStack
     val redoStack = viewModel.redoStack
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
@@ -104,7 +93,6 @@ fun EditorScreen(
     val scope = rememberCoroutineScope()
     val savedMessage = stringResource(id = R.string.label_saved)
     var showSavedBubble by remember { mutableStateOf(false) }
-    var lastCursorToken by remember { mutableStateOf<Long?>(null) }
     var backInProgress by remember { mutableStateOf(false) }
     var linkifyJob by remember { mutableStateOf<Job?>(null) }
     var saveButtonRightPx by remember { mutableStateOf(0f) }
@@ -146,10 +134,6 @@ fun EditorScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    LaunchedEffect(state.loadToken) {
-        pendingSnapshot = null
     }
 
     LaunchedEffect(pendingTemplate) {
@@ -212,7 +196,6 @@ fun EditorScreen(
         editText.setSelection(start, end)
         ignoreChanges = false
         ignoreHistory = false
-        pendingSnapshot = null
         viewModel.updateText(snapshot.text)
         editText.requestFocus()
     }
@@ -323,129 +306,26 @@ fun EditorScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 2.dp)
                 )
-                AndroidView(
+                AnotepadEditText(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    factory = { context ->
-                        object : EditText(context) {
-                            override fun onSelectionChanged(selStart: Int, selEnd: Int) {
-                                super.onSelectionChanged(selStart, selEnd)
-                                ensureCursorVisible(this, allowPost = false)
-                            }
-                        }.apply {
-                            setText(state.text)
-                            setBackgroundColor(backgroundColor)
-                            setTextColor(textColor)
-                            setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
-                            inputType = InputType.TYPE_CLASS_TEXT or
-                                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
-                                InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
-                            imeOptions = imeOptions or
-                                EditorInfo.IME_FLAG_NO_EXTRACT_UI or
-                                EditorInfo.IME_FLAG_NO_FULLSCREEN
-                            gravity = Gravity.TOP or Gravity.START
-                            setSingleLine(false)
-                            setHorizontallyScrolling(false)
-                            isNestedScrollingEnabled = false
-                            isVerticalScrollBarEnabled = true
-                            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-                            val density = context.resources.displayMetrics.density
-                            val paddingPx = (2f * density).roundToInt()
-                            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-                            scrollBarSize = (2f * density).roundToInt()
-                            isScrollbarFadingEnabled = true
-                            addTextChangedListener(object : TextWatcher {
-                                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-                                    if (ignoreChanges || ignoreHistory) {
-                                        pendingSnapshot = null
-                                        return
-                                    }
-                                    val text = s?.toString().orEmpty()
-                                    val selectionStart = selectionStart.coerceAtLeast(0)
-                                    val selectionEnd = selectionEnd.coerceAtLeast(0)
-                                    pendingSnapshot = TextSnapshot(text, selectionStart, selectionEnd)
-                                }
-                                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-                                override fun afterTextChanged(s: Editable?) {
-                                    if (ignoreChanges) return
-                                    if (!ignoreHistory) {
-                                        pendingSnapshot?.let { snapshot ->
-                                            val newText = s?.toString().orEmpty()
-                                            if (snapshot.text != newText) {
-                                                viewModel.pushUndoSnapshot(snapshot, clearRedo = true)
-                                            }
-                                        }
-                                    }
-                                    pendingSnapshot = null
-                                    viewModel.updateText(s?.toString().orEmpty())
-                                    ensureCursorVisible(this@apply, allowPost = true)
-                                }
-                            })
-                            setOnKeyListener { _, keyCode, event ->
-                                if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-                                val isUndo = event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_Z && !event.isShiftPressed
-                                val isRedo = event.isCtrlPressed &&
-                                    ((keyCode == KeyEvent.KEYCODE_Z && event.isShiftPressed) || keyCode == KeyEvent.KEYCODE_Y)
-                                when {
-                                    isUndo -> {
-                                        performUndo()
-                                        true
-                                    }
-
-                                    isRedo -> {
-                                        performRedo()
-                                        true
-                                    }
-
-                                    else -> false
-                                }
-                            }
-                            editTextRef = this
-                        }
+                    text = state.text,
+                    editorFontSizeSp = state.editorFontSizeSp,
+                    textColor = textColor,
+                    backgroundColor = backgroundColor,
+                    moveCursorToEndOnLoad = state.moveCursorToEndOnLoad,
+                    loadToken = state.loadToken,
+                    ignoreChanges = ignoreChanges,
+                    ignoreHistory = ignoreHistory,
+                    onIgnoreChangesChange = { ignoreChanges = it },
+                    onPushUndoSnapshot = { snapshot ->
+                        viewModel.pushUndoSnapshot(snapshot, clearRedo = true)
                     },
-                    update = { editText ->
-                        if (editText.text.toString() != state.text) {
-                            ignoreChanges = true
-                            val selection = editText.selectionStart
-                            editText.setText(state.text)
-                            if (state.moveCursorToEndOnLoad && lastCursorToken != state.loadToken) {
-                                editText.setSelection(state.text.length)
-                                lastCursorToken = state.loadToken
-                            } else {
-                                val newSelection = selection.coerceAtMost(state.text.length)
-                                editText.setSelection(newSelection)
-                            }
-                            ignoreChanges = false
-                        } else if (state.moveCursorToEndOnLoad && lastCursorToken != state.loadToken) {
-                            editText.setSelection(editText.text.length)
-                            lastCursorToken = state.loadToken
-                        }
-                        if (editText.currentTextColor != textColor) {
-                            editText.setTextColor(textColor)
-                        }
-                        editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, state.editorFontSizeSp)
-                        editText.setBackgroundColor(backgroundColor)
-                        val density = editText.resources.displayMetrics.density
-                        val basePaddingPx = (2f * density).roundToInt()
-                        val extraLinePx = editText.lineHeight.coerceAtLeast(0)
-                        val targetBottom = basePaddingPx + extraLinePx
-                        if (
-                            editText.paddingLeft != basePaddingPx ||
-                            editText.paddingTop != basePaddingPx ||
-                            editText.paddingRight != basePaddingPx ||
-                            editText.paddingBottom != targetBottom
-                        ) {
-                            editText.setPadding(basePaddingPx, basePaddingPx, basePaddingPx, targetBottom)
-                        }
-                        ensureCursorVisible(editText, allowPost = false)
-                    },
-                    onRelease = { releasedEditText ->
-                        if (editTextRef === releasedEditText) {
-                            editTextRef = null
-                        }
-                    }
+                    onTextChanged = { textValue -> viewModel.updateText(textValue) },
+                    onUndoRequested = ::performUndo,
+                    onRedoRequested = ::performRedo,
+                    onEditTextRefChange = { editTextRef = it }
                 )
             }
         }
@@ -540,24 +420,6 @@ private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: 
                 spans.forEach { text.removeSpan(it) }
             }
         }
-    }
-}
-
-private fun ensureCursorVisible(editText: EditText, allowPost: Boolean) {
-    val layout = editText.layout
-    val visibleHeight = editText.height - editText.paddingTop - editText.paddingBottom
-    if (layout == null || visibleHeight <= 0) {
-        if (allowPost) {
-            editText.post { ensureCursorVisible(editText, allowPost = false) }
-        }
-        return
-    }
-    val selection = editText.selectionStart.coerceAtLeast(0)
-    val line = layout.getLineForOffset(selection)
-    val lineBottom = layout.getLineBottom(line)
-    val visibleBottom = editText.scrollY + visibleHeight
-    if (lineBottom > visibleBottom) {
-        editText.scrollTo(0, lineBottom - visibleHeight)
     }
 }
 

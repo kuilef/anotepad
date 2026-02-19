@@ -6,17 +6,10 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import com.anotepad.data.FileSortOrder
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
 import java.io.InputStream
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.security.MessageDigest
 import java.util.Locale
 
 data class ChildBatch(
@@ -31,20 +24,18 @@ data class ReadTextResult(
 
 class FileRepository(private val context: Context) {
     private val resolver: ContentResolver = context.contentResolver
-    private val listCache = object : LinkedHashMap<ListCacheKey, ListCacheEntry>(16, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<ListCacheKey, ListCacheEntry>): Boolean {
-            return size > LIST_CACHE_MAX_ENTRIES
-        }
-    }
+    private val listCacheManager = ListCacheManager()
+    private val fileLister = SafFileLister(
+        context = context,
+        resolver = resolver,
+        cacheManager = listCacheManager,
+        isSupportedExtension = ::isSupportedExtension
+    )
+    private val readerWriter = SafFileReaderWriter(resolver)
 
-    suspend fun listChildren(dirTreeUri: Uri, sortOrder: FileSortOrder): List<DocumentNode> =
-        withContext(Dispatchers.IO) {
-            val results = mutableListOf<DocumentNode>()
-            listChildrenBatched(dirTreeUri, sortOrder).collect { batch ->
-                results.addAll(batch.entries)
-            }
-            results
-        }
+    suspend fun listChildren(dirTreeUri: Uri, sortOrder: FileSortOrder): List<DocumentNode> {
+        return fileLister.listChildren(dirTreeUri, sortOrder)
+    }
 
     fun listChildrenBatched(
         dirTreeUri: Uri,
@@ -52,267 +43,50 @@ class FileRepository(private val context: Context) {
         batchSize: Int = 50,
         firstBatchSize: Int = batchSize,
         useCache: Boolean = true
-    ): Flow<ChildBatch> = flow {
-        val cacheKey = ListCacheKey(dirTreeUri.toString(), sortOrder)
-        if (useCache) {
-            val cached = getCachedList(cacheKey)
-            if (cached != null) {
-                emitCachedBatches(
-                    cached,
-                    batchSize.coerceAtLeast(1),
-                    firstBatchSize.coerceAtLeast(1)
-                ) { batch ->
-                    emit(batch)
-                }
-                emit(ChildBatch(emptyList(), true))
-                return@flow
-            }
-        }
-        val (treeUri, parentDocId) = resolveTreeAndDocumentId(dirTreeUri) ?: run {
-            emit(ChildBatch(emptyList(), true))
-            return@flow
-        }
-        val safeBatchSize = batchSize.coerceAtLeast(1)
-        var currentBatchLimit = firstBatchSize.coerceAtLeast(1)
-        var firstBatchEmitted = false
-        val batch = mutableListOf<DocumentNode>()
-        val sort = buildSortOrder(sortOrder)
-        val collected = mutableListOf<DocumentNode>()
-
-        suspend fun emitBatch(force: Boolean) {
-            if (batch.isNotEmpty() && (force || batch.size >= currentBatchLimit)) {
-                emit(ChildBatch(batch.toList(), false))
-                collected.addAll(batch)
-                batch.clear()
-                if (!firstBatchEmitted) {
-                    firstBatchEmitted = true
-                    currentBatchLimit = safeBatchSize
-                }
-            }
-        }
-
-        val mimeTypeColumn = DocumentsContract.Document.COLUMN_MIME_TYPE
-        val dirMime = DocumentsContract.Document.MIME_TYPE_DIR
-        val selectionDirs = "$mimeTypeColumn = ?"
-        var dirSelectionRespected = true
-        val dirBuffer = mutableListOf<DocumentNode>()
-
-        val dirsQueryOk = queryChildren(
-            treeUri = treeUri,
-            parentDocId = parentDocId,
-            selection = selectionDirs,
-            selectionArgs = arrayOf(dirMime),
-            sortOrder = sort
-        ) { node, mime ->
-            if (mime != dirMime) {
-                dirSelectionRespected = false
-                return@queryChildren false
-            }
-            dirBuffer.add(node)
-            true
-        }
-
-        if (!dirsQueryOk) {
-            emit(ChildBatch(emptyList(), true))
-            return@flow
-        }
-
-        if (!dirSelectionRespected) {
-            batch.clear()
-            val dirs = mutableListOf<DocumentNode>()
-            val files = mutableListOf<DocumentNode>()
-            queryChildren(
-                treeUri = treeUri,
-                parentDocId = parentDocId,
-                selection = null,
-                selectionArgs = null,
-                sortOrder = sort
-            ) { node, mime ->
-                if (mime == dirMime || node.isDirectory) {
-                    dirs.add(node)
-                } else if (isSupportedExtension(node.name)) {
-                    files.add(node)
-                }
-                true
-            }
-            val sortedDirs = sortByName(dirs, sortOrder)
-            val sortedFiles = sortByName(files, sortOrder)
-            val combined = sortedDirs + sortedFiles
-            for (node in combined) {
-                batch.add(node)
-                emitBatch(force = false)
-            }
-            emitBatch(force = true)
-            emit(ChildBatch(emptyList(), true))
-            storeCachedList(cacheKey, collected)
-            return@flow
-        }
-
-        val selectionFiles = "$mimeTypeColumn != ?"
-        val filesBuffer = mutableListOf<DocumentNode>()
-        queryChildren(
-            treeUri = treeUri,
-            parentDocId = parentDocId,
-            selection = selectionFiles,
-            selectionArgs = arrayOf(dirMime),
-            sortOrder = sort
-        ) { node, mime ->
-            if (mime == dirMime || node.isDirectory) {
-                return@queryChildren true
-            }
-            if (!isSupportedExtension(node.name)) {
-                return@queryChildren true
-            }
-            filesBuffer.add(node)
-            true
-        }
-
-        val sortedDirs = sortByName(dirBuffer, sortOrder)
-        val sortedFiles = sortByName(filesBuffer, sortOrder)
-        val combined = sortedDirs + sortedFiles
-        for (node in combined) {
-            batch.add(node)
-            emitBatch(force = false)
-        }
-        emitBatch(force = true)
-        emit(ChildBatch(emptyList(), true))
-        storeCachedList(cacheKey, collected)
-    }.flowOn(Dispatchers.IO)
-
-    suspend fun listNamesInDirectory(dirTreeUri: Uri): Set<String> = withContext(Dispatchers.IO) {
-        val dir = resolveDirDocumentFile(dirTreeUri) ?: return@withContext emptySet()
-        dir.listFiles().mapNotNull { it.name }.toSet()
+    ): Flow<ChildBatch> {
+        return fileLister.listChildrenBatched(
+            dirTreeUri = dirTreeUri,
+            sortOrder = sortOrder,
+            batchSize = batchSize,
+            firstBatchSize = firstBatchSize,
+            useCache = useCache
+        )
     }
 
-    suspend fun listFilesRecursive(dirTreeUri: Uri): List<DocumentNode> = withContext(Dispatchers.IO) {
-        val (treeUri, rootDocId) = resolveTreeAndDocumentId(dirTreeUri) ?: return@withContext emptyList()
-        val results = mutableListOf<DocumentNode>()
-        val stack = ArrayDeque<String>()
-        stack.add(rootDocId)
-        while (stack.isNotEmpty()) {
-            val parentDocId = stack.removeFirst()
-            val queryOk = queryChildrenRaw(
-                treeUri = treeUri,
-                parentDocId = parentDocId
-            ) { docId, name, mimeType ->
-                if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    stack.add(docId)
-                    return@queryChildrenRaw true
-                }
-                if (!isSupportedExtension(name)) {
-                    return@queryChildrenRaw true
-                }
-                val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                results.add(DocumentNode(name = name, uri = docUri, isDirectory = false))
-                true
-            }
-            if (!queryOk) {
-                continue
-            }
-        }
-        results
+    suspend fun listNamesInDirectory(dirTreeUri: Uri): Set<String> {
+        return fileLister.listNamesInDirectory(dirTreeUri)
     }
 
-    suspend fun readText(fileUri: Uri): ReadTextResult = withContext(Dispatchers.IO) {
-        resolver.openInputStream(fileUri)?.use { input ->
-            InputStreamReader(input, Charsets.UTF_8).use { reader ->
-                val buffer = CharArray(READ_BUFFER_SIZE)
-                val builder = StringBuilder()
-                var remaining = MAX_TEXT_READ_CHARS
-                var truncated = false
-                while (remaining > 0) {
-                    val read = reader.read(buffer, 0, minOf(buffer.size, remaining))
-                    if (read <= 0) break
-                    builder.append(buffer, 0, read)
-                    remaining -= read
-                    if (remaining == 0) {
-                        truncated = true
-                        break
-                    }
-                }
-                if (truncated) {
-                    builder.append(TRUNCATED_SUFFIX)
-                }
-                ReadTextResult(
-                    text = builder.toString(),
-                    truncated = truncated
-                )
-            }
-        } ?: ReadTextResult(text = "", truncated = false)
+    suspend fun listFilesRecursive(dirTreeUri: Uri): List<DocumentNode> {
+        return fileLister.listFilesRecursive(dirTreeUri)
+    }
+
+    suspend fun readText(fileUri: Uri): ReadTextResult {
+        return readerWriter.readText(fileUri)
     }
 
     fun openInputStream(fileUri: Uri): InputStream? {
-        return resolver.openInputStream(fileUri)
+        return readerWriter.openInputStream(fileUri)
     }
 
-    suspend fun readTextPreview(fileUri: Uri, maxLength: Int): String = withContext(Dispatchers.IO) {
-        if (maxLength <= 0) return@withContext ""
-        resolver.openInputStream(fileUri)?.use { input ->
-            InputStreamReader(input, Charsets.UTF_8).use { reader ->
-                val buffer = CharArray(PREVIEW_BUFFER_SIZE)
-                val builder = StringBuilder()
-                var remaining = maxLength
-                while (remaining > 0) {
-                    val read = reader.read(buffer, 0, minOf(buffer.size, remaining))
-                    if (read <= 0) break
-                    builder.append(buffer, 0, read)
-                    remaining -= read
-                }
-                builder.toString()
-            }
-        } ?: ""
+    suspend fun readTextPreview(fileUri: Uri, maxLength: Int): String {
+        return readerWriter.readTextPreview(fileUri, maxLength)
     }
 
-    suspend fun searchInFile(fileUri: Uri, query: String, regex: Regex?): String? =
-        withContext(Dispatchers.IO) {
-            if (query.isBlank()) return@withContext null
-            resolver.openInputStream(fileUri)?.use { input ->
-                BufferedReader(InputStreamReader(input, Charsets.UTF_8)).use { reader ->
-                    var line = reader.readLine()
-                    while (line != null) {
-                        val match = if (regex != null) {
-                            regex.find(line)?.let { it.range.first to it.value.length }
-                        } else {
-                            val index = line.indexOf(query, ignoreCase = true)
-                            if (index >= 0) index to query.length else null
-                        }
-                        if (match != null) {
-                            return@withContext buildSearchSnippet(line, match.first, match.second)
-                        }
-                        line = reader.readLine()
-                    }
-                }
-            }
-            null
-        }
-
-    suspend fun computeHash(fileUri: Uri): String = withContext(Dispatchers.IO) {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val readOk = resolver.openInputStream(fileUri)?.use { input ->
-            val buffer = ByteArray(HASH_BUFFER_SIZE)
-            var read = input.read(buffer)
-            while (read > 0) {
-                digest.update(buffer, 0, read)
-                read = input.read(buffer)
-            }
-            true
-        } ?: false
-        if (!readOk) return@withContext ""
-        digest.digest().joinToString("") { "%02x".format(it) }
+    suspend fun searchInFile(fileUri: Uri, query: String, regex: Regex?): String? {
+        return readerWriter.searchInFile(fileUri, query, regex)
     }
 
-    suspend fun writeText(fileUri: Uri, text: String) = withContext(Dispatchers.IO) {
-        resolver.openOutputStream(fileUri, "wt")?.use { output ->
-            OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
-                writer.write(text)
-            }
-        }
+    suspend fun computeHash(fileUri: Uri): String {
+        return readerWriter.computeHash(fileUri)
     }
 
-    suspend fun writeStream(fileUri: Uri, input: InputStream) = withContext(Dispatchers.IO) {
-        resolver.openOutputStream(fileUri, "wt")?.use { output ->
-            input.copyTo(output)
-        }
+    suspend fun writeText(fileUri: Uri, text: String) {
+        readerWriter.writeText(fileUri, text)
+    }
+
+    suspend fun writeStream(fileUri: Uri, input: InputStream) {
+        readerWriter.writeStream(fileUri, input)
     }
 
     suspend fun createFile(dirTreeUri: Uri, displayName: String, mimeType: String): Uri? =
@@ -508,244 +282,7 @@ class FileRepository(private val context: Context) {
         return if (dir.isDirectory) dir else null
     }
 
-    private fun resolveTreeAndDocumentId(dirUri: Uri): Pair<Uri, String>? {
-        val authority = dirUri.authority ?: return null
-        val treeDocId = runCatching { DocumentsContract.getTreeDocumentId(dirUri) }.getOrNull()
-        val docId = runCatching { DocumentsContract.getDocumentId(dirUri) }.getOrNull()
-        val parentDocId = docId ?: treeDocId ?: return null
-        val treeUri = if (treeDocId != null) {
-            DocumentsContract.buildTreeDocumentUri(authority, treeDocId)
-        } else {
-            DocumentsContract.buildTreeDocumentUri(authority, parentDocId)
-        }
-        return treeUri to parentDocId
-    }
-
-    private fun buildSortOrder(sortOrder: FileSortOrder): String {
-        val direction = if (sortOrder == FileSortOrder.NAME_ASC) "ASC" else "DESC"
-        val column = DocumentsContract.Document.COLUMN_DISPLAY_NAME
-        return "$column COLLATE NOCASE $direction"
-    }
-
-    private suspend fun queryChildren(
-        treeUri: Uri,
-        parentDocId: String,
-        selection: String?,
-        selectionArgs: Array<String>?,
-        sortOrder: String?,
-        onRow: suspend (DocumentNode, String) -> Boolean
-    ): Boolean {
-        val childUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
-        val projection = arrayOf(
-            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-            DocumentsContract.Document.COLUMN_MIME_TYPE
-        )
-        resolver.query(childUri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-            val nameCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-            val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
-            while (cursor.moveToNext()) {
-                val name = cursor.getString(nameCol) ?: continue
-                val docId = cursor.getString(idCol) ?: continue
-                val mimeType = cursor.getString(mimeCol) ?: ""
-                val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                val node = DocumentNode(
-                    name = name,
-                    uri = docUri,
-                    isDirectory = mimeType == DocumentsContract.Document.MIME_TYPE_DIR
-                )
-                if (!onRow(node, mimeType)) return true
-            }
-        } ?: return false
-        return true
-    }
-
-    private suspend fun queryChildrenRaw(
-        treeUri: Uri,
-        parentDocId: String,
-        onRow: suspend (docId: String, name: String, mimeType: String) -> Boolean
-    ): Boolean {
-        val childUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
-        val projection = arrayOf(
-            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-            DocumentsContract.Document.COLUMN_MIME_TYPE
-        )
-        resolver.query(childUri, projection, null, null, null)?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-            val nameCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-            val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
-            while (cursor.moveToNext()) {
-                val docId = cursor.getString(idCol) ?: continue
-                val name = cursor.getString(nameCol) ?: continue
-                val mimeType = cursor.getString(mimeCol) ?: ""
-                if (!onRow(docId, name, mimeType)) return true
-            }
-        } ?: return false
-        return true
-    }
-
-    private fun sortByName(entries: List<DocumentNode>, order: FileSortOrder): List<DocumentNode> {
-        val comparator = Comparator<DocumentNode> { left, right ->
-            compareNamesNatural(left.name, right.name)
-        }
-        return when (order) {
-            FileSortOrder.NAME_DESC -> entries.sortedWith(comparator.reversed())
-            FileSortOrder.NAME_ASC -> entries.sortedWith(comparator)
-        }
-    }
-
-    private fun compareNamesNatural(left: String, right: String): Int {
-        if (left == right) return 0
-        val locale = Locale.getDefault()
-        var leftIndex = 0
-        var rightIndex = 0
-        val leftLength = left.length
-        val rightLength = right.length
-
-        while (leftIndex < leftLength && rightIndex < rightLength) {
-            val leftChar = left[leftIndex]
-            val rightChar = right[rightIndex]
-            val leftIsDigit = leftChar.isDigit()
-            val rightIsDigit = rightChar.isDigit()
-
-            if (leftIsDigit && rightIsDigit) {
-                val leftStart = leftIndex
-                val rightStart = rightIndex
-                while (leftIndex < leftLength && left[leftIndex].isDigit()) leftIndex++
-                while (rightIndex < rightLength && right[rightIndex].isDigit()) rightIndex++
-                val leftRun = left.substring(leftStart, leftIndex)
-                val rightRun = right.substring(rightStart, rightIndex)
-                val leftTrim = leftRun.trimStart('0').ifEmpty { "0" }
-                val rightTrim = rightRun.trimStart('0').ifEmpty { "0" }
-                if (leftTrim.length != rightTrim.length) {
-                    return leftTrim.length - rightTrim.length
-                }
-                val numberCmp = leftTrim.compareTo(rightTrim)
-                if (numberCmp != 0) {
-                    return numberCmp
-                }
-                val zeroCmp = leftRun.length - rightRun.length
-                if (zeroCmp != 0) {
-                    return zeroCmp
-                }
-                continue
-            }
-
-            if (!leftIsDigit && !rightIsDigit) {
-                val leftStart = leftIndex
-                val rightStart = rightIndex
-                while (leftIndex < leftLength && !left[leftIndex].isDigit()) leftIndex++
-                while (rightIndex < rightLength && !right[rightIndex].isDigit()) rightIndex++
-                val leftRun = left.substring(leftStart, leftIndex)
-                val rightRun = right.substring(rightStart, rightIndex)
-                val leftLower = leftRun.lowercase(locale)
-                val rightLower = rightRun.lowercase(locale)
-                val textCmp = leftLower.compareTo(rightLower)
-                if (textCmp != 0) {
-                    return textCmp
-                }
-                val caseCmp = leftRun.compareTo(rightRun)
-                if (caseCmp != 0) {
-                    return caseCmp
-                }
-                continue
-            }
-
-            val lowerCmp = leftChar.lowercaseChar().compareTo(rightChar.lowercaseChar())
-            if (lowerCmp != 0) {
-                return lowerCmp
-            }
-            val caseCmp = leftChar.compareTo(rightChar)
-            if (caseCmp != 0) {
-                return caseCmp
-            }
-            leftIndex++
-            rightIndex++
-        }
-        return leftLength - rightLength
-    }
-
-    private fun getCachedList(key: ListCacheKey): List<DocumentNode>? {
-        val now = System.currentTimeMillis()
-        synchronized(listCache) {
-            val entry = listCache[key] ?: return null
-            return if (now - entry.timestampMs <= LIST_CACHE_TTL_MS) {
-                entry.entries
-            } else {
-                listCache.remove(key)
-                null
-            }
-        }
-    }
-
-    private fun storeCachedList(key: ListCacheKey, entries: List<DocumentNode>) {
-        synchronized(listCache) {
-            listCache[key] = ListCacheEntry(entries, System.currentTimeMillis())
-        }
-    }
-
     private fun invalidateListCache(dirTreeUri: Uri) {
-        val keyPrefix = dirTreeUri.toString()
-        synchronized(listCache) {
-            val iterator = listCache.keys.iterator()
-            while (iterator.hasNext()) {
-                val key = iterator.next()
-                if (key.dirUri == keyPrefix) {
-                    iterator.remove()
-                }
-            }
-        }
-    }
-
-    private suspend fun emitCachedBatches(
-        entries: List<DocumentNode>,
-        batchSize: Int,
-        firstBatchSize: Int,
-        emitBatch: suspend (ChildBatch) -> Unit
-    ) {
-        val safeBatchSize = batchSize.coerceAtLeast(1)
-        val initialSize = firstBatchSize.coerceAtLeast(1)
-        var limit = initialSize
-        var first = true
-        var index = 0
-        while (index < entries.size) {
-            val end = (index + limit).coerceAtMost(entries.size)
-            emitBatch(ChildBatch(entries.subList(index, end), false))
-            index = end
-            if (first) {
-                first = false
-                limit = safeBatchSize
-            }
-        }
-    }
-
-    private fun buildSearchSnippet(line: String, start: Int, length: Int): String {
-        val window = SEARCH_SNIPPET_WINDOW
-        val from = (start - window).coerceAtLeast(0)
-        val to = (start + length + window).coerceAtMost(line.length)
-        val prefix = if (from > 0) "..." else ""
-        val suffix = if (to < line.length) "..." else ""
-        return prefix + line.substring(from, to).replace("\n", " ") + suffix
+        fileLister.invalidateListCache(dirTreeUri)
     }
 }
-
-private data class ListCacheKey(
-    val dirUri: String,
-    val sortOrder: FileSortOrder
-)
-
-private data class ListCacheEntry(
-    val entries: List<DocumentNode>,
-    val timestampMs: Long
-)
-
-private const val LIST_CACHE_TTL_MS = 15_000L
-private const val LIST_CACHE_MAX_ENTRIES = 12
-private const val MAX_TEXT_READ_CHARS = 5_000_000
-private const val HASH_BUFFER_SIZE = 8 * 1024
-private const val READ_BUFFER_SIZE = 8 * 1024
-private const val PREVIEW_BUFFER_SIZE = 2 * 1024
-private const val SEARCH_SNIPPET_WINDOW = 48
-private const val TRUNCATED_SUFFIX = "\n\n[...truncated]"
