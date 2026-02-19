@@ -80,6 +80,26 @@ class InitialSyncTest {
     }
 
     @Test
+    fun initialSync_overwritesExistingLocalFile_withoutCreatingDuplicateName() = runTest {
+        // Given
+        val builder = SyncFixtureBuilder()
+            .withLocalFile("note.txt", "local-old", 100L)
+            .withRemoteFile("r1", "note.txt", "drive-root", content = "remote-new", modifiedTime = 300L)
+        val useCase = builder.buildWired().initialSync
+
+        // When
+        useCase.execute("token", FakeLocalFsGateway.DEFAULT_ROOT, "drive-root")
+
+        // Then
+        val createdDuplicateName = builder.localFs.calls.any {
+            it.startsWith("createFile:${FakeLocalFsGateway.DEFAULT_ROOT}:note.txt:")
+        }
+        assertFalse(createdDuplicateName)
+        val text = builder.localFs.file("note.txt")?.content?.toString(Charsets.UTF_8)
+        assertEquals("remote-new", text)
+    }
+
+    @Test
     fun initialSync_ignoresTrashDirectoryPaths() = runTest {
         // Given
         val builder = SyncFixtureBuilder()

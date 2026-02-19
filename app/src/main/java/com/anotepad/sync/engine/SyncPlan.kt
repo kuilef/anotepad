@@ -89,11 +89,6 @@ class SyncExecutor(
         for (operation in plan.operations) {
             when (operation) {
                 is SyncOperation.DownloadFile -> {
-                    localFs.createFile(
-                        rootId = operation.rootId,
-                        relativePath = operation.relativePath,
-                        mimeType = operation.mimeType
-                    )
                     drive.downloadFile(operation.token, operation.driveFileId) { input ->
                         localFs.writeStream(operation.rootId, operation.relativePath, input)
                     }
