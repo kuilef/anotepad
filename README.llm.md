@@ -10,11 +10,32 @@
 ## Architecture
 - MVVM: Compose UI in `ui/*Screen.kt`, state/logic in `*ViewModel`.
 - Navigation: Compose Navigation in `AppNav.kt` (browser, editor, search, templates, settings, sync).
-- Storage: SAF via `FileRepository` (DocumentFile/DocumentsContract); only `.txt` is supported.
+- Storage: `FileRepository` is a thin facade over contracts in `FileContracts.kt`:
+  - listing via `IFileLister` -> `SafFileLister`
+  - read/write/hash/search via `IFileReaderWriter` -> `SafFileReaderWriter`
+  - SAF CRUD/path/meta ops via `IFileOpsHandler` -> `SafFileOpsHandler`
+  - listing cache is isolated in `ListCacheManager` (TTL + LRU)
+  - natural filename ordering is isolated in `NaturalOrderFileComparator`
+  - only `.txt` is supported.
+- Browser feed: feed source/pagination/scroll/item refresh logic is extracted to `FeedManager`; `BrowserViewModel` delegates to it and keeps the same public API (`ensureFeedLoaded`, `loadMoreFeed`, `updateFeedScroll`).
+- Editor input: low-level `AndroidView`/`EditText` integration is extracted from `EditorScreen` into reusable `AnotepadEditText`.
 - Preferences/templates: DataStore in `PreferencesRepository` + `TemplateRepository`.
 - Sync: WorkManager entrypoints in `SyncScheduler`; sync logic is isolated in `sync/engine/*`.
-- Drive: Google Sign-In in `DriveAuthManager`; Drive REST in `DriveClient` (OkHttp).
-- Dependency wiring: `MainActivity` -> `AppDependencies` -> `AppViewModelFactory`.
+- Drive: Google Sign-In in `DriveAuthManager`; Drive REST in `DriveClient` (OkHttp + `kotlinx.serialization` DTO/request/response/error models, no `org.json`).
+- Dependency wiring: constructor injection is used across core components, but composition is still manual in `MainActivity` and `DriveSyncWorker`; ViewModel creation is manual in `AppViewModelFactory` via `AppDependencies`.
+
+## Refactor baseline (current)
+- File module decomposition:
+  - `FileRepository` no longer owns SAF internals; it delegates to injected interfaces.
+  - SAF listing/query logic lives in `SafFileLister`.
+  - SAF read/write/hash/search logic lives in `SafFileReaderWriter`.
+  - SAF create/delete/rename/move/copy/path/meta logic lives in `SafFileOpsHandler`.
+- Feed decomposition:
+  - feed state transitions and incremental preview loading moved out of `BrowserViewModel` into `FeedManager`.
+- Editor decomposition:
+  - reusable `AnotepadEditText` owns TextWatcher, keyboard undo/redo shortcuts, cursor visibility behavior, and text/padding/style synchronization.
+- Drive JSON handling:
+  - `DriveClient` migrated to `kotlinx.serialization` with typed DTOs for Drive responses/requests and typed error parsing in `DriveApiException.userMessage()`.
 
 ## Sync goals and invariants
 - Keep behavior deterministic and conflict-safe.
@@ -217,6 +238,9 @@ Pure unit tests (no instrumentation), JUnit4 + coroutines-test:
 - in-memory fakes for all gateways/stores.
 - fixture builder for compact scenario setup.
 - checks final state and side effects (Drive calls, store writes, local fs operations).
+- storage-component tests for refactored modules:
+  - `ListCacheManagerTest`
+  - `NaturalOrderFileComparatorTest`
 
 Test groups cover:
 - preflight guards
