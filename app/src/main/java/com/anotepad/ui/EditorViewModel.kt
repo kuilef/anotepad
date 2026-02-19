@@ -302,7 +302,6 @@ class EditorViewModel(
     fun popUndoSnapshot(): TextSnapshot? = historyManager.popUndo()
 
     fun popRedoSnapshot(): TextSnapshot? = historyManager.popRedo()
-    }
 
     private suspend fun saveIfNeeded(text: String, ignoreExternalChange: Boolean = false): Boolean {
         return saveMutex.withLock {
