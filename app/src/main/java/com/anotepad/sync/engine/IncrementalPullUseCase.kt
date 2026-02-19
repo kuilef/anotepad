@@ -237,9 +237,23 @@ class IncrementalPullUseCase(
         val lastSynced = existing?.lastSyncedAt ?: 0L
         val remoteModified = remoteFile.modifiedTime ?: 0L
 
-        val localChanged = localModified != null && localModified > lastSynced
+        val timeIndicatesLocalChange = localModified != null && localModified > lastSynced
+        val localContentChanged = if (timeIndicatesLocalChange && existing != null && localMeta != null) {
+            val currentHash = computeHashIfNeeded(
+                localFs = localFs,
+                rootId = rootId,
+                item = existing,
+                relativePath = relativePath,
+                lastModified = localMeta.lastModified,
+                size = localMeta.size
+            )
+            currentHash != (existing.localHash ?: "")
+        } else {
+            timeIndicatesLocalChange && existing == null
+        }
         val remoteChanged = remoteModified > lastSynced
-        if (localChanged && remoteChanged && !suppressLocalConflict) {
+        val canSuppressConflict = suppressLocalConflict && !localContentChanged
+        if (localContentChanged && remoteChanged && !canSuppressConflict) {
             conflictResolver.createConflictCopyFromRemote(
                 token = token,
                 rootId = rootId,

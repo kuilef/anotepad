@@ -258,8 +258,17 @@ class IncrementalPullTest {
     fun pull_suppressesConflict_afterLocalMoveTriggeredByRemoteRename() = runTest {
         // Given
         val builder = SyncFixtureBuilder()
-            .withLocalFile("old.txt", "local", 350L)
-            .withStoreItem(path = "old.txt", driveFileId = "r1", lastSyncedAt = 100L, driveModifiedTime = 100L)
+            .withLocalFile("old.txt", "local", 100L)
+        val localHash = builder.localFs.computeHash(FakeLocalFsGateway.DEFAULT_ROOT, "old.txt")
+        builder.withStoreItem(
+            path = "old.txt",
+            driveFileId = "r1",
+            lastSyncedAt = 100L,
+            localLastModified = 100L,
+            localSize = "local".length.toLong(),
+            localHash = localHash,
+            driveModifiedTime = 100L
+        )
         val file = driveFile("r1", "new.txt", parents = listOf("drive-root"), modified = 450L)
         builder.drive.putFile("r1", "new.txt", "drive-root", content = "remote", modifiedTime = 450L)
         builder.withChangesPage("p1", DriveChangesPage(listOf(DriveChange("r1", false, file)), null, "new"))
@@ -336,7 +345,7 @@ class IncrementalPullConflictParameterizedTest(
         fun data(): Collection<Array<Any>> {
             return listOf(
                 arrayOf(false, true),
-                arrayOf(true, false)
+                arrayOf(true, true)
             )
         }
     }
