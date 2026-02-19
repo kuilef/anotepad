@@ -101,18 +101,20 @@ class SafFileReaderWriter(
         digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    override suspend fun writeText(fileUri: Uri, text: String) = withContext(Dispatchers.IO) {
+    override suspend fun writeText(fileUri: Uri, text: String): Unit = withContext(Dispatchers.IO) {
         resolver.openOutputStream(fileUri, "wt")?.use { output ->
             OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
                 writer.write(text)
             }
         }
+        Unit
     }
 
-    override suspend fun writeStream(fileUri: Uri, input: InputStream) = withContext(Dispatchers.IO) {
+    override suspend fun writeStream(fileUri: Uri, input: InputStream): Unit = withContext(Dispatchers.IO) {
         resolver.openOutputStream(fileUri, "wt")?.use { output ->
             input.copyTo(output)
         }
+        Unit
     }
 
     private fun buildSearchSnippet(line: String, start: Int, length: Int): String {
