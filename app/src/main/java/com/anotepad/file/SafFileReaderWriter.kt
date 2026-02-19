@@ -12,8 +12,8 @@ import java.security.MessageDigest
 
 class SafFileReaderWriter(
     private val resolver: ContentResolver
-) {
-    suspend fun readText(fileUri: Uri): ReadTextResult = withContext(Dispatchers.IO) {
+) : IFileReaderWriter {
+    override suspend fun readText(fileUri: Uri): ReadTextResult = withContext(Dispatchers.IO) {
         resolver.openInputStream(fileUri)?.use { input ->
             InputStreamReader(input, Charsets.UTF_8).use { reader ->
                 val buffer = CharArray(READ_BUFFER_SIZE)
@@ -41,11 +41,11 @@ class SafFileReaderWriter(
         } ?: ReadTextResult(text = "", truncated = false)
     }
 
-    fun openInputStream(fileUri: Uri): InputStream? {
+    override fun openInputStream(fileUri: Uri): InputStream? {
         return resolver.openInputStream(fileUri)
     }
 
-    suspend fun readTextPreview(fileUri: Uri, maxLength: Int): String = withContext(Dispatchers.IO) {
+    override suspend fun readTextPreview(fileUri: Uri, maxLength: Int): String = withContext(Dispatchers.IO) {
         if (maxLength <= 0) return@withContext ""
         resolver.openInputStream(fileUri)?.use { input ->
             InputStreamReader(input, Charsets.UTF_8).use { reader ->
@@ -63,7 +63,7 @@ class SafFileReaderWriter(
         } ?: ""
     }
 
-    suspend fun searchInFile(fileUri: Uri, query: String, regex: Regex?): String? =
+    override suspend fun searchInFile(fileUri: Uri, query: String, regex: Regex?): String? =
         withContext(Dispatchers.IO) {
             if (query.isBlank()) return@withContext null
             resolver.openInputStream(fileUri)?.use { input ->
@@ -86,7 +86,7 @@ class SafFileReaderWriter(
             null
         }
 
-    suspend fun computeHash(fileUri: Uri): String = withContext(Dispatchers.IO) {
+    override suspend fun computeHash(fileUri: Uri): String = withContext(Dispatchers.IO) {
         val digest = MessageDigest.getInstance("SHA-256")
         val readOk = resolver.openInputStream(fileUri)?.use { input ->
             val buffer = ByteArray(HASH_BUFFER_SIZE)
@@ -101,7 +101,7 @@ class SafFileReaderWriter(
         digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    suspend fun writeText(fileUri: Uri, text: String) = withContext(Dispatchers.IO) {
+    override suspend fun writeText(fileUri: Uri, text: String) = withContext(Dispatchers.IO) {
         resolver.openOutputStream(fileUri, "wt")?.use { output ->
             OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
                 writer.write(text)
@@ -109,7 +109,7 @@ class SafFileReaderWriter(
         }
     }
 
-    suspend fun writeStream(fileUri: Uri, input: InputStream) = withContext(Dispatchers.IO) {
+    override suspend fun writeStream(fileUri: Uri, input: InputStream) = withContext(Dispatchers.IO) {
         resolver.openOutputStream(fileUri, "wt")?.use { output ->
             input.copyTo(output)
         }

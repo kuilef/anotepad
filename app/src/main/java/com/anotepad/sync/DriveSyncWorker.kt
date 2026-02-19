@@ -7,6 +7,7 @@ import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
 import com.anotepad.file.ListCacheManager
 import com.anotepad.file.SafFileLister
+import com.anotepad.file.SafFileOpsHandler
 import com.anotepad.file.SafFileReaderWriter
 import com.anotepad.file.isSupportedTextFileExtension
 import com.anotepad.sync.db.SyncDatabase
@@ -37,12 +38,15 @@ class DriveSyncWorker(
                 isSupportedExtension = ::isSupportedTextFileExtension
             )
             val readerWriter = SafFileReaderWriter(resolver)
-            val fileRepo = FileRepository(
+            val fileOpsHandler = SafFileOpsHandler(
                 context = applicationContext,
                 resolver = resolver,
-                cacheManager = listCacheManager,
+                cacheManager = listCacheManager
+            )
+            val fileRepo = FileRepository(
                 fileLister = fileLister,
-                readerWriter = readerWriter
+                readerWriter = readerWriter,
+                fileOpsHandler = fileOpsHandler
             )
             val syncDb = SyncDatabase.getInstance(applicationContext)
             val syncRepository = SyncRepository(syncDb)

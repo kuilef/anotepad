@@ -18,22 +18,28 @@ class SafFileLister(
     private val resolver: ContentResolver,
     private val cacheManager: ListCacheManager,
     private val isSupportedExtension: (String) -> Boolean
-) {
-    suspend fun listChildren(dirTreeUri: Uri, sortOrder: FileSortOrder): List<DocumentNode> =
+) : IFileLister {
+    override suspend fun listChildren(dirTreeUri: Uri, sortOrder: FileSortOrder): List<DocumentNode> =
         withContext(Dispatchers.IO) {
             val results = mutableListOf<DocumentNode>()
-            listChildrenBatched(dirTreeUri, sortOrder).collect { batch ->
+            listChildrenBatched(
+                dirTreeUri = dirTreeUri,
+                sortOrder = sortOrder,
+                batchSize = 50,
+                firstBatchSize = 50,
+                useCache = true
+            ).collect { batch ->
                 results.addAll(batch.entries)
             }
             results
         }
 
-    fun listChildrenBatched(
+    override fun listChildrenBatched(
         dirTreeUri: Uri,
         sortOrder: FileSortOrder,
-        batchSize: Int = 50,
-        firstBatchSize: Int = batchSize,
-        useCache: Boolean = true
+        batchSize: Int,
+        firstBatchSize: Int,
+        useCache: Boolean
     ): Flow<ChildBatch> = flow {
         if (useCache) {
             val cached = cacheManager.get(dirTreeUri, sortOrder)
@@ -160,12 +166,12 @@ class SafFileLister(
         cacheManager.put(dirTreeUri, sortOrder, collected)
     }.flowOn(Dispatchers.IO)
 
-    suspend fun listNamesInDirectory(dirTreeUri: Uri): Set<String> = withContext(Dispatchers.IO) {
+    override suspend fun listNamesInDirectory(dirTreeUri: Uri): Set<String> = withContext(Dispatchers.IO) {
         val dir = resolveDirDocumentFile(dirTreeUri) ?: return@withContext emptySet()
         dir.listFiles().mapNotNull { it.name }.toSet()
     }
 
-    suspend fun listFilesRecursive(dirTreeUri: Uri): List<DocumentNode> = withContext(Dispatchers.IO) {
+    override suspend fun listFilesRecursive(dirTreeUri: Uri): List<DocumentNode> = withContext(Dispatchers.IO) {
         val (treeUri, rootDocId) = resolveTreeAndDocumentId(dirTreeUri) ?: return@withContext emptyList()
         val results = mutableListOf<DocumentNode>()
         val stack = ArrayDeque<String>()
