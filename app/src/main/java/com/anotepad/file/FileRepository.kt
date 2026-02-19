@@ -22,16 +22,13 @@ data class ReadTextResult(
     val truncated: Boolean
 )
 
-class FileRepository(private val context: Context) {
-    private val resolver: ContentResolver = context.contentResolver
-    private val listCacheManager = ListCacheManager()
-    private val fileLister = SafFileLister(
-        context = context,
-        resolver = resolver,
-        cacheManager = listCacheManager,
-        isSupportedExtension = ::isSupportedExtension
-    )
-    private val readerWriter = SafFileReaderWriter(resolver)
+class FileRepository(
+    private val context: Context,
+    private val resolver: ContentResolver,
+    private val cacheManager: ListCacheManager,
+    private val fileLister: SafFileLister,
+    private val readerWriter: SafFileReaderWriter
+) {
 
     suspend fun listChildren(dirTreeUri: Uri, sortOrder: FileSortOrder): List<DocumentNode> {
         return fileLister.listChildren(dirTreeUri, sortOrder)
@@ -159,8 +156,7 @@ class FileRepository(private val context: Context) {
         }
 
     fun isSupportedExtension(name: String): Boolean {
-        val lower = name.lowercase(Locale.getDefault())
-        return lower.endsWith(".txt")
+        return isSupportedTextFileExtension(name)
     }
 
     fun sanitizeFileName(input: String): String {
@@ -283,6 +279,11 @@ class FileRepository(private val context: Context) {
     }
 
     private fun invalidateListCache(dirTreeUri: Uri) {
-        fileLister.invalidateListCache(dirTreeUri)
+        cacheManager.invalidate(dirTreeUri)
     }
+}
+
+fun isSupportedTextFileExtension(name: String): Boolean {
+    val lower = name.lowercase(Locale.getDefault())
+    return lower.endsWith(".txt")
 }

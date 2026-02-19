@@ -5,6 +5,10 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
+import com.anotepad.file.ListCacheManager
+import com.anotepad.file.SafFileLister
+import com.anotepad.file.SafFileReaderWriter
+import com.anotepad.file.isSupportedTextFileExtension
 import com.anotepad.sync.db.SyncDatabase
 import com.anotepad.sync.engine.AuthGatewayAdapter
 import com.anotepad.sync.engine.DriveGatewayAdapter
@@ -24,7 +28,22 @@ class DriveSyncWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         syncMutex.withLock {
             val prefsRepo = PreferencesRepository(applicationContext)
-            val fileRepo = FileRepository(applicationContext)
+            val resolver = applicationContext.contentResolver
+            val listCacheManager = ListCacheManager()
+            val fileLister = SafFileLister(
+                context = applicationContext,
+                resolver = resolver,
+                cacheManager = listCacheManager,
+                isSupportedExtension = ::isSupportedTextFileExtension
+            )
+            val readerWriter = SafFileReaderWriter(resolver)
+            val fileRepo = FileRepository(
+                context = applicationContext,
+                resolver = resolver,
+                cacheManager = listCacheManager,
+                fileLister = fileLister,
+                readerWriter = readerWriter
+            )
             val syncDb = SyncDatabase.getInstance(applicationContext)
             val syncRepository = SyncRepository(syncDb)
             val store = SyncStoreAdapter(syncRepository)

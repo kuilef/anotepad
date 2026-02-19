@@ -52,13 +52,13 @@ data class BrowserState(
 class BrowserViewModel(
     private val preferencesRepository: PreferencesRepository,
     private val fileRepository: FileRepository,
-    private val syncRepository: SyncRepository
+    private val syncRepository: SyncRepository,
+    private val feedManager: FeedManager
 ) : ViewModel() {
     private val listBatchSize = 50
     private val listFirstBatchSize = 10
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
-    private val feedManager = FeedManager(readTextPreview = fileRepository::readTextPreview)
     private var refreshJob: Job? = null
     private var lastSyncedAtSeen: Long? = null
     private var lastRefreshDirUri: Uri? = null

@@ -16,7 +16,8 @@ class AppViewModelFactory(private val deps: AppDependencies) : ViewModelProvider
             BrowserViewModel::class.java -> BrowserViewModel(
                 deps.preferencesRepository,
                 deps.fileRepository,
-                deps.syncRepository
+                deps.syncRepository,
+                deps.createFeedManager()
             )
             EditorViewModel::class.java -> EditorViewModel(
                 deps.preferencesRepository,

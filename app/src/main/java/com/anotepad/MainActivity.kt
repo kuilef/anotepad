@@ -8,10 +8,15 @@ import androidx.compose.runtime.remember
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.data.TemplateRepository
 import com.anotepad.file.FileRepository
+import com.anotepad.file.ListCacheManager
+import com.anotepad.file.SafFileLister
+import com.anotepad.file.SafFileReaderWriter
+import com.anotepad.file.isSupportedTextFileExtension
 import com.anotepad.sync.DriveAuthManager
 import com.anotepad.sync.SyncRepository
 import com.anotepad.sync.SyncScheduler
 import com.anotepad.sync.db.SyncDatabase
+import com.anotepad.ui.FeedManager
 import com.anotepad.ui.theme.ANotepadTheme
 
 class MainActivity : ComponentActivity() {
@@ -22,7 +27,22 @@ class MainActivity : ComponentActivity() {
             val deps = remember {
                 val prefs = PreferencesRepository(applicationContext)
                 val templates = TemplateRepository(prefs)
-                val files = FileRepository(applicationContext)
+                val resolver = applicationContext.contentResolver
+                val listCacheManager = ListCacheManager()
+                val fileLister = SafFileLister(
+                    context = applicationContext,
+                    resolver = resolver,
+                    cacheManager = listCacheManager,
+                    isSupportedExtension = ::isSupportedTextFileExtension
+                )
+                val readerWriter = SafFileReaderWriter(resolver)
+                val files = FileRepository(
+                    context = applicationContext,
+                    resolver = resolver,
+                    cacheManager = listCacheManager,
+                    fileLister = fileLister,
+                    readerWriter = readerWriter
+                )
                 val syncDb = SyncDatabase.getInstance(applicationContext)
                 val syncRepository = SyncRepository(syncDb)
                 val syncScheduler = SyncScheduler(applicationContext, prefs, syncRepository)
@@ -32,6 +52,9 @@ class MainActivity : ComponentActivity() {
                     preferencesRepository = prefs,
                     templateRepository = templates,
                     fileRepository = files,
+                    createFeedManager = {
+                        FeedManager(readTextPreview = files::readTextPreview)
+                    },
                     syncRepository = syncRepository,
                     syncScheduler = syncScheduler,
                     driveAuthManager = driveAuthManager
