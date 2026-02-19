@@ -2,6 +2,10 @@ package com.anotepad.sync
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -10,8 +14,6 @@ import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okio.BufferedSink
 import okio.source
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.InputStream
@@ -79,15 +81,11 @@ class DriveClient(
             append(urlEncode(query))
             if (!pageToken.isNullOrBlank()) append("&pageToken=${urlEncode(pageToken)}")
         }
-        val json = requestJson(token, url)
-        val files = json.optJSONArray("files") ?: JSONArray()
-        val items = buildList {
-            for (i in 0 until files.length()) {
-                val item = files.getJSONObject(i)
-                add(DriveFolder(id = item.getString("id"), name = item.optString("name")))
-            }
+        val response = requestDecoded<DriveFoldersResponseDto>(token, url)
+        val items = response.files.map { item ->
+            DriveFolder(id = item.id, name = item.name)
         }
-        return DriveListResult(items, json.optString("nextPageToken", null))
+        return DriveListResult(items, response.nextPageToken)
     }
 
     suspend fun findFoldersByName(token: String, name: String): List<DriveFolder> {
@@ -97,13 +95,9 @@ class DriveClient(
             append("$DRIVE_BASE/files?spaces=drive&fields=files(id,name)&q=")
             append(urlEncode(query))
         }
-        val json = requestJson(token, url)
-        val files = json.optJSONArray("files") ?: JSONArray()
-        return buildList {
-            for (i in 0 until files.length()) {
-                val item = files.getJSONObject(i)
-                add(DriveFolder(id = item.getString("id"), name = item.optString("name")))
-            }
+        val response = requestDecoded<DriveFoldersResponseDto>(token, url)
+        return response.files.map { item ->
+            DriveFolder(id = item.id, name = item.name)
         }
     }
 
@@ -115,11 +109,10 @@ class DriveClient(
             append("$DRIVE_BASE/files?spaces=drive&fields=files(id,name,mimeType,modifiedTime,parents,trashed,appProperties)&pageSize=20&q=")
             append(urlEncode(query))
         }
-        val json = requestJson(token, url)
-        val files = json.optJSONArray("files") ?: JSONArray()
+        val response = requestDecoded<DriveFilesResponseDto>(token, url)
+        val candidates = response.files.map { it.toDomain() }
         var selected: DriveFile? = null
-        for (i in 0 until files.length()) {
-            val candidate = parseDriveFile(files.getJSONObject(i))
+        for (candidate in candidates) {
             val current = selected
             if (current == null || (candidate.modifiedTime ?: 0L) >= (current.modifiedTime ?: 0L)) {
                 selected = candidate
@@ -135,20 +128,15 @@ class DriveClient(
             append(urlEncode(query))
             if (!pageToken.isNullOrBlank()) append("&pageToken=${urlEncode(pageToken)}")
         }
-        val json = requestJson(token, url)
-        val files = json.optJSONArray("files") ?: JSONArray()
-        val items = buildList {
-            for (i in 0 until files.length()) {
-                add(parseDriveFile(files.getJSONObject(i)))
-            }
-        }
-        return DriveListResult(items, json.optString("nextPageToken", null))
+        val response = requestDecoded<DriveFilesResponseDto>(token, url)
+        val items = response.files.map { it.toDomain() }
+        return DriveListResult(items, response.nextPageToken)
     }
 
     suspend fun getFileMetadata(token: String, fileId: String): DriveFile {
         val url = "$DRIVE_BASE/files/$fileId?fields=id,name,mimeType,modifiedTime,parents,trashed,appProperties"
-        val json = requestJson(token, url)
-        return parseDriveFile(json)
+        val response = requestDecoded<DriveFileDto>(token, url)
+        return response.toDomain()
     }
 
     private suspend fun findMarkerFiles(token: String): List<DriveFile> {
@@ -161,27 +149,24 @@ class DriveClient(
                 append(urlEncode(query))
                 if (!pageToken.isNullOrBlank()) append("&pageToken=${urlEncode(pageToken)}")
             }
-            val json = requestJson(token, url)
-            val files = json.optJSONArray("files") ?: JSONArray()
-            for (i in 0 until files.length()) {
-                items.add(parseDriveFile(files.getJSONObject(i)))
-            }
-            pageToken = json.optString("nextPageToken", null)
+            val response = requestDecoded<DriveFilesResponseDto>(token, url)
+            items.addAll(response.files.map { it.toDomain() })
+            pageToken = response.nextPageToken
         } while (!pageToken.isNullOrBlank())
         return items
     }
 
     suspend fun createFolder(token: String, name: String, parentId: String?): DriveFolder {
-        val body = JSONObject().apply {
-            put("name", name)
-            put("mimeType", "application/vnd.google-apps.folder")
-            if (!parentId.isNullOrBlank()) {
-                put("parents", JSONArray().put(parentId))
-            }
-        }
+        val body = DRIVE_JSON.encodeToString(
+            CreateFolderRequestDto(
+                name = name,
+                mimeType = "application/vnd.google-apps.folder",
+                parents = parentId?.takeIf { it.isNotBlank() }?.let { listOf(it) }
+            )
+        )
         val url = "$DRIVE_BASE/files?fields=id,name"
-        val json = requestJson(token, url, method = "POST", body = body)
-        return DriveFolder(id = json.getString("id"), name = json.optString("name"))
+        val response = requestDecoded<DriveFolderDto>(token, url, method = "POST", body = body)
+        return DriveFolder(id = response.id, name = response.name)
     }
 
     private suspend fun createMarkerFile(token: String, folderId: String, folderName: String): DriveFile {
@@ -212,15 +197,14 @@ class DriveClient(
         contentProvider: () -> InputStream?,
         appProperties: Map<String, String>
     ): DriveFile {
-        val metadata = JSONObject().apply {
-            put("name", name)
-            put("mimeType", mimeType)
-            put("appProperties", JSONObject(appProperties))
-            if (fileId == null) {
-                // Parents can be set on create; updates must use addParents/removeParents.
-                put("parents", JSONArray().put(parentId))
-            }
-        }
+        val metadataJson = DRIVE_JSON.encodeToString(
+            UploadMetadataRequestDto(
+                name = name,
+                mimeType = mimeType,
+                appProperties = appProperties,
+                parents = if (fileId == null) listOf(parentId) else null
+            )
+        )
         val uploadBase = if (fileId == null) "$UPLOAD_BASE/files" else "$UPLOAD_BASE/files/$fileId"
         val method = if (fileId == null) "POST" else "PATCH"
         if (contentLength != null && contentLength in 0..MULTIPART_MAX_BYTES) {
@@ -237,7 +221,7 @@ class DriveClient(
                 token = token,
                 urlBase = uploadBase,
                 method = method,
-                metadata = metadata,
+                metadataJson = metadataJson,
                 mimeType = mimeType,
                 bytes = bytes
             )
@@ -246,7 +230,7 @@ class DriveClient(
         val sessionLocation = startResumableSession(
             token,
             uploadUrl,
-            metadata,
+            metadataJson,
             method = method
         )
         return uploadToSession(token, sessionLocation, mimeType, contentLength, contentProvider)
@@ -256,14 +240,14 @@ class DriveClient(
         token: String,
         urlBase: String,
         method: String,
-        metadata: JSONObject,
+        metadataJson: String,
         mimeType: String,
         bytes: ByteArray
     ): DriveFile {
         val url = "$urlBase?uploadType=multipart&fields=$DRIVE_FILE_FIELDS"
         val multipartBody = MultipartBody.Builder()
             .setType(MULTIPART_RELATED_MEDIA)
-            .addPart(metadata.toString().toRequestBody(JSON_MEDIA))
+            .addPart(metadataJson.toRequestBody(JSON_MEDIA))
             .addPart(bytes.toRequestBody(mimeType.toMediaType()))
             .build()
         val builder = Request.Builder()
@@ -279,8 +263,8 @@ class DriveClient(
                     if (!response.isSuccessful) {
                         throw DriveApiException(response.code, response.body?.string(), url, method)
                     }
-                    val json = JSONObject(response.body?.string().orEmpty())
-                    parseDriveFile(json)
+                    val payload = response.body?.string().orEmpty()
+                    DRIVE_JSON.decodeFromString<DriveFileDto>(payload.ifBlank { "{}" }).toDomain()
                 }
             } catch (api: DriveApiException) {
                 throw api
@@ -291,9 +275,9 @@ class DriveClient(
     }
 
     suspend fun trashFile(token: String, fileId: String) {
-        val body = JSONObject().put("trashed", true)
+        val body = DRIVE_JSON.encodeToString(TrashRequestDto(trashed = true))
         val url = "$DRIVE_BASE/files/$fileId"
-        requestJson(token, url, method = "PATCH", body = body)
+        requestRaw(token, url, method = "PATCH", body = body)
     }
 
     suspend fun deleteFile(token: String, fileId: String) {
@@ -323,8 +307,8 @@ class DriveClient(
 
     suspend fun getStartPageToken(token: String): String {
         val url = "$DRIVE_BASE/changes/startPageToken"
-        val json = requestJson(token, url)
-        return json.getString("startPageToken")
+        val response = requestDecoded<StartPageTokenResponseDto>(token, url)
+        return response.startPageToken
     }
 
     suspend fun listChanges(token: String, pageToken: String): DriveChangesResult {
@@ -333,59 +317,28 @@ class DriveClient(
             append("&spaces=drive")
             append("&fields=changes(fileId,removed,file(id,name,mimeType,modifiedTime,parents,trashed,appProperties)),newStartPageToken,nextPageToken")
         }
-        val json = requestJson(token, url)
-        val changes = json.optJSONArray("changes") ?: JSONArray()
-        val items = buildList {
-            for (i in 0 until changes.length()) {
-                val change = changes.getJSONObject(i)
-                val fileJson = change.optJSONObject("file")
-                val file = if (fileJson != null) parseDriveFile(fileJson) else null
-                add(
-                    DriveChange(
-                        fileId = change.getString("fileId"),
-                        removed = change.optBoolean("removed", false),
-                        file = file
-                    )
-                )
-            }
+        val response = requestDecoded<DriveChangesResponseDto>(token, url)
+        val items = response.changes.map { change ->
+            DriveChange(
+                fileId = change.fileId,
+                removed = change.removed,
+                file = change.file?.toDomain()
+            )
         }
-        val nextPage = json.optString("nextPageToken")
-        val newStart = json.optString("newStartPageToken").ifBlank { null }
         return DriveChangesResult(
             items = items,
-            nextPageToken = nextPage.ifBlank { null },
-            newStartPageToken = newStart
-        )
-    }
-
-    private fun parseDriveFile(json: JSONObject): DriveFile {
-        val parents = json.optJSONArray("parents")?.let { array ->
-            buildList {
-                for (i in 0 until array.length()) add(array.getString(i))
-            }
-        } ?: emptyList()
-        val appProps = json.optJSONObject("appProperties")?.let { props ->
-            props.keys().asSequence().associateWith { key -> props.optString(key) }
-        } ?: emptyMap()
-        val modifiedTime = json.optString("modifiedTime", null)?.let { parseRfc3339Millis(it) }
-        return DriveFile(
-            id = json.getString("id"),
-            name = json.optString("name"),
-            mimeType = json.optString("mimeType"),
-            modifiedTime = modifiedTime,
-            trashed = json.optBoolean("trashed", false),
-            parents = parents,
-            appProperties = appProps
+            nextPageToken = response.nextPageToken?.ifBlank { null },
+            newStartPageToken = response.newStartPageToken?.ifBlank { null }
         )
     }
 
     private suspend fun startResumableSession(
         token: String,
         url: String,
-        metadata: JSONObject,
+        metadataJson: String,
         method: String
     ): String {
-        val body = metadata.toString().toRequestBody(JSON_MEDIA)
+        val body = metadataJson.toRequestBody(JSON_MEDIA)
         val builder = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $token")
@@ -425,8 +378,8 @@ class DriveClient(
                 if (!response.isSuccessful) {
                     throw DriveApiException(response.code, response.body?.string(), sessionUrl, "PUT")
                 }
-                val json = JSONObject(response.body?.string().orEmpty())
-                parseDriveFile(json)
+                val payload = response.body?.string().orEmpty()
+                DRIVE_JSON.decodeFromString<DriveFileDto>(payload.ifBlank { "{}" }).toDomain()
             }
         }
     }
@@ -451,23 +404,23 @@ class DriveClient(
         }
     }
 
-    private suspend fun requestJson(
+    private suspend inline fun <reified T> requestDecoded(
         token: String,
         url: String,
         method: String = "GET",
-        body: JSONObject? = null
-    ): JSONObject {
+        body: String? = null
+    ): T {
         val responseText = requestRaw(token, url, method, body)
-        return JSONObject(responseText.ifBlank { "{}" })
+        return DRIVE_JSON.decodeFromString(responseText.ifBlank { "{}" })
     }
 
     private suspend fun requestRaw(
         token: String,
         url: String,
         method: String = "GET",
-        body: JSONObject? = null
+        body: String? = null
     ): String {
-        val requestBody = body?.toString()?.toRequestBody(JSON_MEDIA)
+        val requestBody = body?.toRequestBody(JSON_MEDIA)
         val builder = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $token")
@@ -492,6 +445,18 @@ class DriveClient(
                 throw DriveNetworkException(io)
             }
         }
+    }
+
+    private fun DriveFileDto.toDomain(): DriveFile {
+        return DriveFile(
+            id = id,
+            name = name,
+            mimeType = mimeType,
+            modifiedTime = modifiedTime?.let { parseRfc3339Millis(it) },
+            trashed = trashed,
+            parents = parents,
+            appProperties = appProperties
+        )
     }
 
     private fun parseRfc3339Millis(value: String): Long? {
@@ -521,6 +486,96 @@ class DriveClient(
     }
 }
 
+@Serializable
+private data class DriveFolderDto(
+    val id: String,
+    val name: String = ""
+)
+
+@Serializable
+private data class DriveFoldersResponseDto(
+    val files: List<DriveFolderDto> = emptyList(),
+    val nextPageToken: String? = null
+)
+
+@Serializable
+private data class DriveFileDto(
+    val id: String,
+    val name: String = "",
+    val mimeType: String = "",
+    val modifiedTime: String? = null,
+    val trashed: Boolean = false,
+    val parents: List<String> = emptyList(),
+    val appProperties: Map<String, String> = emptyMap()
+)
+
+@Serializable
+private data class DriveFilesResponseDto(
+    val files: List<DriveFileDto> = emptyList(),
+    val nextPageToken: String? = null
+)
+
+@Serializable
+private data class StartPageTokenResponseDto(
+    val startPageToken: String
+)
+
+@Serializable
+private data class DriveChangeDto(
+    val fileId: String,
+    val removed: Boolean = false,
+    val file: DriveFileDto? = null
+)
+
+@Serializable
+private data class DriveChangesResponseDto(
+    val changes: List<DriveChangeDto> = emptyList(),
+    val nextPageToken: String? = null,
+    val newStartPageToken: String? = null
+)
+
+@Serializable
+private data class CreateFolderRequestDto(
+    val name: String,
+    val mimeType: String,
+    val parents: List<String>? = null
+)
+
+@Serializable
+private data class UploadMetadataRequestDto(
+    val name: String,
+    val mimeType: String,
+    val appProperties: Map<String, String>,
+    val parents: List<String>? = null
+)
+
+@Serializable
+private data class TrashRequestDto(
+    val trashed: Boolean
+)
+
+@Serializable
+private data class DriveErrorEnvelopeDto(
+    val error: DriveErrorPayloadDto? = null
+)
+
+@Serializable
+private data class DriveErrorPayloadDto(
+    val message: String? = null,
+    val errors: List<DriveErrorItemDto> = emptyList()
+)
+
+@Serializable
+private data class DriveErrorItemDto(
+    val reason: String? = null
+)
+
+private val DRIVE_JSON = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = false
+    explicitNulls = false
+}
+
 class DriveApiException(
     val code: Int,
     val errorBody: String?,
@@ -531,12 +586,9 @@ class DriveApiException(
 fun DriveApiException.userMessage(): String? {
     val body = errorBody?.ifBlank { null } ?: return null
     return runCatching {
-        val error = JSONObject(body).optJSONObject("error") ?: return@runCatching null
-        val message = error.optString("message").ifBlank { null }
-        val reason = error.optJSONArray("errors")
-            ?.optJSONObject(0)
-            ?.optString("reason")
-            ?.ifBlank { null }
+        val parsed = DRIVE_JSON.decodeFromString<DriveErrorEnvelopeDto>(body)
+        val message = parsed.error?.message?.ifBlank { null }
+        val reason = parsed.error?.errors?.firstOrNull()?.reason?.ifBlank { null }
         when {
             !message.isNullOrBlank() && !reason.isNullOrBlank() -> "$message ($reason)"
             !message.isNullOrBlank() -> message
