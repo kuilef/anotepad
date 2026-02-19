@@ -45,6 +45,8 @@
     <string name="label_empty_folder">Tap New file in the top bar\nor the bottom button\nto create a new file.</string>
     <string name="label_folder_access_title">Folder access</string>
     <string name="label_folder_access_message">Anotepad stores notes in the folder you choose. We will open the system folder picker to grant access.</string>
+    <string name="label_folder_unavailable_title">Folder unavailable</string>
+    <string name="label_folder_unavailable_message">Access to the selected folder is no longer available. Please choose a folder again.</string>
     <string name="label_search_query">Search query</string>
     <string name="label_regex">Regex</string>
     <string name="label_searching">Searching...</string>
@@ -67,6 +69,7 @@
     <string name="label_saved">Saved</string>
     <string name="label_autosave">Autosave</string>
     <string name="label_autosave_hint">Save when app is closed or minimized</string>
+    <string name="label_editor_truncated_notice">File is too large and was truncated while opening.</string>
     <string name="label_editor_external_change_title">File changed on disk</string>
     <string name="label_editor_external_change_message">This file was modified outside the editor. Reload to discard local edits or overwrite to keep them.</string>
     <string name="label_pick_template">Pick a template</string>

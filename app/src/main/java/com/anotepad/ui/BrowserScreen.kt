@@ -642,6 +642,31 @@ fun BrowserScreen(
         )
     }
 
+    if (state.showFolderUnavailableDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissFolderUnavailableDialog() },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.dismissFolderUnavailableDialog()
+                        onPickDirectory()
+                    }
+                ) {
+                    Text(text = stringResource(id = R.string.action_pick_folder))
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { viewModel.dismissFolderUnavailableDialog() }
+                ) {
+                    Text(text = stringResource(id = R.string.action_cancel))
+                }
+            },
+            title = { Text(text = stringResource(id = R.string.label_folder_unavailable_title)) },
+            text = { Text(text = stringResource(id = R.string.label_folder_unavailable_message)) }
+        )
+    }
+
     if (showRenameDialog && actionTarget != null) {
         RenameFileDialog(
             initialName = renameInput,

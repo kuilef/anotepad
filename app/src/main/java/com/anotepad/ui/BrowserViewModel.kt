@@ -11,6 +11,7 @@ import com.anotepad.file.DocumentNode
 import com.anotepad.file.FileRepository
 import com.anotepad.sync.SyncRepository
 import com.anotepad.sync.SyncState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,7 +45,8 @@ data class BrowserState(
     val feedScrollOffset: Int = 0,
     val feedResetSignal: Int = 0,
     val showFolderAccessHint: Boolean = false,
-    val showToolbarOnboarding: Boolean = false
+    val showToolbarOnboarding: Boolean = false,
+    val showFolderUnavailableDialog: Boolean = false
 )
 
 class BrowserViewModel(
@@ -77,7 +79,8 @@ class BrowserViewModel(
                         defaultFileExtension = prefs.defaultFileExtension,
                         viewMode = prefs.browserViewMode,
                         showFolderAccessHint = !prefs.folderAccessHintShown,
-                        showToolbarOnboarding = root != null && !prefs.toolbarOnboardingShown
+                        showToolbarOnboarding = root != null && !prefs.toolbarOnboardingShown,
+                        showFolderUnavailableDialog = if (root != null) false else it.showFolderUnavailableDialog
                     )
                 }
                 val currentDir = _state.value.currentDirUri
@@ -96,7 +99,8 @@ class BrowserViewModel(
                             feedResetSignal = state.feedResetSignal + 1,
                             isLoading = false,
                             isLoadingMore = false,
-                            showToolbarOnboarding = false
+                            showToolbarOnboarding = false,
+                            showFolderUnavailableDialog = state.showFolderUnavailableDialog
                         )
                     }
                     feedFiles = emptyList()
@@ -152,27 +156,35 @@ class BrowserViewModel(
                 )
             }
             val collected = mutableListOf<DocumentNode>()
-            fileRepository.listChildrenBatched(
-                dirUri,
-                _state.value.fileSortOrder,
-                batchSize = listBatchSize,
-                firstBatchSize = listFirstBatchSize,
-                useCache = !force
-            ).collect { batch: ChildBatch ->
-                if (batch.entries.isNotEmpty()) {
-                    collected.addAll(batch.entries)
-                    _state.update {
-                        it.copy(
-                            entries = collected.toList(),
-                            isLoading = false,
-                            isLoadingMore = !batch.done
-                        )
+            try {
+                fileRepository.listChildrenBatched(
+                    dirUri,
+                    _state.value.fileSortOrder,
+                    batchSize = listBatchSize,
+                    firstBatchSize = listFirstBatchSize,
+                    useCache = !force
+                ).collect { batch: ChildBatch ->
+                    if (batch.entries.isNotEmpty()) {
+                        collected.addAll(batch.entries)
+                        _state.update {
+                            it.copy(
+                                entries = collected.toList(),
+                                isLoading = false,
+                                isLoadingMore = !batch.done
+                            )
+                        }
+                    } else if (batch.done) {
+                        _state.update { it.copy(isLoading = false, isLoadingMore = false) }
                     }
-                } else if (batch.done) {
-                    _state.update { it.copy(isLoading = false, isLoadingMore = false) }
                 }
+                updateFeedSource(collected)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: SecurityException) {
+                resetInvalidRoot()
+            } catch (_: IllegalArgumentException) {
+                resetInvalidRoot()
             }
-            updateFeedSource(collected)
         }
     }
 
@@ -287,6 +299,11 @@ class BrowserViewModel(
         viewModelScope.launch { preferencesRepository.setToolbarOnboardingShown(true) }
     }
 
+    fun dismissFolderUnavailableDialog() {
+        if (!_state.value.showFolderUnavailableDialog) return
+        _state.update { it.copy(showFolderUnavailableDialog = false) }
+    }
+
     fun ensureFeedLoaded() {
         if (_state.value.feedItems.isEmpty() && feedFiles.isNotEmpty() && !_state.value.feedLoading) {
             loadMoreFeed()
@@ -369,6 +386,31 @@ class BrowserViewModel(
         if (_state.value.viewMode == BrowserViewMode.FEED) {
             ensureFeedLoaded()
         }
+    }
+
+    private suspend fun resetInvalidRoot() {
+        feedFiles = emptyList()
+        lastRefreshDirUri = null
+        _state.update { state ->
+            state.copy(
+                rootUri = null,
+                currentDirUri = null,
+                currentDirLabel = null,
+                dirStack = emptyList(),
+                entries = emptyList(),
+                isLoading = false,
+                isLoadingMore = false,
+                feedItems = emptyList(),
+                feedHasMore = false,
+                feedLoading = false,
+                feedScrollIndex = 0,
+                feedScrollOffset = 0,
+                feedResetSignal = state.feedResetSignal + 1,
+                showToolbarOnboarding = false,
+                showFolderUnavailableDialog = true
+            )
+        }
+        preferencesRepository.setRootTreeUri(null)
     }
 
     private suspend fun updateFeedForEditedFile(matchUri: Uri, updatedNode: DocumentNode) {

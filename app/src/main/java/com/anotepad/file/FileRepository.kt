@@ -24,6 +24,11 @@ data class ChildBatch(
     val done: Boolean
 )
 
+data class ReadTextResult(
+    val text: String,
+    val truncated: Boolean
+)
+
 class FileRepository(private val context: Context) {
     private val resolver: ContentResolver = context.contentResolver
     private val listCache = object : LinkedHashMap<ListCacheKey, ListCacheEntry>(16, 0.75f, true) {
@@ -208,7 +213,7 @@ class FileRepository(private val context: Context) {
         results
     }
 
-    suspend fun readText(fileUri: Uri): String = withContext(Dispatchers.IO) {
+    suspend fun readText(fileUri: Uri): ReadTextResult = withContext(Dispatchers.IO) {
         resolver.openInputStream(fileUri)?.use { input ->
             InputStreamReader(input, Charsets.UTF_8).use { reader ->
                 val buffer = CharArray(READ_BUFFER_SIZE)
@@ -228,9 +233,12 @@ class FileRepository(private val context: Context) {
                 if (truncated) {
                     builder.append(TRUNCATED_SUFFIX)
                 }
-                builder.toString()
+                ReadTextResult(
+                    text = builder.toString(),
+                    truncated = truncated
+                )
             }
-        } ?: ""
+        } ?: ReadTextResult(text = "", truncated = false)
     }
 
     fun openInputStream(fileUri: Uri): InputStream? {

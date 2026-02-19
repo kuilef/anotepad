@@ -13,6 +13,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.EditText
+import android.widget.Toast
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
@@ -64,6 +65,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
@@ -109,6 +111,8 @@ fun EditorScreen(
     var saveButtonBottomPx by remember { mutableStateOf(0f) }
     var savedBubbleSize by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
+    val context = LocalContext.current
+    val truncatedMessage = stringResource(id = R.string.label_editor_truncated_notice)
 
     fun triggerBack() {
         if (backInProgress) return
@@ -169,6 +173,12 @@ fun EditorScreen(
             showSavedBubble = true
             delay(1400)
             showSavedBubble = false
+        }
+    }
+
+    LaunchedEffect(state.truncatedNoticeToken) {
+        if (state.truncatedNoticeToken != null) {
+            Toast.makeText(context, truncatedMessage, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -430,6 +440,11 @@ fun EditorScreen(
                             editText.setPadding(basePaddingPx, basePaddingPx, basePaddingPx, targetBottom)
                         }
                         ensureCursorVisible(editText, allowPost = false)
+                    },
+                    onRelease = { releasedEditText ->
+                        if (editTextRef === releasedEditText) {
+                            editTextRef = null
+                        }
                     }
                 )
             }

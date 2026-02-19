@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
+import com.anotepad.file.ReadTextResult
 import com.anotepad.sync.SyncScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -44,7 +45,8 @@ data class EditorState(
     val editorFontSizeSp: Float = 16f,
     val externalChangeDetectedAt: Long? = null,
     val showExternalChangeDialog: Boolean = false,
-    val canSave: Boolean = false
+    val canSave: Boolean = false,
+    val truncatedNoticeToken: Long? = null
 )
 
 data class EditorSaveResult(
@@ -78,6 +80,7 @@ class EditorViewModel(
     private var loadCounter = 0L
     private var prefsLoaded = false
     private var lastKnownModified: Long? = null
+    private var truncatedNoticeCounter = 0L
     private val saveMutex = Mutex()
     val undoStack = mutableStateListOf<TextSnapshot>()
     val redoStack = mutableStateListOf<TextSnapshot>()
@@ -128,7 +131,12 @@ class EditorViewModel(
             openedFileUri = fileUri
             loadCounter += 1
             clearHistory()
-            val text = if (fileUri != null) fileRepository.readText(fileUri) else ""
+            val textResult = if (fileUri != null) {
+                fileRepository.readText(fileUri)
+            } else {
+                ReadTextResult(text = "", truncated = false)
+            }
+            val text = textResult.text
             val fileName = fileUri?.let { uri ->
                 fileRepository.getDisplayName(uri) ?: ""
             } ?: ""
@@ -155,7 +163,8 @@ class EditorViewModel(
                     newFileExtension = newFileExtension,
                     externalChangeDetectedAt = null,
                     showExternalChangeDialog = false,
-                    canSave = false
+                    canSave = false,
+                    truncatedNoticeToken = nextTruncatedNoticeToken(textResult.truncated)
                 )
             }
             lastSavedText = if (fileUri == null) "" else initialText
@@ -395,7 +404,8 @@ class EditorViewModel(
     }
 
     private suspend fun reloadFromDisk(fileUri: Uri, modifiedAt: Long) {
-        val updatedText = fileRepository.readText(fileUri)
+        val updatedTextResult = fileRepository.readText(fileUri)
+        val updatedText = updatedTextResult.text
         val updatedName = fileRepository.getDisplayName(fileUri) ?: _state.value.fileName
         clearHistory()
         _state.update {
@@ -403,7 +413,8 @@ class EditorViewModel(
                 text = updatedText,
                 fileName = updatedName,
                 externalChangeDetectedAt = null,
-                showExternalChangeDialog = false
+                showExternalChangeDialog = false,
+                truncatedNoticeToken = nextTruncatedNoticeToken(updatedTextResult.truncated)
             )
         }
         lastSavedText = updatedText
@@ -440,6 +451,12 @@ class EditorViewModel(
         val cleaned = fileRepository.sanitizeFileName(firstLine)
         val base = if (cleaned.isBlank()) "Untitled" else cleaned
         return base + extension
+    }
+
+    private fun nextTruncatedNoticeToken(truncated: Boolean): Long? {
+        if (!truncated) return null
+        truncatedNoticeCounter += 1
+        return truncatedNoticeCounter
     }
 
     private fun updateCanSaveState() {
