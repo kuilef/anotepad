@@ -24,6 +24,8 @@ class AuthGatewayAdapter(
 ) : AuthGateway {
     override suspend fun getAccessToken(): String? = authManager.getAccessToken()
 
+    override suspend fun invalidateAccessToken(): Boolean = authManager.invalidateAccessToken()
+
     override suspend fun revokeAccess() {
         authManager.revokeAccess()
     }

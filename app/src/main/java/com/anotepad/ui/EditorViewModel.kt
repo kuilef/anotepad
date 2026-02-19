@@ -81,6 +81,7 @@ class EditorViewModel(
     private val saveMutex = Mutex()
     val undoStack = mutableStateListOf<TextSnapshot>()
     val redoStack = mutableStateListOf<TextSnapshot>()
+    private val historyManager = TextHistoryManager(undoStack, redoStack)
 
     init {
         viewModelScope.launch {
@@ -287,8 +288,20 @@ class EditorViewModel(
     }
 
     fun clearHistory() {
-        undoStack.clear()
-        redoStack.clear()
+        historyManager.clear()
+    }
+
+    fun pushUndoSnapshot(snapshot: TextSnapshot, clearRedo: Boolean) {
+        historyManager.pushUndo(snapshot, clearRedo)
+    }
+
+    fun pushRedoSnapshot(snapshot: TextSnapshot) {
+        historyManager.pushRedo(snapshot)
+    }
+
+    fun popUndoSnapshot(): TextSnapshot? = historyManager.popUndo()
+
+    fun popRedoSnapshot(): TextSnapshot? = historyManager.popRedo()
     }
 
     private suspend fun saveIfNeeded(text: String, ignoreExternalChange: Boolean = false): Boolean {
@@ -330,7 +343,9 @@ class EditorViewModel(
 
             _state.update { it.copy(isSaving = true) }
             try {
-                fileRepository.writeText(fileUri, text)
+                runNonCancellableWrite {
+                    fileRepository.writeText(fileUri, text)
+                }
                 lastSavedText = text
                 lastKnownModified = fileRepository.getLastModified(fileUri) ?: System.currentTimeMillis()
 

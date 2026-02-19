@@ -18,34 +18,48 @@ class DriveSyncWorkerRunner(
     private val logger: (String) -> Unit = {}
 ) {
     suspend fun run(): WorkerDecision {
-        return try {
-            logger("sync_start")
-            when (val result = engine.runSync()) {
-                is SyncResult.Success -> {
-                    logger("sync_success")
-                    WorkerDecision.Success
-                }
+        logger("sync_start")
+        var retriedAfter401 = false
+        while (true) {
+            try {
+                when (val result = engine.runSync()) {
+                    is SyncResult.Success -> {
+                        logger("sync_success")
+                        return WorkerDecision.Success
+                    }
 
-                is SyncResult.Skipped -> {
-                    logger("sync_skipped")
-                    WorkerDecision.Success
-                }
+                    is SyncResult.Skipped -> {
+                        logger("sync_skipped")
+                        return WorkerDecision.Success
+                    }
 
-                is SyncResult.Failure -> {
-                    logger("sync_failure auth=${result.authError}")
-                    if (result.authError) WorkerDecision.Failure else WorkerDecision.Retry
+                    is SyncResult.Failure -> {
+                        logger("sync_failure auth=${result.authError}")
+                        if (result.authError && retriedAfter401) {
+                            runCatching { authGateway.revokeAccess() }
+                            store.setSyncStatus(SyncState.ERROR, "Sign in required")
+                        }
+                        return if (result.authError) WorkerDecision.Failure else WorkerDecision.Retry
+                    }
                 }
+            } catch (error: CancellationException) {
+                logger("sync_cancelled detail=${error.message ?: "none"}")
+                throw error
+            } catch (error: Exception) {
+                val syncError = error.toSyncError()
+                if (syncError is SyncError.Auth && syncError.code == 401 && !retriedAfter401) {
+                    retriedAfter401 = true
+                    val invalidated = runCatching { authGateway.invalidateAccessToken() }.getOrDefault(false)
+                    logger("sync_auth_401_retry invalidated=$invalidated")
+                    store.setSyncStatus(SyncState.PENDING, "Refreshing authorization")
+                    continue
+                }
+                return mapSyncError(syncError, retriedAfter401)
             }
-        } catch (error: CancellationException) {
-            logger("sync_cancelled detail=${error.message ?: "none"}")
-            throw error
-        } catch (error: Exception) {
-            val syncError = error.toSyncError()
-            mapSyncError(syncError)
         }
     }
 
-    private suspend fun mapSyncError(error: SyncError): WorkerDecision {
+    private suspend fun mapSyncError(error: SyncError, retriedAfter401: Boolean): WorkerDecision {
         return when (error) {
             is SyncError.Network -> {
                 val message = error.detail?.let { "Network error: $it" } ?: "Network error, will retry"
@@ -56,7 +70,8 @@ class DriveSyncWorkerRunner(
 
             is SyncError.Auth -> {
                 logger("sync_error auth code=${error.code ?: -1} detail=${error.message ?: "none"}")
-                if (error.code == 401) {
+                val shouldRevoke = error.code == 403 || retriedAfter401
+                if (shouldRevoke) {
                     runCatching { authGateway.revokeAccess() }
                     store.setSyncStatus(SyncState.ERROR, "Sign in required")
                 } else {

@@ -27,6 +27,7 @@ interface PrefsGateway {
 
 interface AuthGateway {
     suspend fun getAccessToken(): String?
+    suspend fun invalidateAccessToken(): Boolean
     suspend fun revokeAccess()
 }
 

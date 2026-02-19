@@ -49,7 +49,30 @@ class DriveSyncWorkerTest {
     }
 
     @Test
-    fun worker_fails_onDrive401_andRevokesAuth() = runTest {
+    fun worker_recovers_onFirstDrive401_byInvalidatingTokenAndRetrying() = runTest {
+        // Given
+        val builder = SyncFixtureBuilder()
+            .withDriveFolder("drive-root", "Anotepad")
+            .withStartPageToken("p1")
+        builder.drive.listChangesErrors += DriveApiException(401, """{"error":{"message":"auth"}}""")
+        val engine = builder.buildEngine()
+        val runner = DriveSyncWorkerRunner(
+            engine = engine,
+            store = builder.store,
+            authGateway = builder.auth
+        )
+
+        // When
+        val result = runner.run()
+
+        // Then
+        assertEquals(WorkerDecision.Success, result)
+        assertEquals(1, builder.auth.invalidateCalls)
+        assertEquals(0, builder.auth.revokeCalls)
+    }
+
+    @Test
+    fun worker_fails_onRepeatedDrive401_andRevokesAuth() = runTest {
         // Given
         val (runner, builder, _) = runnerWithError(DriveApiException(401, """{"error":{"message":"auth"}}"""))
 
@@ -58,6 +81,7 @@ class DriveSyncWorkerTest {
 
         // Then
         assertEquals(WorkerDecision.Failure, result)
+        assertEquals(1, builder.auth.invalidateCalls)
         assertEquals(1, builder.auth.revokeCalls)
         assertEquals("Sign in required", builder.store.statuses.last().message)
     }
@@ -65,13 +89,14 @@ class DriveSyncWorkerTest {
     @Test
     fun worker_fails_onDrive403() = runTest {
         // Given
-        val (runner, _, _) = runnerWithError(DriveApiException(403, """{"error":{"message":"forbidden"}}"""))
+        val (runner, builder, _) = runnerWithError(DriveApiException(403, """{"error":{"message":"forbidden"}}"""))
 
         // When
         val result = runner.run()
 
         // Then
         assertEquals(WorkerDecision.Failure, result)
+        assertEquals(1, builder.auth.revokeCalls)
     }
 
     @Test

@@ -14,6 +14,8 @@ import kotlinx.coroutines.withContext
 
 class DriveAuthManager(private val context: Context) {
     private val scope = Scope(DRIVE_SCOPE)
+    @Volatile
+    private var lastAccessToken: String? = null
 
     private fun buildSignInOptions(): GoogleSignInOptions {
         return GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -47,6 +49,7 @@ class DriveAuthManager(private val context: Context) {
             if (token.isBlank()) {
                 DriveAccessTokenResult.Error
             } else {
+                lastAccessToken = token
                 DriveAccessTokenResult.Success(token)
             }
         } catch (error: UserRecoverableAuthException) {
@@ -64,11 +67,33 @@ class DriveAuthManager(private val context: Context) {
     }
 
     suspend fun signOut() = withContext(Dispatchers.IO) {
+        lastAccessToken = null
         signInClient().signOut().await()
     }
 
     suspend fun revokeAccess() = withContext(Dispatchers.IO) {
+        lastAccessToken = null
         signInClient().revokeAccess().await()
+    }
+
+    suspend fun invalidateAccessToken(): Boolean = withContext(Dispatchers.IO) {
+        val cached = lastAccessToken
+        val tokenToClear = if (!cached.isNullOrBlank()) {
+            cached
+        } else {
+            getAccessToken()
+        }
+        if (tokenToClear.isNullOrBlank()) {
+            lastAccessToken = null
+            return@withContext false
+        }
+        val cleared = runCatching {
+            GoogleAuthUtil.clearToken(context, tokenToClear)
+        }.isSuccess
+        if (cleared) {
+            lastAccessToken = null
+        }
+        cleared
     }
 
     companion object {

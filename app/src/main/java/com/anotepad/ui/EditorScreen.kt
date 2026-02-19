@@ -208,18 +208,16 @@ fun EditorScreen(
     }
 
     fun performUndo() {
-        if (undoStack.isEmpty()) return
+        val previous = viewModel.popUndoSnapshot() ?: return
         val current = currentSnapshot()
-        val previous = undoStack.removeAt(undoStack.lastIndex)
-        redoStack.add(current)
+        viewModel.pushRedoSnapshot(current)
         applySnapshot(previous)
     }
 
     fun performRedo() {
-        if (redoStack.isEmpty()) return
+        val next = viewModel.popRedoSnapshot() ?: return
         val current = currentSnapshot()
-        val next = redoStack.removeAt(redoStack.lastIndex)
-        undoStack.add(current)
+        viewModel.pushUndoSnapshot(current, clearRedo = false)
         applySnapshot(next)
     }
 
@@ -366,11 +364,7 @@ fun EditorScreen(
                                         pendingSnapshot?.let { snapshot ->
                                             val newText = s?.toString().orEmpty()
                                             if (snapshot.text != newText) {
-                                                undoStack.add(snapshot)
-                                                if (undoStack.size > UNDO_HISTORY_LIMIT) {
-                                                    undoStack.removeAt(0)
-                                                }
-                                                redoStack.clear()
+                                                viewModel.pushUndoSnapshot(snapshot, clearRedo = true)
                                             }
                                         }
                                     }
@@ -567,5 +561,4 @@ private fun hideKeyboard(editText: EditText) {
     imm?.hideSoftInputFromWindow(editText.windowToken, 0)
 }
 
-private const val UNDO_HISTORY_LIMIT = 200
 private const val LINKIFY_DEBOUNCE_MS = 250L

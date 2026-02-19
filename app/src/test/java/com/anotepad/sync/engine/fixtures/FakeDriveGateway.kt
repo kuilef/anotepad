@@ -20,6 +20,7 @@ class FakeDriveGateway : DriveGateway {
     val foldersByName = mutableMapOf<String, List<DriveFolder>>()
     var startPageToken: String = "start-token"
     var listChangesError: Exception? = null
+    val listChangesErrors = ArrayDeque<Exception>()
     var getStartPageTokenError: Exception? = null
 
     private val records = mutableMapOf<String, RemoteRecord>()
@@ -180,6 +181,9 @@ class FakeDriveGateway : DriveGateway {
 
     override suspend fun listChanges(token: String, pageToken: String): DriveChangesPage {
         calls += "listChanges:$pageToken"
+        if (listChangesErrors.isNotEmpty()) {
+            throw listChangesErrors.removeFirst()
+        }
         listChangesError?.let { throw it }
         return changesByToken[pageToken] ?: DriveChangesPage(emptyList(), nextPageToken = null, newStartPageToken = null)
     }
