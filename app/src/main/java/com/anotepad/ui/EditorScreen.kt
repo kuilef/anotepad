@@ -185,15 +185,25 @@ fun EditorScreen(
 
     fun applySnapshot(snapshot: TextSnapshot) {
         val editText = editTextRef ?: return
+        val anotepadEditText = editText as? AnotepadEditorEditText
+        fun applySelectionAndText() {
+            editText.setText(snapshot.text)
+            val length = snapshot.text.length
+            val rawStart = snapshot.selectionStart.coerceIn(0, length)
+            val rawEnd = snapshot.selectionEnd.coerceIn(0, length)
+            val start = minOf(rawStart, rawEnd)
+            val end = maxOf(rawStart, rawEnd)
+            editText.setSelection(start, end)
+        }
         ignoreHistory = true
         ignoreChanges = true
-        editText.setText(snapshot.text)
-        val length = snapshot.text.length
-        val rawStart = snapshot.selectionStart.coerceIn(0, length)
-        val rawEnd = snapshot.selectionEnd.coerceIn(0, length)
-        val start = minOf(rawStart, rawEnd)
-        val end = maxOf(rawStart, rawEnd)
-        editText.setSelection(start, end)
+        if (anotepadEditText != null) {
+            anotepadEditText.runWithoutHistoryAndChangeCallbacks {
+                applySelectionAndText()
+            }
+        } else {
+            applySelectionAndText()
+        }
         ignoreChanges = false
         ignoreHistory = false
         viewModel.updateText(snapshot.text)
