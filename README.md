@@ -28,7 +28,7 @@ Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It
 - **Editor**: `EditorViewModel` keeps state, performs debounced auto-save, creates a new file on first save, and optionally renames the file based on the first line (sync title).
 - **Search**: `SearchViewModel` walks the tree, reads each note, and matches either a plain query or a regex; results include a short snippet.
 - **Templates & preferences**: templates and settings live in DataStore; templates can format current time or auto-numbered items.
-- **Drive sync**: WorkManager runs a periodic sync (every 8 hours), schedules a debounced sync about 10 seconds after local saves, and can run once on app start if enabled. Sync auto-selects a Drive folder by name and can be triggered manually from settings.
+- **Drive sync**: WorkManager runs periodic/debounced/manual/startup modes. Internally, sync uses a modular engine (`SyncPreflight`, initial/push/pull use-cases, conflict/delete/path resolvers) with explicit operation planning and execution.
 
 ## Permissions shown on Google Play
 
@@ -52,6 +52,8 @@ Short explanation (and when it applies):
 If Drive sync is disabled, the app does not schedule background work and only uses local storage.
 
 ## Google Drive sync (detailed)
+
+For engineering-focused implementation details (module map, token semantics, conflict/delete algorithms, retry model, test fixtures), see `README.llm.md`.
 
 ### Drive visibility (scope)
 Anotepad uses Google Drive primarily as a backup. With the restricted `drive.file` scope, all devices running Anotepad will see and sync files created by Anotepad, but files added to the Drive folder by other apps (or via the Drive web UI) are not visible to the app.
