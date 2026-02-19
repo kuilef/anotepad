@@ -127,11 +127,8 @@ class IncrementalPullUseCase(
         var movedLocally = false
         if (existingById != null && existingById.localRelativePath != uniquePath) {
             if (localFs.moveFile(rootId, existingById.localRelativePath, uniquePath)) {
-                val movedMeta = localFs.getFileMeta(rootId, uniquePath)
                 val updated = existingById.copy(
-                    localRelativePath = uniquePath,
-                    localLastModified = movedMeta?.lastModified ?: existingById.localLastModified,
-                    localSize = movedMeta?.size ?: existingById.localSize
+                    localRelativePath = uniquePath
                 )
                 store.deleteItemByPath(existingById.localRelativePath)
                 store.upsertItem(updated)
@@ -238,7 +235,7 @@ class IncrementalPullUseCase(
         val remoteModified = remoteFile.modifiedTime ?: 0L
 
         val timeIndicatesLocalChange = localModified != null && localModified > lastSynced
-        val localContentChanged = if (timeIndicatesLocalChange && existing != null && localMeta != null) {
+        val localContentChanged = if (timeIndicatesLocalChange && existing != null) {
             val currentHash = computeHashIfNeeded(
                 localFs = localFs,
                 rootId = rootId,
@@ -299,11 +296,8 @@ class IncrementalPullUseCase(
         for (item in items) {
             val targetPath = replacePathPrefix(item.localRelativePath, oldPath, newPath)
             localFs.moveFile(rootId, item.localRelativePath, targetPath)
-            val movedMeta = localFs.getFileMeta(rootId, targetPath)
             val updated = item.copy(
-                localRelativePath = targetPath,
-                localLastModified = movedMeta?.lastModified ?: item.localLastModified,
-                localSize = movedMeta?.size ?: item.localSize
+                localRelativePath = targetPath
             )
             store.deleteItemByPath(item.localRelativePath)
             store.upsertItem(updated)
