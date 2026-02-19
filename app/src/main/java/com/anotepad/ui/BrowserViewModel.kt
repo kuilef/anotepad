@@ -58,9 +58,7 @@ class BrowserViewModel(
     private val listFirstBatchSize = 10
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
-    private var feedFiles: List<DocumentNode> = emptyList()
-    private val feedPageSize = 10
-    private var feedGeneration = 0
+    private val feedManager = FeedManager(readTextPreview = fileRepository::readTextPreview)
     private var refreshJob: Job? = null
     private var lastSyncedAtSeen: Long? = null
     private var lastRefreshDirUri: Uri? = null
@@ -86,24 +84,19 @@ class BrowserViewModel(
                 val currentDir = _state.value.currentDirUri
                 if (root == null) {
                     _state.update { state ->
-                        state.copy(
-                            currentDirUri = null,
-                            currentDirLabel = null,
-                            dirStack = emptyList(),
-                            entries = emptyList(),
-                            feedItems = emptyList(),
-                            feedHasMore = false,
-                            feedLoading = false,
-                            feedScrollIndex = 0,
-                            feedScrollOffset = 0,
-                            feedResetSignal = state.feedResetSignal + 1,
-                            isLoading = false,
-                            isLoadingMore = false,
-                            showToolbarOnboarding = false,
-                            showFolderUnavailableDialog = state.showFolderUnavailableDialog
+                        feedManager.clear(
+                            state.copy(
+                                currentDirUri = null,
+                                currentDirLabel = null,
+                                dirStack = emptyList(),
+                                entries = emptyList(),
+                                isLoading = false,
+                                isLoadingMore = false,
+                                showToolbarOnboarding = false,
+                                showFolderUnavailableDialog = state.showFolderUnavailableDialog
+                            )
                         )
                     }
-                    feedFiles = emptyList()
                 } else if (root != prevRoot || currentDir == null) {
                     setRoot(root)
                 } else if (prevSortOrder != prefs.fileSortOrder) {
@@ -305,43 +298,24 @@ class BrowserViewModel(
     }
 
     fun ensureFeedLoaded() {
-        if (_state.value.feedItems.isEmpty() && feedFiles.isNotEmpty() && !_state.value.feedLoading) {
-            loadMoreFeed()
-        }
+        feedManager.ensureFeedLoaded(
+            state = _state.value,
+            stateProvider = { _state.value },
+            updateState = { reducer -> _state.update(reducer) },
+            scope = viewModelScope
+        )
     }
 
     fun loadMoreFeed() {
-        if (_state.value.feedLoading) return
-        val start = _state.value.feedItems.size
-        if (start >= feedFiles.size) {
-            _state.update { it.copy(feedHasMore = false) }
-            return
-        }
-        val end = (start + feedPageSize).coerceAtMost(feedFiles.size)
-        val batch = feedFiles.subList(start, end)
-        val generation = feedGeneration
-        viewModelScope.launch {
-            _state.update { it.copy(feedLoading = true) }
-            val items = batch.map { node ->
-                FeedItem(node = node, text = fileRepository.readTextPreview(node.uri, FEED_PREVIEW_CHARS))
-            }
-            _state.update { state ->
-                if (generation != feedGeneration) {
-                    state
-                } else {
-                    val combined = state.feedItems + items
-                    state.copy(
-                        feedItems = combined,
-                        feedHasMore = combined.size < feedFiles.size,
-                        feedLoading = false
-                    )
-                }
-            }
-        }
+        feedManager.loadMoreFeed(
+            stateProvider = { _state.value },
+            updateState = { reducer -> _state.update(reducer) },
+            scope = viewModelScope
+        )
     }
 
     fun updateFeedScroll(index: Int, offset: Int) {
-        _state.update { it.copy(feedScrollIndex = index, feedScrollOffset = offset) }
+        _state.update { state -> feedManager.updateScroll(state, index, offset) }
     }
 
     fun applyEditorUpdate(originalUri: Uri?, currentUri: Uri?, dirUri: Uri?) {
@@ -366,84 +340,39 @@ class BrowserViewModel(
                 entries + updatedNode
             }
             _state.update { it.copy(entries = updatedEntries) }
-            updateFeedForEditedFile(matchUri, updatedNode)
+            feedManager.updateForEditedFile(
+                stateProvider = { _state.value },
+                updateState = { reducer -> _state.update(reducer) },
+                matchUri = matchUri,
+                updatedNode = updatedNode
+            )
         }
     }
 
     private fun updateFeedSource(entries: List<DocumentNode>) {
-        feedGeneration += 1
-        feedFiles = entries.filterNot { it.isDirectory }
-        _state.update { state ->
-            state.copy(
-                feedItems = emptyList(),
-                feedHasMore = feedFiles.isNotEmpty(),
-                feedLoading = false,
-                feedScrollIndex = 0,
-                feedScrollOffset = 0,
-                feedResetSignal = state.feedResetSignal + 1
-            )
-        }
+        _state.update { state -> feedManager.updateSource(state, entries) }
         if (_state.value.viewMode == BrowserViewMode.FEED) {
             ensureFeedLoaded()
         }
     }
 
     private suspend fun resetInvalidRoot() {
-        feedFiles = emptyList()
         lastRefreshDirUri = null
         _state.update { state ->
-            state.copy(
-                rootUri = null,
-                currentDirUri = null,
-                currentDirLabel = null,
-                dirStack = emptyList(),
-                entries = emptyList(),
-                isLoading = false,
-                isLoadingMore = false,
-                feedItems = emptyList(),
-                feedHasMore = false,
-                feedLoading = false,
-                feedScrollIndex = 0,
-                feedScrollOffset = 0,
-                feedResetSignal = state.feedResetSignal + 1,
-                showToolbarOnboarding = false,
-                showFolderUnavailableDialog = true
+            feedManager.clear(
+                state.copy(
+                    rootUri = null,
+                    currentDirUri = null,
+                    currentDirLabel = null,
+                    dirStack = emptyList(),
+                    entries = emptyList(),
+                    isLoading = false,
+                    isLoadingMore = false,
+                    showToolbarOnboarding = false,
+                    showFolderUnavailableDialog = true
+                )
             )
         }
         preferencesRepository.setRootTreeUri(null)
     }
-
-    private suspend fun updateFeedForEditedFile(matchUri: Uri, updatedNode: DocumentNode) {
-        val matchIndex = feedFiles.indexOfFirst { it.uri == matchUri }
-        val currentIndex = if (matchIndex >= 0 || matchUri == updatedNode.uri) {
-            -1
-        } else {
-            feedFiles.indexOfFirst { it.uri == updatedNode.uri }
-        }
-        val indexToUpdate = if (matchIndex >= 0) matchIndex else currentIndex
-        feedFiles = if (indexToUpdate >= 0) {
-            feedFiles.toMutableList().apply { set(indexToUpdate, updatedNode) }
-        } else {
-            feedFiles + updatedNode
-        }
-        val feedItems = _state.value.feedItems
-        val matchItemIndex = feedItems.indexOfFirst { it.node.uri == matchUri }
-        val currentItemIndex = if (matchItemIndex >= 0 || matchUri == updatedNode.uri) {
-            -1
-        } else {
-            feedItems.indexOfFirst { it.node.uri == updatedNode.uri }
-        }
-        val itemIndex = if (matchItemIndex >= 0) matchItemIndex else currentItemIndex
-        if (itemIndex >= 0) {
-            val updatedText = fileRepository.readTextPreview(updatedNode.uri, FEED_PREVIEW_CHARS)
-            val updatedItems = feedItems.toMutableList().apply {
-                set(itemIndex, FeedItem(node = updatedNode, text = updatedText))
-            }
-            _state.update { it.copy(feedItems = updatedItems, feedHasMore = updatedItems.size < feedFiles.size) }
-        } else {
-            _state.update { it.copy(feedHasMore = it.feedItems.size < feedFiles.size) }
-        }
-    }
 }
-
-private const val FEED_PREVIEW_CHARS = 2_048
