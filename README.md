@@ -135,16 +135,6 @@ This prevents duplicate files on Drive when local files already exist.
   - `src/main/res/` — strings, themes
 - `build.gradle.kts`, `settings.gradle.kts` — build configuration
 
-## Build
-```bash
-./gradlew assembleDebug
-```
-
-## Run on device/emulator
-```bash
-./gradlew installDebug
-```
-
 ## Privacy policy link
 <a href="https://anotepad.tirmudam.org/PRIVACY_POLICY">https://anotepad.tirmudam.org/PRIVACY_POLICY</a>
 
