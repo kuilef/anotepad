@@ -24,15 +24,15 @@ class TemplatesViewModel(private val templateRepository: TemplateRepository) : V
         }
     }
 
-    fun addTemplate(text: String, mode: TemplateMode) {
+    fun addTemplate(text: String) {
         val newId = (_templates.value.maxOfOrNull { it.id } ?: 0L) + 1
-        val updated = _templates.value + TemplateItem(newId, text, mode)
+        val updated = _templates.value + TemplateItem(newId, text, TemplateMode.TIMEFORMAT)
         persist(updated)
     }
 
-    fun updateTemplate(id: Long, text: String, mode: TemplateMode) {
+    fun updateTemplate(id: Long, text: String) {
         val updated = _templates.value.map { item ->
-            if (item.id == id) item.copy(text = text, mode = mode) else item
+            if (item.id == id) item.copy(text = text, mode = TemplateMode.TIMEFORMAT) else item
         }
         persist(updated)
     }
@@ -42,9 +42,7 @@ class TemplatesViewModel(private val templateRepository: TemplateRepository) : V
         persist(updated)
     }
 
-    fun renderTemplate(item: TemplateItem, number: Int? = null): String {
-        return templateRepository.renderTemplate(item, number)
-    }
+    fun renderTemplate(item: TemplateItem): String = templateRepository.renderTemplate(item)
 
     private fun persist(updated: List<TemplateItem>) {
         viewModelScope.launch {

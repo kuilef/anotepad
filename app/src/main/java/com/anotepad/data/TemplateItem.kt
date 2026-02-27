@@ -1,10 +1,7 @@
 package com.anotepad.data
 
 enum class TemplateMode {
-    NORMAL,
-    TIMEFORMAT,
-    WITHNUMBER,
-    TIME_NUMBER
+    TIMEFORMAT
 }
 
 data class TemplateItem(

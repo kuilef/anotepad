@@ -52,12 +52,11 @@
     <string name="label_regex">Regex</string>
     <string name="label_searching">Searching...</string>
     <string name="label_no_results">No results</string>
-    <string name="label_template_title">Templates</string>
+    <string name="label_template_title">Date time templates</string>
     <string name="label_add_template">Add template</string>
     <string name="label_edit_template">Edit template</string>
-    <string name="label_template_text">Template text</string>
-    <string name="label_time_format">Time format</string>
-    <string name="label_with_number">With number</string>
+    <string name="label_template_text">Date/time template</string>
+    <string name="label_date_time_template_hint">Use a date/time pattern, for example: yyyy-MM-dd HH:mm:ss</string>
     <string name="label_insert_template">Insert template</string>
     <string name="label_settings_title">Settings</string>
     <string name="label_autolink_web">Autolink web</string>
@@ -73,8 +72,7 @@
     <string name="label_editor_truncated_notice">File is too large and was truncated while opening.</string>
     <string name="label_editor_external_change_title">File changed on disk</string>
     <string name="label_editor_external_change_message">This file was modified outside the editor. Reload to discard local edits or overwrite to keep them.</string>
-    <string name="label_pick_template">Pick a template</string>
-    <string name="label_template_number">Number</string>
+    <string name="label_pick_template">Pick a date/time template</string>
     <string name="label_create_note">Create note</string>
     <string name="label_extension">Extension</string>
     <string name="label_extension_txt">.txt</string>
