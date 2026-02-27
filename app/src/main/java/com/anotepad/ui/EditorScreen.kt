@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Icon
@@ -78,6 +79,7 @@ import kotlin.math.roundToInt
 @Composable
 fun EditorScreen(
     viewModel: EditorViewModel,
+    onOpenTemplatePicker: () -> Unit,
     onBack: (EditorSaveResult?) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
@@ -142,7 +144,11 @@ fun EditorScreen(
             editTextRef?.let { editText ->
                 val start = editText.selectionStart.coerceAtLeast(0)
                 val end = editText.selectionEnd.coerceAtLeast(0)
-                editText.text.replace(start.coerceAtMost(end), end.coerceAtLeast(start), textToInsert)
+                val from = start.coerceAtMost(end)
+                val to = end.coerceAtLeast(start)
+                editText.text.replace(from, to, textToInsert)
+                val cursor = (from + textToInsert.length).coerceAtMost(editText.text.length)
+                editText.setSelection(cursor)
             }
             viewModel.consumeTemplate()
         }
@@ -269,6 +275,12 @@ fun EditorScreen(
                             onRedo = ::performRedo,
                             modifier = Modifier.padding(end = 8.dp)
                         )
+                        IconButton(onClick = onOpenTemplatePicker) {
+                            Icon(
+                                imageVector = Icons.Default.AccessTime,
+                                contentDescription = stringResource(id = R.string.action_insert_date_time_template)
+                            )
+                        }
                         IconButton(
                             onClick = { viewModel.saveNow(manual = state.fileUri != null) },
                             enabled = state.canSave && !state.isSaving,

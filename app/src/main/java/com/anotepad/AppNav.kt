@@ -122,6 +122,7 @@ fun AppNav(deps: AppDependencies) {
 
             EditorScreen(
                 viewModel = viewModel,
+                onOpenTemplatePicker = { navController.navigate("$ROUTE_TEMPLATES?mode=pick") },
                 onBack = back@{ result ->
                     if (navController.currentDestination?.route?.startsWith(ROUTE_EDITOR) != true) {
                         return@back
