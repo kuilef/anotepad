@@ -1,6 +1,3 @@
-# Keep Compose default rules
--keep class androidx.compose.** { *; }
-
 # Keep WorkManager workers
 -keep class com.anotepad.sync.DriveSyncWorker { *; }
 -keepclassmembers class * extends androidx.work.ListenableWorker {
