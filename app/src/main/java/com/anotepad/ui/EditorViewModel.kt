@@ -66,6 +66,7 @@ class EditorViewModel(
     private val textChanges = MutableStateFlow("")
     private val pendingTemplate = MutableStateFlow<String?>(null)
     val pendingTemplateFlow: StateFlow<String?> = pendingTemplate.asStateFlow()
+    private var templateInsertionSelection: Pair<Int, Int>? = null
     private val _manualSaveEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val manualSaveEvents: SharedFlow<Unit> = _manualSaveEvents.asSharedFlow()
 
@@ -129,6 +130,7 @@ class EditorViewModel(
             ensureTemplatePrefsLoaded()
             isLoaded = false
             openedFileUri = fileUri
+            templateInsertionSelection = null
             loadCounter += 1
             clearHistory()
             val textResult = if (fileUri != null) {
@@ -183,6 +185,16 @@ class EditorViewModel(
 
     fun queueTemplate(text: String) {
         pendingTemplate.value = text
+    }
+
+    fun rememberTemplateInsertionSelection(start: Int, end: Int) {
+        templateInsertionSelection = start.coerceAtLeast(0) to end.coerceAtLeast(0)
+    }
+
+    fun consumeTemplateInsertionSelection(): Pair<Int, Int>? {
+        val saved = templateInsertionSelection
+        templateInsertionSelection = null
+        return saved
     }
 
     fun consumeTemplate() {

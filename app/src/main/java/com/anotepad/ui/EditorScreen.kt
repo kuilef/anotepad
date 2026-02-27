@@ -138,18 +138,19 @@ fun EditorScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(pendingTemplate) {
+    LaunchedEffect(pendingTemplate, editTextRef) {
         val textToInsert = pendingTemplate
         if (!textToInsert.isNullOrEmpty()) {
-            editTextRef?.let { editText ->
-                val start = editText.selectionStart.coerceAtLeast(0)
-                val end = editText.selectionEnd.coerceAtLeast(0)
-                val from = start.coerceAtMost(end)
-                val to = end.coerceAtLeast(start)
-                editText.text.replace(from, to, textToInsert)
-                val cursor = (from + textToInsert.length).coerceAtMost(editText.text.length)
-                editText.setSelection(cursor)
-            }
+            val editText = editTextRef ?: return@LaunchedEffect
+            val savedSelection = viewModel.consumeTemplateInsertionSelection()
+            val rawStart = savedSelection?.first ?: editText.selectionStart.coerceAtLeast(0)
+            val rawEnd = savedSelection?.second ?: editText.selectionEnd.coerceAtLeast(0)
+            val max = editText.text.length
+            val from = rawStart.coerceIn(0, max).coerceAtMost(rawEnd.coerceIn(0, max))
+            val to = rawEnd.coerceIn(0, max).coerceAtLeast(rawStart.coerceIn(0, max))
+            editText.text.replace(from, to, textToInsert)
+            val cursor = (from + textToInsert.length).coerceAtMost(editText.text.length)
+            editText.setSelection(cursor)
             viewModel.consumeTemplate()
         }
     }
@@ -275,7 +276,15 @@ fun EditorScreen(
                             onRedo = ::performRedo,
                             modifier = Modifier.padding(end = 8.dp)
                         )
-                        IconButton(onClick = onOpenTemplatePicker) {
+                        IconButton(
+                            onClick = {
+                                val editText = editTextRef
+                                val start = editText?.selectionStart ?: state.text.length
+                                val end = editText?.selectionEnd ?: state.text.length
+                                viewModel.rememberTemplateInsertionSelection(start, end)
+                                onOpenTemplatePicker()
+                            }
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.AccessTime,
                                 contentDescription = stringResource(id = R.string.action_insert_date_time_template)
