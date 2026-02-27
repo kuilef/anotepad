@@ -1,6 +1,11 @@
 package com.anotepad.ui
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -73,6 +78,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -100,6 +106,7 @@ fun BrowserScreen(
     onSearch: (Uri) -> Unit,
     onSettings: () -> Unit
 ) {
+    val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var showFileActions by remember { mutableStateOf(false) }
@@ -134,6 +141,26 @@ fun BrowserScreen(
         val dir = state.currentDirUri
         if (dir != null) {
             onNewFile(dir, extension)
+        }
+    }
+    val shareNode: (DocumentNode) -> Unit = { node ->
+        val contentType = context.contentResolver.getType(node.uri)
+        val mimeType = contentType
+            ?: if (node.isDirectory) DocumentsContract.Document.MIME_TYPE_DIR else "*/*"
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = mimeType
+            putExtra(Intent.EXTRA_STREAM, node.uri)
+            clipData = ClipData.newRawUri(node.name, node.uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooserIntent = Intent.createChooser(
+            shareIntent,
+            context.getString(R.string.action_share)
+        )
+        try {
+            context.startActivity(chooserIntent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, R.string.error_no_share_target, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -541,6 +568,13 @@ fun BrowserScreen(
                         viewModel.navigateInto(target.uri)
                     }
                 },
+                onShare = {
+                    val target = actionTarget
+                    showFileActions = false
+                    if (target != null) {
+                        shareNode(target)
+                    }
+                },
                 onDelete = {
                     showFileActions = false
                     showDeleteDialog = true
@@ -561,6 +595,13 @@ fun BrowserScreen(
                     showFileActions = false
                     if (target != null) {
                         state.currentDirUri?.let { dir -> onOpenFile(target.uri, dir) }
+                    }
+                },
+                onShare = {
+                    val target = actionTarget
+                    showFileActions = false
+                    if (target != null) {
+                        shareNode(target)
                     }
                 },
                 onDelete = {
@@ -1083,6 +1124,7 @@ private fun FeedList(
 @Composable
 private fun FileActionsDialog(
     onOpen: () -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
     onCopy: () -> Unit,
@@ -1096,6 +1138,9 @@ private fun FileActionsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
                     Text(text = stringResource(id = R.string.action_open))
+                }
+                TextButton(onClick = onShare, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_share))
                 }
                 TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
                     Text(text = stringResource(id = R.string.action_delete))
@@ -1122,6 +1167,7 @@ private fun FileActionsDialog(
 @Composable
 private fun FolderActionsDialog(
     onOpen: () -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
     onCancel: () -> Unit
@@ -1133,6 +1179,9 @@ private fun FolderActionsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
                     Text(text = stringResource(id = R.string.action_open))
+                }
+                TextButton(onClick = onShare, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(id = R.string.action_share))
                 }
                 TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
                     Text(text = stringResource(id = R.string.action_delete))

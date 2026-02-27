@@ -14,6 +14,7 @@
     <string name="action_cancel">Cancel</string>
     <string name="action_delete">Delete</string>
     <string name="action_rename">Rename</string>
+    <string name="action_share">Share</string>
     <string name="action_copy">Copy</string>
     <string name="action_move">Move</string>
     <string name="action_back">Back</string>
@@ -117,6 +118,7 @@
     <string name="error_drive_picker_missing_config">Drive Picker is not configured.</string>
     <string name="error_drive_picker_auth">Sign in required for Drive Picker.</string>
     <string name="error_drive_picker_failed">Drive Picker failed.</string>
+    <string name="error_no_share_target">No app available to share this item.</string>
     <string name="label_loading">Loading...</string>
     <string name="label_no_folders">No folders found</string>
     <string name="label_file_list_font_size">File list font size</string>
