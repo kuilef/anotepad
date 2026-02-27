@@ -610,7 +610,9 @@ fun BrowserScreen(
                 },
                 onRename = {
                     showFileActions = false
-                    renameInput = actionTarget?.name.orEmpty()
+                    renameInput = actionTarget?.name
+                        ?.let(::buildRenameInput)
+                        .orEmpty()
                     showRenameDialog = true
                 },
                 onCopy = {
@@ -1300,6 +1302,15 @@ private fun buildFeedAnnotatedText(text: String) = buildAnnotatedString {
     }
     if (rest.isNotEmpty()) {
         append(rest)
+    }
+}
+
+private fun buildRenameInput(name: String): String {
+    val lastDotIndex = name.lastIndexOf('.')
+    return if (lastDotIndex <= 0 || lastDotIndex == name.lastIndex) {
+        name
+    } else {
+        name.substring(0, lastDotIndex)
     }
 }
 
