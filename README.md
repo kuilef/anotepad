@@ -2,6 +2,8 @@
 
 Minimal local note app for Android built with Kotlin 2.0 and Jetpack Compose. It works directly with files in a folder you choose (SAF), so notes are just `.txt` files.
 
+**[Program in Google Play](https://play.google.com/store/apps/details?id=com.anotepad)**
+
 <p align="center">
   <img src="screenshots/phone/phone%202.png" alt="Anotepad screenshot 1" width="23%" />
   <img src="screenshots/phone/phone%204.png" alt="Anotepad screenshot 2" width="23%" />
