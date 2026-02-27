@@ -127,8 +127,10 @@
     <string name="label_sort_name_asc">A to Z</string>
     <string name="label_editor_font_size">Editor font size</string>
     <string name="label_auto_insert_template">Auto-insert template</string>
-    <string name="label_auto_insert_template_format">Template format (e.g., yyyy-MM-dd)</string>
+    <string name="label_auto_insert_template_format">Auto-insert template</string>
     <string name="label_none">None</string>
+    <string name="label_settings_section_date_time_template">Date time template</string>
+    <string name="label_date_time_template_manage">Manage templates</string>
     <string name="label_no_notes">No notes in folder</string>
     <string name="label_loading_more">Loading more...</string>
     <string name="label_toolbar_onboarding_title">Toolbar tips</string>

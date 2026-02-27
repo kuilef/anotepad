@@ -183,6 +183,7 @@ fun AppNav(deps: AppDependencies) {
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onOpenSync = { navController.navigate(ROUTE_SYNC) },
+                onOpenTemplates = { navController.navigate("$ROUTE_TEMPLATES?mode=manage") },
                 onPickDirectory = { pickDirectoryLauncher.launch(buildInitialFolderUri()) },
                 fileRepository = deps.fileRepository
             )

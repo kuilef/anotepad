@@ -47,6 +47,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
     onOpenSync: () -> Unit,
+    onOpenTemplates: () -> Unit,
     onPickDirectory: () -> Unit,
     fileRepository: FileRepository
 ) {
@@ -191,6 +192,11 @@ fun SettingsScreen(
                     modifier = Modifier.padding(start = 4.dp, top = 4.dp)
                 )
             }
+            SectionHeader(text = stringResource(id = R.string.label_settings_section_date_time_template))
+            NavigationRow(
+                title = stringResource(id = R.string.label_date_time_template_manage),
+                onClick = onOpenTemplates
+            )
 
         }
     }
