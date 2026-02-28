@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.anotepad.SHARED_NOTES_FOLDER_NAME
 import com.anotepad.SharedNoteDraft
 import com.anotepad.isManagedSharedFileName
-import com.anotepad.replaceSharedNoteHeader
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
 import com.anotepad.file.ReadTextResult
@@ -64,6 +63,8 @@ data class EditorSaveResult(
     val dirUri: Uri?
 )
 
+private const val MAX_FILE_NAME_BYTES = 255
+
 internal fun buildFileNameFromText(
     text: String,
     extension: String,
@@ -72,7 +73,47 @@ internal fun buildFileNameFromText(
     val firstLine = text.lineSequence().firstOrNull().orEmpty()
     val cleaned = sanitizeFileName(firstLine)
     val base = if (cleaned.isBlank()) "Untitled" else cleaned
-    return base + extension
+    return fitFileNameToByteLimit(base = base, extension = extension)
+}
+
+internal fun fitFileNameToByteLimit(
+    base: String,
+    extension: String,
+    suffix: String = "",
+    maxBytes: Int = MAX_FILE_NAME_BYTES
+): String {
+    val normalizedExtension = normalizeGeneratedExtension(extension, maxBytes)
+    val suffixBytes = suffix.toByteArray(Charsets.UTF_8).size
+    val extensionBytes = normalizedExtension.toByteArray(Charsets.UTF_8).size
+    val baseBudget = (maxBytes - suffixBytes - extensionBytes).coerceAtLeast(1)
+    val limitedBase = truncateUtf8(base, baseBudget).trimEnd()
+    val fallbackBase = truncateUtf8("Untitled", baseBudget).ifBlank { "U" }
+    val resolvedBase = if (limitedBase.isBlank()) fallbackBase else limitedBase
+    return resolvedBase + suffix + normalizedExtension
+}
+
+private fun normalizeGeneratedExtension(extension: String, maxBytes: Int): String {
+    if (extension.isEmpty()) return ""
+    val normalized = extension
+        .ifBlank { ".txt" }
+        .let { if (it.startsWith('.')) it else ".$it" }
+        .lowercase(Locale.getDefault())
+    return if (normalized.toByteArray(Charsets.UTF_8).size < maxBytes) normalized else ".txt"
+}
+
+private fun truncateUtf8(value: String, maxBytes: Int): String {
+    if (maxBytes <= 0) return ""
+    if (value.toByteArray(Charsets.UTF_8).size <= maxBytes) return value
+    var bestEnd = 0
+    var index = 0
+    while (index < value.length) {
+        val next = value.offsetByCodePoints(index, 1)
+        val candidate = value.substring(0, next)
+        if (candidate.toByteArray(Charsets.UTF_8).size > maxBytes) break
+        bestEnd = next
+        index = next
+    }
+    return value.substring(0, bestEnd)
 }
 
 class EditorViewModel(
@@ -90,6 +131,8 @@ class EditorViewModel(
     private var templateInsertionSelection: Pair<Int, Int>? = null
     private val _manualSaveEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val manualSaveEvents: SharedFlow<Unit> = _manualSaveEvents.asSharedFlow()
+    private val _saveFailureEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val saveFailureEvents: SharedFlow<Unit> = _saveFailureEvents.asSharedFlow()
 
     private var autosaveJob: Job? = null
     private var isLoaded = false
@@ -270,6 +313,8 @@ class EditorViewModel(
             }
             if (manual && saved) {
                 _manualSaveEvents.emit(Unit)
+            } else if (manual && hasUnsavedChanges()) {
+                _saveFailureEvents.emit(Unit)
             }
         }
     }
@@ -288,6 +333,8 @@ class EditorViewModel(
     }
 
     fun hasExternalChangePending(): Boolean = _state.value.externalChangeDetectedAt != null
+
+    fun hasUnsavedChanges(): Boolean = _state.value.canSave
 
     fun showExternalChangeDialog() {
         if (_state.value.externalChangeDetectedAt == null) return
@@ -434,15 +481,12 @@ class EditorViewModel(
                 }
                 val uniqueName = ensureUniqueName(dirUri, desiredName, null)
                 if (_state.value.proposedFileName != null) {
-                    textToSave = replaceSharedNoteHeader(textToSave, uniqueName)
                     _state.update {
                         it.copy(
-                            text = textToSave,
                             proposedFileName = uniqueName,
                             fileName = uniqueName
                         )
                     }
-                    textChanges.value = textToSave
                 }
                 fileUri = fileRepository.createFile(dirUri, uniqueName, fileRepository.guessMimeType(uniqueName))
                 if (fileUri == null) return@withLock false
@@ -540,10 +584,10 @@ class EditorViewModel(
         val names = fileRepository.listNamesInDirectory(dirUri)
         if (desiredName == currentName || !names.contains(desiredName)) return desiredName
         val base = desiredName.substringBeforeLast('.')
-        val ext = desiredName.substringAfterLast('.', "")
+        val extension = desiredName.substringAfterLast('.', "").takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty()
         var index = 1
         while (index < 1000) {
-            val candidate = if (ext.isBlank()) "$base($index)" else "$base($index).$ext"
+            val candidate = fitFileNameToByteLimit(base = base, extension = extension, suffix = "($index)")
             if (!names.contains(candidate)) return candidate
             index++
         }

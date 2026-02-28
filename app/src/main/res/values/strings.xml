@@ -123,6 +123,7 @@
     <string name="error_shared_text_empty">Shared text is empty.</string>
     <string name="error_shared_note_save_failed">Could not save shared text.</string>
     <string name="error_shared_folder_pick_cancelled">Shared text was not saved because no folder was selected.</string>
+    <string name="error_note_save_failed">Could not save the note.</string>
     <string name="label_loading">Loading...</string>
     <string name="label_no_folders">No folders found</string>
     <string name="label_file_list_font_size">File list font size</string>

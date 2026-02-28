@@ -103,6 +103,7 @@ fun EditorScreen(
     val density = LocalDensity.current
     val context = LocalContext.current
     val truncatedMessage = stringResource(id = R.string.label_editor_truncated_notice)
+    val saveFailedMessage = stringResource(id = R.string.error_note_save_failed)
 
     fun triggerBack() {
         if (backInProgress) return
@@ -115,6 +116,11 @@ fun EditorScreen(
             val result = viewModel.saveAndGetResult()
             if (viewModel.hasExternalChangePending()) {
                 viewModel.showExternalChangeDialog()
+                backInProgress = false
+                return@launch
+            }
+            if (viewModel.hasUnsavedChanges()) {
+                Toast.makeText(context, saveFailedMessage, Toast.LENGTH_SHORT).show()
                 backInProgress = false
                 return@launch
             }
@@ -166,6 +172,12 @@ fun EditorScreen(
             showSavedBubble = true
             delay(1400)
             showSavedBubble = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.saveFailureEvents.collect {
+            Toast.makeText(context, saveFailedMessage, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -293,7 +305,7 @@ fun EditorScreen(
                             )
                         }
                         IconButton(
-                            onClick = { viewModel.saveNow(manual = state.fileUri != null) },
+                            onClick = { viewModel.saveNow(manual = true) },
                             enabled = state.canSave && !state.isSaving,
                             modifier = Modifier.onGloballyPositioned { coordinates ->
                                 val bounds = coordinates.boundsInRoot()

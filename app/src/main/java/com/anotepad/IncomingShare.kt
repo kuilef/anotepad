@@ -26,59 +26,46 @@ data class SharedNoteDraft(
     val content: String
 )
 
-private const val KEY_PENDING_SHARE_TEXT = "incoming_share.pending_share_text"
-private const val KEY_PENDING_DRAFT_FILE_NAME = "incoming_share.pending_draft_file_name"
-private const val KEY_PENDING_DRAFT_CONTENT = "incoming_share.pending_draft_content"
-private const val KEY_AWAITING_ROOT_SELECTION = "incoming_share.awaiting_root_selection"
-
 class IncomingShareManager(
-    private val savedStateHandle: SavedStateHandle
+    _savedStateHandle: SavedStateHandle
 ) {
-    private val _shareRequests = MutableStateFlow(
-        savedStateHandle.get<String?>(KEY_PENDING_SHARE_TEXT)?.let(::SharedTextPayload)
-    )
+    private val _shareRequests = MutableStateFlow(IncomingShareRecoveryStore.peek())
+    private var awaitingRootSelection = false
+    private var pendingEditorDraft: SharedNoteDraft? = null
     val shareRequests: StateFlow<SharedTextPayload?> = _shareRequests.asStateFlow()
 
     fun peekPendingShare(): SharedTextPayload? = _shareRequests.value
 
     fun submitShare(payload: SharedTextPayload) {
-        savedStateHandle[KEY_PENDING_SHARE_TEXT] = payload.text
+        IncomingShareRecoveryStore.persist(payload)
         _shareRequests.value = payload
     }
 
     fun clearPendingShare() {
-        savedStateHandle[KEY_PENDING_SHARE_TEXT] = null
-        savedStateHandle[KEY_AWAITING_ROOT_SELECTION] = false
+        IncomingShareRecoveryStore.clear()
+        awaitingRootSelection = false
         _shareRequests.value = null
     }
 
     fun isAwaitingRootSelection(): Boolean {
-        return savedStateHandle[KEY_AWAITING_ROOT_SELECTION] ?: false
+        return awaitingRootSelection
     }
 
     fun markAwaitingRootSelection(awaiting: Boolean) {
-        savedStateHandle[KEY_AWAITING_ROOT_SELECTION] = awaiting
+        awaitingRootSelection = awaiting
     }
 
     fun setPendingEditorDraft(draft: SharedNoteDraft) {
-        savedStateHandle[KEY_PENDING_DRAFT_FILE_NAME] = draft.fileName
-        savedStateHandle[KEY_PENDING_DRAFT_CONTENT] = draft.content
+        pendingEditorDraft = draft
     }
 
     fun peekPendingEditorDraft(): SharedNoteDraft? {
-        val fileName = savedStateHandle.get<String?>(KEY_PENDING_DRAFT_FILE_NAME)
-        val content = savedStateHandle.get<String?>(KEY_PENDING_DRAFT_CONTENT)
-        return if (fileName != null && content != null) {
-            SharedNoteDraft(fileName = fileName, content = content)
-        } else {
-            null
-        }
+        return pendingEditorDraft
     }
 
     fun consumePendingEditorDraft(): SharedNoteDraft? {
         val draft = peekPendingEditorDraft()
-        savedStateHandle[KEY_PENDING_DRAFT_FILE_NAME] = null
-        savedStateHandle[KEY_PENDING_DRAFT_CONTENT] = null
+        pendingEditorDraft = null
         return draft
     }
 }
@@ -135,15 +122,6 @@ internal fun buildSharedNoteDraft(
 internal fun buildSharedNoteFileName(now: Date = Date()): String {
     val timestamp = SimpleDateFormat("yyyy-MM-dd HH-mm-ss", Locale.US).format(now)
     return "Shared $timestamp.txt"
-}
-
-internal fun replaceSharedNoteHeader(content: String, fileName: String): String {
-    val remainder = content.substringAfter('\n', "")
-    return if (remainder.isEmpty()) {
-        fileName
-    } else {
-        "$fileName\n$remainder"
-    }
 }
 
 internal fun isManagedSharedFileName(fileName: String): Boolean {

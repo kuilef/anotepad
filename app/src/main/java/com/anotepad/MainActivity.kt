@@ -28,6 +28,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        IncomingShareRecoveryStore.initialize(applicationContext)
+        if (savedInstanceState == null) {
+            dispatchIncomingShare(intent)
+        }
 
         setContent {
             val deps = remember {
@@ -81,10 +85,6 @@ class MainActivity : ComponentActivity() {
                 }
                 AppNav(deps)
             }
-        }
-
-        if (savedInstanceState == null) {
-            dispatchIncomingShare(intent)
         }
     }
 
