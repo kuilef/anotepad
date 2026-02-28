@@ -183,10 +183,10 @@ class BrowserViewModel(
 
     fun createDirectory(name: String) {
         val dirUri = _state.value.currentDirUri ?: return
-        val trimmed = name.trim()
-        if (trimmed.isBlank()) return
+        val sanitized = fileRepository.sanitizeFileName(name)
+        if (sanitized.isBlank()) return
         viewModelScope.launch {
-            fileRepository.createDirectory(dirUri, trimmed)
+            fileRepository.createDirectory(dirUri, sanitized)
             refresh()
         }
     }
@@ -200,12 +200,12 @@ class BrowserViewModel(
 
     fun renameFile(node: DocumentNode, newName: String) {
         val dirUri = _state.value.currentDirUri ?: return
-        val trimmed = newName.trim()
-        if (trimmed.isBlank()) return
+        val sanitized = fileRepository.sanitizeFileName(newName)
+        if (sanitized.isBlank()) return
         val resolvedName = if (node.isDirectory) {
-            trimmed
+            sanitized
         } else {
-            appendExtensionIfMissing(trimmed, node.name)
+            appendExtensionIfMissing(sanitized, node.name)
         }
         if (resolvedName == node.name) return
         viewModelScope.launch {

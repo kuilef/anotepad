@@ -112,11 +112,13 @@ class FileRepository(
 
     fun sanitizeFileName(input: String): String {
         var text = input.trim()
-        text = text.replace(Regex("^[\\s\\u3000]+"), "")
+        text = text.replace(Regex("^[.\\s\\u3000]+"), "")
         text = text.replace(Regex("[\\s\\u3000]+$"), "")
-        text = text.replace(Regex("[/:,;*?\"<>|]"), "")
-        text = text.replace("\\\\", "")
-        return text
+        text = text.replace(Regex("[/\\\\:*?\"<>|]"), "")
+        return when (text) {
+            ".", ".." -> ""
+            else -> text
+        }
     }
 
     fun guessMimeType(name: String): String {
