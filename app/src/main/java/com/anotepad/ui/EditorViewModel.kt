@@ -57,6 +57,17 @@ data class EditorSaveResult(
     val dirUri: Uri?
 )
 
+internal fun buildFileNameFromText(
+    text: String,
+    extension: String,
+    sanitizeFileName: (String) -> String
+): String {
+    val firstLine = text.lineSequence().firstOrNull().orEmpty()
+    val cleaned = sanitizeFileName(firstLine)
+    val base = if (cleaned.isBlank()) "Untitled" else cleaned
+    return base + extension
+}
+
 class EditorViewModel(
     private val preferencesRepository: PreferencesRepository,
     private val fileRepository: FileRepository,
@@ -474,10 +485,7 @@ class EditorViewModel(
     }
 
     private fun buildNameFromText(text: String, extension: String): String {
-        val firstLine = text.lineSequence().firstOrNull().orEmpty()
-        val cleaned = fileRepository.sanitizeFileName(firstLine)
-        val base = if (cleaned.isBlank()) "Untitled" else cleaned
-        return base + extension
+        return buildFileNameFromText(text, extension, fileRepository::sanitizeFileName)
     }
 
     private fun nextTruncatedNoticeToken(truncated: Boolean): Long? {
