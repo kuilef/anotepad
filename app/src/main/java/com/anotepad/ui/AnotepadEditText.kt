@@ -37,6 +37,8 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     private var startScrollY = 0
     private var hasVerticalDrag = false
     private var hasMultiplePointers = false
+    private var deferCursorVisibilityUntilTouchEnds = false
+    private var hasDeferredCursorVisibilityUpdate = false
 
     fun runWithoutHistoryAndChangeCallbacks(block: () -> Unit) {
         suppressChangesDepth += 1
@@ -64,6 +66,8 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
             MotionEvent.ACTION_DOWN -> {
                 abortFling()
                 resetTouchTracking()
+                deferCursorVisibilityUntilTouchEnds = true
+                hasDeferredCursorVisibilityUpdate = false
                 activePointerId = event.getPointerId(0)
                 initialTouchX = event.x
                 initialTouchY = event.y
@@ -86,12 +90,16 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
             }
 
             MotionEvent.ACTION_UP -> {
+                deferCursorVisibilityUntilTouchEnds = false
                 maybeStartFling()
+                flushDeferredCursorVisibility()
                 recycleVelocityTracker()
                 resetTouchTracking()
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                deferCursorVisibilityUntilTouchEnds = false
+                flushDeferredCursorVisibility()
                 recycleVelocityTracker()
                 resetTouchTracking()
             }
@@ -111,6 +119,10 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
 
     override fun onSelectionChanged(selStart: Int, selEnd: Int) {
         super.onSelectionChanged(selStart, selEnd)
+        if (deferCursorVisibilityUntilTouchEnds) {
+            hasDeferredCursorVisibilityUpdate = true
+            return
+        }
         ensureCursorVisible(this, allowPost = false)
     }
 
@@ -171,10 +183,18 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         velocityTracker = null
     }
 
+    private fun flushDeferredCursorVisibility() {
+        if (!hasDeferredCursorVisibilityUpdate) return
+        hasDeferredCursorVisibilityUpdate = false
+        ensureCursorVisible(this, allowPost = false)
+    }
+
     private fun resetTouchTracking() {
         activePointerId = MotionEvent.INVALID_POINTER_ID
         hasVerticalDrag = false
         hasMultiplePointers = false
+        deferCursorVisibilityUntilTouchEnds = false
+        hasDeferredCursorVisibilityUpdate = false
         initialTouchX = 0f
         initialTouchY = 0f
         startScrollY = scrollY
