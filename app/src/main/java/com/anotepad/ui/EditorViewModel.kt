@@ -65,10 +65,10 @@ data class EditorSaveResult(
 
 internal fun shouldDiscardBlankSharedDraftRecovery(
     hasPendingSharedDraftRecovery: Boolean,
-    fileUri: Uri?,
+    hasSavedFile: Boolean,
     text: String
 ): Boolean {
-    return hasPendingSharedDraftRecovery && fileUri == null && text.isBlank()
+    return hasPendingSharedDraftRecovery && !hasSavedFile && text.isBlank()
 }
 
 private const val MAX_FILE_NAME_BYTES = 255
@@ -461,7 +461,7 @@ class EditorViewModel(
     fun popRedoSnapshot(): TextSnapshot? = historyManager.popRedo()
 
     private suspend fun discardBlankSharedDraftRecoveryIfNeeded(state: EditorState) {
-        if (!shouldDiscardBlankSharedDraftRecovery(hasPendingSharedDraftRecovery, state.fileUri, state.text)) {
+        if (!shouldDiscardBlankSharedDraftRecovery(hasPendingSharedDraftRecovery, state.fileUri != null, state.text)) {
             return
         }
         clearCurrentSharedDraftRecovery()

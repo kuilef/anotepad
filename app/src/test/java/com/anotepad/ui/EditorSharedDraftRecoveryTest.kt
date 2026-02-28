@@ -1,6 +1,5 @@
 package com.anotepad.ui
 
-import android.net.Uri
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,7 +11,7 @@ class EditorSharedDraftRecoveryTest {
         assertTrue(
             shouldDiscardBlankSharedDraftRecovery(
                 hasPendingSharedDraftRecovery = true,
-                fileUri = null,
+                hasSavedFile = false,
                 text = "   "
             )
         )
@@ -23,21 +22,21 @@ class EditorSharedDraftRecoveryTest {
         assertFalse(
             shouldDiscardBlankSharedDraftRecovery(
                 hasPendingSharedDraftRecovery = true,
-                fileUri = Uri.parse("content://shared/note.txt"),
+                hasSavedFile = true,
                 text = ""
             )
         )
         assertFalse(
             shouldDiscardBlankSharedDraftRecovery(
                 hasPendingSharedDraftRecovery = true,
-                fileUri = null,
+                hasSavedFile = false,
                 text = "Shared text"
             )
         )
         assertFalse(
             shouldDiscardBlankSharedDraftRecovery(
                 hasPendingSharedDraftRecovery = false,
-                fileUri = null,
+                hasSavedFile = false,
                 text = ""
             )
         )
