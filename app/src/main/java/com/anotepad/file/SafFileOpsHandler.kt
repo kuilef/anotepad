@@ -148,6 +148,7 @@ class SafFileOpsHandler(
                     current = existing
                 } else if (create) {
                     val created = current.createDirectory(segment) ?: return@withContext null
+                    cacheManager.invalidate(current.uri)
                     current = created
                 } else {
                     return@withContext null

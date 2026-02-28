@@ -322,7 +322,10 @@ class BrowserViewModel(
 
     fun applyEditorUpdate(originalUri: Uri?, currentUri: Uri?, dirUri: Uri?) {
         val currentDir = _state.value.currentDirUri ?: return
-        if (dirUri != null && dirUri != currentDir) return
+        if (dirUri != null && dirUri != currentDir) {
+            refresh(force = true)
+            return
+        }
         val targetUri = currentUri ?: return
         val matchUri = originalUri ?: targetUri
         viewModelScope.launch {
