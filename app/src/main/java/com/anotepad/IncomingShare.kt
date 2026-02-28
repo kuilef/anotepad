@@ -190,7 +190,7 @@ internal fun replaceSharedNoteHeader(content: String, fileName: String): String 
 }
 
 internal fun buildSharedNoteFileName(now: Date = Date()): String {
-    val timestamp = SimpleDateFormat("yyyy-MM-dd HH-mm-ss-SSS", Locale.US).format(now)
+    val timestamp = SimpleDateFormat("yyyy-MM-dd HH-mm-ss", Locale.US).format(now)
     return "Shared $timestamp.txt"
 }
 

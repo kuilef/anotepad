@@ -45,6 +45,14 @@ class IncomingShareTest {
     }
 
     @Test
+    fun buildSharedNoteFileName_omitsMilliseconds() {
+        val fileName = buildSharedNoteFileName(Date(1_709_132_112_789L))
+
+        assertTrue(Regex("""^Shared \d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}\.txt$""").matches(fileName))
+        assertFalse(Regex(""".*-\d{3}\.txt$""").matches(fileName))
+    }
+
+    @Test
     fun replaceSharedNoteHeader_rewritesOnlyTheFirstLine() {
         val updated = replaceSharedNoteHeader(
             content = "Shared 2024-02-28 14-15-12.txt\n\nShared body",
