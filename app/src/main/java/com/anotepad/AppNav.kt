@@ -7,8 +7,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -42,6 +45,7 @@ fun AppNav(deps: AppDependencies) {
     val context = LocalContext.current
     val factory = remember { AppViewModelFactory(deps) }
     val scope = rememberCoroutineScope()
+    var pendingSharedText by remember { mutableStateOf<SharedTextPayload?>(null) }
 
     val pickDirectoryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -51,6 +55,25 @@ fun AppNav(deps: AppDependencies) {
             context.contentResolver.takePersistableUriPermission(uri, flags)
             scope.launch {
                 applyRootSelection(deps, uri)
+                val sharedText = pendingSharedText
+                if (sharedText != null) {
+                    pendingSharedText = null
+                    openSharedDraft(navController, deps, uri, sharedText)
+                }
+            }
+        } else {
+            pendingSharedText = null
+        }
+    }
+
+    LaunchedEffect(deps.incomingShareManager) {
+        deps.incomingShareManager.shareRequests.collectLatest { payload ->
+            val rootUri = deps.preferencesRepository.preferencesFlow.first().rootTreeUri?.let(Uri::parse)
+            if (rootUri != null && openSharedDraft(navController, deps, rootUri, payload)) {
+                pendingSharedText = null
+            } else {
+                pendingSharedText = payload
+                pickDirectoryLauncher.launch(buildInitialFolderUri())
             }
         }
     }
@@ -107,11 +130,24 @@ fun AppNav(deps: AppDependencies) {
             val templateText = savedStateHandle?.get<String>("template")
 
             LaunchedEffect(fileArg, dirArg, extArg) {
-                viewModel.load(
-                    fileUri = parseNavUriArg(fileArg),
-                    dirUri = parseNavUriArg(dirArg),
-                    newFileExtension = extArg ?: "txt"
-                )
+                val sharedDraft = if (fileArg.isNullOrBlank()) {
+                    deps.incomingShareManager.consumePendingEditorDraft()
+                } else {
+                    null
+                }
+                if (sharedDraft != null) {
+                    viewModel.loadSharedDraft(
+                        dirUri = parseNavUriArg(dirArg),
+                        draft = sharedDraft,
+                        newFileExtension = extArg ?: "txt"
+                    )
+                } else {
+                    viewModel.load(
+                        fileUri = parseNavUriArg(fileArg),
+                        dirUri = parseNavUriArg(dirArg),
+                        newFileExtension = extArg ?: "txt"
+                    )
+                }
             }
             LaunchedEffect(templateText) {
                 if (!templateText.isNullOrBlank()) {
@@ -128,15 +164,18 @@ fun AppNav(deps: AppDependencies) {
                         return@back
                     }
                     result?.let {
-                        navController.previousBackStackEntry?.savedStateHandle?.set(
+                        val browserHandle = runCatching {
+                            navController.getBackStackEntry(ROUTE_BROWSER).savedStateHandle
+                        }.getOrNull()
+                        browserHandle?.set(
                             RESULT_EDITED_ORIGINAL_URI,
                             it.originalUri?.toString()
                         )
-                        navController.previousBackStackEntry?.savedStateHandle?.set(
+                        browserHandle?.set(
                             RESULT_EDITED_CURRENT_URI,
                             it.currentUri?.toString()
                         )
-                        navController.previousBackStackEntry?.savedStateHandle?.set(
+                        browserHandle?.set(
                             RESULT_EDITED_DIR_URI,
                             it.dirUri?.toString()
                         )
@@ -235,4 +274,20 @@ private fun resolveDriveFolderName(
     if (!displayName.isNullOrBlank()) return displayName
     val displayPath = fileRepository.getTreeDisplayPath(pickedUri)
     return displayPath.substringAfterLast('/').ifBlank { RECOMMENDED_FOLDER_NAME }
+}
+
+private suspend fun openSharedDraft(
+    navController: androidx.navigation.NavHostController,
+    deps: AppDependencies,
+    rootUri: Uri,
+    payload: SharedTextPayload
+): Boolean {
+    val sharedDirUri = deps.fileRepository.resolveDirByRelativePath(
+        rootUri,
+        SHARED_NOTES_FOLDER_NAME,
+        create = true
+    ) ?: return false
+    deps.incomingShareManager.setPendingEditorDraft(buildSharedNoteDraft(payload))
+    navController.navigate("$ROUTE_EDITOR?dir=${encodeUri(sharedDirUri)}&ext=txt")
+    return true
 }

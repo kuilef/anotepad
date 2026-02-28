@@ -14,6 +14,7 @@ class AppDependencies(
     val preferencesRepository: PreferencesRepository,
     val templateRepository: TemplateRepository,
     val fileRepository: FileRepository,
+    val incomingShareManager: IncomingShareManager,
     val createFeedManager: () -> FeedManager,
     val syncRepository: SyncRepository,
     val syncScheduler: SyncScheduler,

@@ -1,5 +1,6 @@
 package com.anotepad
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,6 +22,8 @@ import com.anotepad.ui.FeedManager
 import com.anotepad.ui.theme.ANotepadTheme
 
 class MainActivity : ComponentActivity() {
+    private val incomingShareManager = IncomingShareManager()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -56,6 +59,7 @@ class MainActivity : ComponentActivity() {
                     preferencesRepository = prefs,
                     templateRepository = templates,
                     fileRepository = files,
+                    incomingShareManager = incomingShareManager,
                     createFeedManager = {
                         FeedManager(readTextPreview = files::readTextPreview)
                     },
@@ -74,5 +78,20 @@ class MainActivity : ComponentActivity() {
                 AppNav(deps)
             }
         }
+
+        if (savedInstanceState == null) {
+            dispatchIncomingShare(intent)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        dispatchIncomingShare(intent)
+    }
+
+    private fun dispatchIncomingShare(intent: Intent?) {
+        val payload = extractSharedTextPayload(applicationContext, intent) ?: return
+        incomingShareManager.submitShare(payload)
     }
 }
