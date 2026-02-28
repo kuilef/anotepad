@@ -328,8 +328,15 @@ fun AnotepadEditText(
                 isVerticalScrollBarEnabled = false
                 overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
                 val density = context.resources.displayMetrics.density
-                val paddingPx = (2f * density).roundToInt()
-                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                val horizontalPaddingPx = (12f * density).roundToInt()
+                val topPaddingPx = (8f * density).roundToInt()
+                val bottomPaddingPx = topPaddingPx + lineHeight.coerceAtLeast(0)
+                setPaddingRelative(
+                    horizontalPaddingPx,
+                    topPaddingPx,
+                    horizontalPaddingPx,
+                    bottomPaddingPx
+                )
                 scrollBarSize = (2f * density).roundToInt()
                 isScrollbarFadingEnabled = true
                 addTextChangedListener(object : TextWatcher {
@@ -420,16 +427,22 @@ fun AnotepadEditText(
             editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, editorFontSizeSp)
             editText.setBackgroundColor(backgroundColor)
             val density = editText.resources.displayMetrics.density
-            val basePaddingPx = (2f * density).roundToInt()
+            val horizontalPaddingPx = (12f * density).roundToInt()
+            val topPaddingPx = (8f * density).roundToInt()
             val extraLinePx = editText.lineHeight.coerceAtLeast(0)
-            val targetBottom = basePaddingPx + extraLinePx
+            val targetBottom = topPaddingPx + extraLinePx
             if (
-                editText.paddingLeft != basePaddingPx ||
-                editText.paddingTop != basePaddingPx ||
-                editText.paddingRight != basePaddingPx ||
+                editText.paddingStart != horizontalPaddingPx ||
+                editText.paddingTop != topPaddingPx ||
+                editText.paddingEnd != horizontalPaddingPx ||
                 editText.paddingBottom != targetBottom
             ) {
-                editText.setPadding(basePaddingPx, basePaddingPx, basePaddingPx, targetBottom)
+                editText.setPaddingRelative(
+                    horizontalPaddingPx,
+                    topPaddingPx,
+                    horizontalPaddingPx,
+                    targetBottom
+                )
             }
             ensureCursorVisible(editText, allowPost = false)
         },
