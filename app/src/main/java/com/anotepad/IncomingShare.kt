@@ -43,7 +43,6 @@ class IncomingShareManager(
 
     fun submitShare(payload: SharedTextPayload) {
         savedStateHandle[KEY_PENDING_SHARE_TEXT] = payload.text
-        savedStateHandle[KEY_AWAITING_ROOT_SELECTION] = false
         _shareRequests.value = payload
     }
 
@@ -66,16 +65,21 @@ class IncomingShareManager(
         savedStateHandle[KEY_PENDING_DRAFT_CONTENT] = draft.content
     }
 
-    fun consumePendingEditorDraft(): SharedNoteDraft? {
+    fun peekPendingEditorDraft(): SharedNoteDraft? {
         val fileName = savedStateHandle.get<String?>(KEY_PENDING_DRAFT_FILE_NAME)
         val content = savedStateHandle.get<String?>(KEY_PENDING_DRAFT_CONTENT)
-        savedStateHandle[KEY_PENDING_DRAFT_FILE_NAME] = null
-        savedStateHandle[KEY_PENDING_DRAFT_CONTENT] = null
         return if (fileName != null && content != null) {
             SharedNoteDraft(fileName = fileName, content = content)
         } else {
             null
         }
+    }
+
+    fun consumePendingEditorDraft(): SharedNoteDraft? {
+        val draft = peekPendingEditorDraft()
+        savedStateHandle[KEY_PENDING_DRAFT_FILE_NAME] = null
+        savedStateHandle[KEY_PENDING_DRAFT_CONTENT] = null
+        return draft
     }
 }
 

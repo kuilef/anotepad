@@ -1,6 +1,7 @@
 package com.anotepad.ui
 
 import android.net.Uri
+import com.anotepad.SharedDraftRecoveryStore
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -77,7 +78,8 @@ internal fun buildFileNameFromText(
 class EditorViewModel(
     private val preferencesRepository: PreferencesRepository,
     private val fileRepository: FileRepository,
-    private val syncScheduler: SyncScheduler
+    private val syncScheduler: SyncScheduler,
+    private val sharedDraftRecoveryStore: SharedDraftRecoveryStore
 ) : ViewModel() {
     private val _state = MutableStateFlow(EditorState())
     val state: StateFlow<EditorState> = _state.asStateFlow()
@@ -101,6 +103,7 @@ class EditorViewModel(
     private var prefsLoaded = false
     private var lastKnownModified: Long? = null
     private var truncatedNoticeCounter = 0L
+    private var hasPendingSharedDraftRecovery = false
     private val saveMutex = Mutex()
     val undoStack = mutableStateListOf<TextSnapshot>()
     val redoStack = mutableStateListOf<TextSnapshot>()
@@ -150,6 +153,7 @@ class EditorViewModel(
 
             ensureTemplatePrefsLoaded()
             isLoaded = false
+            hasPendingSharedDraftRecovery = false
             openedFileUri = fileUri
             templateInsertionSelection = null
             loadCounter += 1
@@ -204,11 +208,13 @@ class EditorViewModel(
         viewModelScope.launch {
             ensureTemplatePrefsLoaded()
             isLoaded = false
+            hasPendingSharedDraftRecovery = true
             openedFileUri = null
             templateInsertionSelection = null
             loadCounter += 1
             clearHistory()
             lastKnownModified = null
+            sharedDraftRecoveryStore.persist(draft)
             _state.update {
                 it.copy(
                     fileUri = null,
@@ -418,6 +424,7 @@ class EditorViewModel(
                 }
             }
             if (textToSave == lastSavedText) return@withLock false
+            val shouldClearSharedDraftRecovery = hasPendingSharedDraftRecovery
             if (fileUri == null) {
                 if (dirUri == null || text.isBlank()) return@withLock false
                 val desiredName = _state.value.proposedFileName ?: run {
@@ -466,6 +473,10 @@ class EditorViewModel(
                 }
 
                 _state.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
+                if (shouldClearSharedDraftRecovery) {
+                    sharedDraftRecoveryStore.clear()
+                    hasPendingSharedDraftRecovery = false
+                }
                 updateCanSaveState()
                 syncScheduler.scheduleDebounced()
                 return@withLock true

@@ -22,7 +22,8 @@ class AppViewModelFactory(private val deps: AppDependencies) : ViewModelProvider
             EditorViewModel::class.java -> EditorViewModel(
                 deps.preferencesRepository,
                 deps.fileRepository,
-                deps.syncScheduler
+                deps.syncScheduler,
+                deps.sharedDraftRecoveryStore
             )
             SearchViewModel::class.java -> SearchViewModel(deps.fileRepository)
             TemplatesViewModel::class.java -> TemplatesViewModel(deps.templateRepository)

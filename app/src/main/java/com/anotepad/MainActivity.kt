@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
                     resolver = resolver,
                     cacheManager = listCacheManager
                 )
+                val sharedDraftRecoveryStore = SharedDraftRecoveryStore.fromContext(applicationContext)
                 val files = FileRepository(
                     fileLister = fileLister,
                     readerWriter = readerWriter,
@@ -62,6 +63,7 @@ class MainActivity : ComponentActivity() {
                     templateRepository = templates,
                     fileRepository = files,
                     incomingShareManager = incomingShareViewModel.manager,
+                    sharedDraftRecoveryStore = sharedDraftRecoveryStore,
                     createFeedManager = {
                         FeedManager(readTextPreview = files::readTextPreview)
                     },

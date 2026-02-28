@@ -15,6 +15,7 @@ class AppDependencies(
     val templateRepository: TemplateRepository,
     val fileRepository: FileRepository,
     val incomingShareManager: IncomingShareManager,
+    val sharedDraftRecoveryStore: SharedDraftRecoveryStore,
     val createFeedManager: () -> FeedManager,
     val syncRepository: SyncRepository,
     val syncScheduler: SyncScheduler,

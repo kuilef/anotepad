@@ -37,6 +37,8 @@ private const val ROUTE_SYNC = "sync"
 private const val RESULT_EDITED_ORIGINAL_URI = "edited_original_uri"
 private const val RESULT_EDITED_CURRENT_URI = "edited_current_uri"
 private const val RESULT_EDITED_DIR_URI = "edited_dir_uri"
+private const val ARG_SHARED_DRAFT = "shared"
+private const val SHARED_DRAFT_FLAG = "1"
 
 @Composable
 fun AppNav(deps: AppDependencies) {
@@ -84,6 +86,16 @@ fun AppNav(deps: AppDependencies) {
         }
     }
 
+    LaunchedEffect(incomingShareManager, navController) {
+        if (incomingShareManager.peekPendingShare() != null) return@LaunchedEffect
+        if (incomingShareManager.isAwaitingRootSelection()) return@LaunchedEffect
+        if (incomingShareManager.peekPendingEditorDraft() != null) return@LaunchedEffect
+        val recoveredDraft = deps.sharedDraftRecoveryStore.peek() ?: return@LaunchedEffect
+        if (navController.currentDestination?.route?.startsWith(ROUTE_EDITOR) == true) return@LaunchedEffect
+        val rootUri = deps.preferencesRepository.preferencesFlow.first().rootTreeUri?.let(Uri::parse) ?: return@LaunchedEffect
+        openRecoveredSharedDraft(navController, deps, rootUri, recoveredDraft)
+    }
+
     NavHost(navController = navController, startDestination = ROUTE_BROWSER) {
         composable(ROUTE_BROWSER) {
             val viewModel: com.anotepad.ui.BrowserViewModel = viewModel(factory = factory)
@@ -121,23 +133,26 @@ fun AppNav(deps: AppDependencies) {
             )
         }
         composable(
-            route = "$ROUTE_EDITOR?file={file}&dir={dir}&ext={ext}",
+            route = "$ROUTE_EDITOR?file={file}&dir={dir}&ext={ext}&$ARG_SHARED_DRAFT={$ARG_SHARED_DRAFT}",
             arguments = listOf(
                 navArgument("file") { type = NavType.StringType; nullable = true },
                 navArgument("dir") { type = NavType.StringType; nullable = true },
-                navArgument("ext") { type = NavType.StringType; nullable = true }
+                navArgument("ext") { type = NavType.StringType; nullable = true },
+                navArgument(ARG_SHARED_DRAFT) { type = NavType.StringType; nullable = true }
             )
         ) { backStackEntry ->
             val fileArg = backStackEntry.arguments?.getString("file")
             val dirArg = backStackEntry.arguments?.getString("dir")
             val extArg = backStackEntry.arguments?.getString("ext")
+            val sharedArg = backStackEntry.arguments?.getString(ARG_SHARED_DRAFT)
             val viewModel: com.anotepad.ui.EditorViewModel = viewModel(factory = factory)
             val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
             val templateText = savedStateHandle?.get<String>("template")
 
-            LaunchedEffect(fileArg, dirArg, extArg) {
-                val sharedDraft = if (fileArg.isNullOrBlank()) {
+            LaunchedEffect(fileArg, dirArg, extArg, sharedArg) {
+                val sharedDraft = if (fileArg.isNullOrBlank() && sharedArg == SHARED_DRAFT_FLAG) {
                     deps.incomingShareManager.consumePendingEditorDraft()
+                        ?: deps.sharedDraftRecoveryStore.peek()
                 } else {
                     null
                 }
@@ -288,13 +303,31 @@ private suspend fun openSharedDraft(
     rootUri: Uri,
     payload: SharedTextPayload
 ): Boolean {
+    val draft = buildSharedNoteDraft(payload)
     val sharedDirUri = deps.fileRepository.resolveDirByRelativePath(
         rootUri,
         SHARED_NOTES_FOLDER_NAME,
         create = true
     ) ?: return false
-    deps.incomingShareManager.setPendingEditorDraft(buildSharedNoteDraft(payload))
+    deps.sharedDraftRecoveryStore.persist(draft)
+    deps.incomingShareManager.setPendingEditorDraft(draft)
     deps.incomingShareManager.clearPendingShare()
-    navController.navigate("$ROUTE_EDITOR?dir=${encodeUri(sharedDirUri)}&ext=txt")
+    navController.navigate("$ROUTE_EDITOR?dir=${encodeUri(sharedDirUri)}&ext=txt&$ARG_SHARED_DRAFT=$SHARED_DRAFT_FLAG")
+    return true
+}
+
+private suspend fun openRecoveredSharedDraft(
+    navController: androidx.navigation.NavHostController,
+    deps: AppDependencies,
+    rootUri: Uri,
+    draft: SharedNoteDraft
+): Boolean {
+    val sharedDirUri = deps.fileRepository.resolveDirByRelativePath(
+        rootUri,
+        SHARED_NOTES_FOLDER_NAME,
+        create = true
+    ) ?: return false
+    deps.incomingShareManager.setPendingEditorDraft(draft)
+    navController.navigate("$ROUTE_EDITOR?dir=${encodeUri(sharedDirUri)}&ext=txt&$ARG_SHARED_DRAFT=$SHARED_DRAFT_FLAG")
     return true
 }

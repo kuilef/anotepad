@@ -93,4 +93,17 @@ class IncomingShareTest {
         assertNull(manager.peekPendingShare())
         assertFalse(manager.isAwaitingRootSelection())
     }
+
+    @Test
+    fun incomingShareManager_replacesPendingShareWithoutDroppingAwaitingSelection() {
+        val handle = SavedStateHandle()
+        val manager = IncomingShareManager(handle)
+
+        manager.submitShare(SharedTextPayload("First share"))
+        manager.markAwaitingRootSelection(true)
+        manager.submitShare(SharedTextPayload("Second share"))
+
+        assertEquals(SharedTextPayload("Second share"), manager.peekPendingShare())
+        assertTrue(manager.isAwaitingRootSelection())
+    }
 }
