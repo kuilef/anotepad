@@ -94,12 +94,13 @@ internal fun isSupportedShareIntent(intent: Intent?): Boolean {
 internal suspend fun extractSharedTextPayload(context: Context, intent: Intent?): SharedTextPayload? =
     withContext(Dispatchers.IO) {
         if (!isSupportedShareIntent(intent)) return@withContext null
+        val shareIntent = intent ?: return@withContext null
 
-        val rawText = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.take(MAX_SHARED_TEXT_CHARS)
-            ?: intent.getStringExtra(Intent.EXTRA_HTML_TEXT)?.let { html ->
+        val rawText = shareIntent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.take(MAX_SHARED_TEXT_CHARS)
+            ?: shareIntent.getStringExtra(Intent.EXTRA_HTML_TEXT)?.let { html ->
                 HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_LEGACY).toString().take(MAX_SHARED_TEXT_CHARS)
             }
-            ?: extractClipText(context, intent ?: return@withContext null)
+            ?: extractClipText(context, shareIntent)
 
         val text = sanitizeSharedText(rawText) ?: return@withContext null
         SharedTextPayload(text = text)

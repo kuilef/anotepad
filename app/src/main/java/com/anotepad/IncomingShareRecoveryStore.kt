@@ -20,7 +20,7 @@ internal object IncomingShareRecoveryStore {
     }
 
     suspend fun persist(payload: SharedTextPayload) = withContext(Dispatchers.IO) {
-        val target = file ?: return
+        val target = file ?: return@withContext
         runCatching {
             target.parentFile?.mkdirs()
             val tempFile = File(target.parentFile, "${target.name}.tmp")
@@ -43,7 +43,7 @@ internal object IncomingShareRecoveryStore {
     }
 
     suspend fun clear() = withContext(Dispatchers.IO) {
-        val target = file ?: return
+        val target = file ?: return@withContext
         runCatching {
             if (target.exists()) {
                 target.delete()
