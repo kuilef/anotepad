@@ -52,7 +52,7 @@ class DeleteScenariosTest {
 
         // Then
         assertNull(builder.store.item("note.txt"))
-        assertTrue(builder.localFs.calls.any { it.contains("copyFile:${FakeLocalFsGateway.DEFAULT_ROOT}:note.txt->.trash/") })
+        assertTrue(builder.localFs.calls.any { it.contains("moveFile:${FakeLocalFsGateway.DEFAULT_ROOT}:note.txt->.trash/") })
     }
 
     @Test
@@ -91,8 +91,8 @@ class DeleteScenariosTest {
         // Then
         assertNull(builder.store.item("folder/a.txt"))
         assertNull(builder.store.item("folder/b.txt"))
-        val copyCalls = builder.localFs.calls.count { it.startsWith("copyFile:${FakeLocalFsGateway.DEFAULT_ROOT}:folder/") }
-        assertEquals(2, copyCalls)
+        val moveCalls = builder.localFs.calls.count { it.startsWith("moveFile:${FakeLocalFsGateway.DEFAULT_ROOT}:folder/") }
+        assertEquals(2, moveCalls)
     }
 
     @Test
@@ -114,7 +114,29 @@ class DeleteScenariosTest {
         val changed = builder.store.item("folder/a.txt")
         assertEquals(SyncItemState.PENDING_UPLOAD.name, changed?.syncState)
         assertNull(changed?.driveFileId)
+        assertNotNull(builder.localFs.file("folder/a.txt"))
         assertNull(builder.store.item("folder/b.txt"))
+        assertNull(builder.localFs.file("folder/b.txt"))
+    }
+
+    @Test
+    fun remoteDelete_file_marksPendingUploadWhenTrashMoveFails() = runTest {
+        // Given
+        val builder = SyncFixtureBuilder()
+            .withLocalFile("note.txt", "local", 100L)
+            .withStoreItem(path = "note.txt", driveFileId = "r1", lastSyncedAt = 200L)
+            .withChangesPage("p1", DriveChangesPage(listOf(DriveChange("r1", true, null)), null, "new"))
+        builder.localFs.failMove("note.txt").failCopy("note.txt")
+        val pull = builder.buildWired().pull
+
+        // When
+        pull.execute("token", defaultPrefs(), FakeLocalFsGateway.DEFAULT_ROOT, "drive-root", "p1")
+
+        // Then
+        val item = builder.store.item("note.txt")
+        assertEquals(SyncItemState.PENDING_UPLOAD.name, item?.syncState)
+        assertNull(item?.driveFileId)
+        assertNotNull(builder.localFs.file("note.txt"))
     }
 
     @Test

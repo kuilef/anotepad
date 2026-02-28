@@ -19,6 +19,8 @@ class FakeLocalFsGateway : LocalFsGateway {
 
     private val filesByRoot = mutableMapOf<String, MutableMap<String, FakeFile>>()
     private val dirsByRoot = mutableMapOf<String, MutableSet<String>>()
+    private val moveFailures = mutableSetOf<String>()
+    private val copyFailures = mutableSetOf<String>()
     private var clock = 1_000L
 
     fun putFile(rootId: String, path: String, content: String, lastModified: Long = nextTs()) {
@@ -33,6 +35,16 @@ class FakeLocalFsGateway : LocalFsGateway {
 
     fun allFiles(rootId: String = DEFAULT_ROOT): Map<String, FakeFile> {
         return filesByRoot[rootId]?.toMap().orEmpty()
+    }
+
+    fun failMove(path: String): FakeLocalFsGateway {
+        moveFailures += path
+        return this
+    }
+
+    fun failCopy(path: String): FakeLocalFsGateway {
+        copyFailures += path
+        return this
     }
 
     override suspend fun listFilesRecursive(rootId: String): List<LocalFileEntry> {
@@ -98,6 +110,7 @@ class FakeLocalFsGateway : LocalFsGateway {
 
     override suspend fun moveFile(rootId: String, fromPath: String, toPath: String): Boolean {
         calls += "moveFile:$rootId:$fromPath->$toPath"
+        if (moveFailures.contains(fromPath)) return false
         val rootFiles = filesByRoot.getOrPut(rootId) { mutableMapOf() }
         val from = rootFiles.remove(fromPath) ?: return false
         rootFiles[toPath] = from.copy(lastModified = nextTs())
@@ -107,6 +120,7 @@ class FakeLocalFsGateway : LocalFsGateway {
 
     override suspend fun copyFile(rootId: String, fromPath: String, toPath: String): Boolean {
         calls += "copyFile:$rootId:$fromPath->$toPath"
+        if (copyFailures.contains(fromPath)) return false
         val from = filesByRoot[rootId]?.get(fromPath) ?: return false
         val rootFiles = filesByRoot.getOrPut(rootId) { mutableMapOf() }
         rootFiles[toPath] = FakeFile(from.content.copyOf(), nextTs())
@@ -141,6 +155,7 @@ class FakeLocalFsGateway : LocalFsGateway {
         var text = input.trim()
         text = text.replace(Regex("^[\\s\\u3000]+"), "")
         text = text.replace(Regex("[\\s\\u3000]+$"), "")
+        text = text.replace(Regex("[\\u0000-\\u001F\\u007F]"), "")
         text = text.replace(Regex("[/:,;*?\"<>|]"), "")
         text = text.replace("\\\\", "")
         return text

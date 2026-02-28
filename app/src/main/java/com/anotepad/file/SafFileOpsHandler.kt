@@ -9,8 +9,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 internal fun isSafeRelativePath(relativePath: String): Boolean {
+    if (relativePath.isBlank()) return true
     if (relativePath.startsWith('/')) return false
-    return relativePath.split('/').none { it == ".." }
+    if (relativePath.contains('\\')) return false
+    if (relativePath.any { it.isISOControl() }) return false
+    val segments = relativePath.split('/')
+    if (segments.any { it.isBlank() }) return false
+    return segments.none { segment ->
+        val normalized = segment.lowercase()
+        segment == "." ||
+            segment == ".." ||
+            normalized == "%2e" ||
+            normalized == "%2e%2e" ||
+            normalized == ".%2e" ||
+            normalized == "%2e."
+    }
 }
 
 class SafFileOpsHandler(

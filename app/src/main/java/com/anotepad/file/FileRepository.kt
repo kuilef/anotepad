@@ -114,6 +114,7 @@ class FileRepository(
         var text = input.trim()
         text = text.replace(Regex("^[.\\s\\u3000]+"), "")
         text = text.replace(Regex("[\\s\\u3000]+$"), "")
+        text = text.replace(Regex("[\\u0000-\\u001F\\u007F]"), "")
         text = text.replace(Regex("[/\\\\:*?\"<>|]"), "")
         return when (text) {
             ".", ".." -> ""

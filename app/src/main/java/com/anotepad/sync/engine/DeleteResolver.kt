@@ -51,13 +51,22 @@ class DeleteResolver(
         store.deleteItemByPath(path)
     }
 
-    suspend fun moveLocalToTrash(rootId: String, relativePath: String) {
-        if (!localFs.exists(rootId, relativePath)) return
+    suspend fun moveLocalToTrash(rootId: String, relativePath: String): TrashMoveResult {
+        if (!localFs.exists(rootId, relativePath)) return TrashMoveResult.MISSING
         localFs.ensureDirectory(rootId, TRASH_DIR)
         val name = relativePath.substringAfterLast('/')
         val newName = buildConflictName("$TRASH_DIR/$name")
-        localFs.copyFile(rootId, relativePath, newName)
-        localFs.deleteFile(rootId, relativePath)
+        if (localFs.moveFile(rootId, relativePath, newName)) {
+            return TrashMoveResult.MOVED
+        }
+        if (!localFs.copyFile(rootId, relativePath, newName)) {
+            return TrashMoveResult.FAILED
+        }
+        return if (localFs.deleteFile(rootId, relativePath)) {
+            TrashMoveResult.MOVED
+        } else {
+            TrashMoveResult.FAILED
+        }
     }
 
     private suspend fun handleRemoteFileDeletion(rootId: String, driveFileId: String) {
@@ -81,27 +90,38 @@ class DeleteResolver(
             return
         }
 
-        moveLocalToTrash(rootId, existing.localRelativePath)
-        store.deleteItemByPath(existing.localRelativePath)
+        when (moveLocalToTrash(rootId, existing.localRelativePath)) {
+            TrashMoveResult.MOVED, TrashMoveResult.MISSING -> {
+                store.deleteItemByPath(existing.localRelativePath)
+            }
+
+            TrashMoveResult.FAILED -> {
+                markPendingUpload(existing)
+            }
+        }
     }
 
     private suspend fun handleRemoteFolderDeletion(rootId: String, folderPath: String) {
         val items = store.getItemsByPathPrefix(folderPath)
+        var hasRetainedLocalItems = false
         for (item in items) {
             val localMeta = localFs.getFileMeta(rootId, item.localRelativePath)
             val localModified = localMeta?.lastModified ?: 0L
             val lastSynced = item.lastSyncedAt ?: 0L
             if (localModified > lastSynced) {
-                store.upsertItem(
-                    item.copy(
-                        driveFileId = null,
-                        driveModifiedTime = null,
-                        syncState = SyncItemState.PENDING_UPLOAD.name
-                    )
-                )
+                markPendingUpload(item)
+                hasRetainedLocalItems = true
             } else {
-                moveLocalToTrash(rootId, item.localRelativePath)
-                store.deleteItemByPath(item.localRelativePath)
+                when (moveLocalToTrash(rootId, item.localRelativePath)) {
+                    TrashMoveResult.MOVED, TrashMoveResult.MISSING -> {
+                        store.deleteItemByPath(item.localRelativePath)
+                    }
+
+                    TrashMoveResult.FAILED -> {
+                        markPendingUpload(item)
+                        hasRetainedLocalItems = true
+                    }
+                }
             }
         }
 
@@ -109,6 +129,24 @@ class DeleteResolver(
         for (folder in folders) {
             store.deleteFolderByPath(folder.localRelativePath)
         }
-        localFs.deleteDirectory(rootId, folderPath)
+        if (!hasRetainedLocalItems) {
+            localFs.deleteDirectory(rootId, folderPath)
+        }
+    }
+
+    private suspend fun markPendingUpload(item: SyncItemEntity) {
+        store.upsertItem(
+            item.copy(
+                driveFileId = null,
+                driveModifiedTime = null,
+                syncState = SyncItemState.PENDING_UPLOAD.name
+            )
+        )
+    }
+
+    enum class TrashMoveResult {
+        MOVED,
+        MISSING,
+        FAILED
     }
 }

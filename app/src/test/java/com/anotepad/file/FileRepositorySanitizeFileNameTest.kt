@@ -93,4 +93,9 @@ class FileRepositorySanitizeFileNameTest {
     fun sanitize_returnsEmptyForDotOnlyNames() {
         assertEquals("", repository.sanitizeFileName(".."))
     }
+
+    @Test
+    fun sanitize_removesControlCharacters() {
+        assertEquals("reportfinal.txt", repository.sanitizeFileName("report\u0000final\u001F.txt"))
+    }
 }
