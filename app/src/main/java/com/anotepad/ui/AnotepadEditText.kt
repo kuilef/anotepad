@@ -1,6 +1,9 @@
 package com.anotepad.ui
 
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -23,11 +26,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 class AnotepadEditorEditText(context: Context) : EditText(context) {
     private val viewConfiguration = ViewConfiguration.get(context)
     private val scroller = OverScroller(context)
+    private val density = context.resources.displayMetrics.density
+    private val scrollIndicatorWidthPx = max(1, (2f * density).roundToInt())
+    private val scrollIndicatorInsetPx = max(1, (1f * density).roundToInt())
+    private val minScrollIndicatorHeightPx = max(1, (24f * density).roundToInt())
+    private val scrollIndicatorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = Color.argb(96, 0, 0, 0)
+    }
     private var velocityTracker: VelocityTracker? = null
     private var suppressChangesDepth = 0
     private var suppressHistoryDepth = 0
@@ -55,6 +67,15 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     fun isChangeCallbacksSuppressed(): Boolean = suppressChangesDepth > 0
 
     fun isHistoryCallbacksSuppressed(): Boolean = suppressHistoryDepth > 0
+
+    fun updateScrollIndicatorColor(textColor: Int) {
+        scrollIndicatorPaint.color = Color.argb(
+            96,
+            Color.red(textColor),
+            Color.green(textColor),
+            Color.blue(textColor)
+        )
+    }
 
     fun stopFling() {
         abortFling()
@@ -116,6 +137,11 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         return handled
     }
 
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        drawScrollIndicator(canvas)
+    }
+
     override fun computeScroll() {
         if (scroller.computeScrollOffset()) {
             scrollTo(scrollX, scroller.currY)
@@ -137,6 +163,11 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         abortFling()
+    }
+
+    override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {
+        super.onScrollChanged(l, t, oldl, oldt)
+        invalidate()
     }
 
     override fun onDetachedFromWindow() {
@@ -203,6 +234,32 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         restoreCursorAfterTouch = false
     }
 
+    private fun drawScrollIndicator(canvas: Canvas) {
+        val range = computeVerticalScrollRange()
+        val extent = computeVerticalScrollExtent()
+        if (range <= extent || extent <= 0) return
+        val trackTop = paddingTop + scrollIndicatorInsetPx
+        val trackBottom = height - paddingBottom - scrollIndicatorInsetPx
+        val trackHeight = trackBottom - trackTop
+        if (trackHeight <= 0) return
+        val thumbHeight = max(minScrollIndicatorHeightPx, ((trackHeight.toFloat() * extent) / range).roundToInt())
+            .coerceAtMost(trackHeight)
+        val maxOffset = (range - extent).coerceAtLeast(1)
+        val offset = computeVerticalScrollOffset().coerceIn(0, maxOffset)
+        val thumbTop = trackTop + ((trackHeight - thumbHeight) * offset.toFloat() / maxOffset).roundToInt()
+        val thumbLeft = width - scrollIndicatorInsetPx - scrollIndicatorWidthPx
+        val thumbRight = width - scrollIndicatorInsetPx
+        canvas.drawRoundRect(
+            thumbLeft.toFloat(),
+            thumbTop.toFloat(),
+            thumbRight.toFloat(),
+            (thumbTop + thumbHeight).toFloat(),
+            scrollIndicatorWidthPx.toFloat(),
+            scrollIndicatorWidthPx.toFloat(),
+            scrollIndicatorPaint
+        )
+    }
+
     private fun resetTouchTracking() {
         activePointerId = MotionEvent.INVALID_POINTER_ID
         hasVerticalDrag = false
@@ -252,6 +309,7 @@ fun AnotepadEditText(
                 setText(text)
                 setBackgroundColor(backgroundColor)
                 setTextColor(textColor)
+                updateScrollIndicatorColor(textColor)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, editorFontSizeSp)
                 inputType = InputType.TYPE_CLASS_TEXT or
                     InputType.TYPE_TEXT_FLAG_MULTI_LINE or
@@ -264,7 +322,7 @@ fun AnotepadEditText(
                 setSingleLine(false)
                 setHorizontallyScrolling(false)
                 isNestedScrollingEnabled = false
-                isVerticalScrollBarEnabled = true
+                isVerticalScrollBarEnabled = false
                 overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
                 val density = context.resources.displayMetrics.density
                 val paddingPx = (2f * density).roundToInt()
@@ -355,6 +413,7 @@ fun AnotepadEditText(
             if (editText.currentTextColor != textColor) {
                 editText.setTextColor(textColor)
             }
+            editText.updateScrollIndicatorColor(textColor)
             editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, editorFontSizeSp)
             editText.setBackgroundColor(backgroundColor)
             val density = editText.resources.displayMetrics.density
