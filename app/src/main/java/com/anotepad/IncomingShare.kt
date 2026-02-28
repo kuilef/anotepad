@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.core.text.HtmlCompat
 import androidx.lifecycle.SavedStateHandle
 import java.io.InputStreamReader
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,26 +34,21 @@ data class SharedNoteDraft(
 class IncomingShareManager(
     private val savedStateHandle: SavedStateHandle
 ) {
-    private val _shareRequests = MutableStateFlow(
-        savedStateHandle.get<String>(STATE_PENDING_SHARE_TEXT)?.let(::SharedTextPayload)
-            ?: IncomingShareRecoveryStore.peek()
-    )
+    private val _shareRequests = MutableStateFlow(IncomingShareRecoveryStore.peek())
     private var awaitingRootSelection = savedStateHandle[STATE_AWAITING_ROOT_SELECTION] ?: false
-    private var pendingEditorDraft: SharedNoteDraft? = savedStateHandle.restorePendingEditorDraft()
+    private var pendingEditorDraft: SharedNoteDraft? = null
     val shareRequests: StateFlow<SharedTextPayload?> = _shareRequests.asStateFlow()
 
     fun peekPendingShare(): SharedTextPayload? = _shareRequests.value
 
     suspend fun submitShare(payload: SharedTextPayload) {
         IncomingShareRecoveryStore.persist(payload)
-        savedStateHandle[STATE_PENDING_SHARE_TEXT] = payload.text
         _shareRequests.value = payload
     }
 
     suspend fun clearPendingShare() {
         IncomingShareRecoveryStore.clear()
         awaitingRootSelection = false
-        savedStateHandle.set<String?>(STATE_PENDING_SHARE_TEXT, null)
         savedStateHandle[STATE_AWAITING_ROOT_SELECTION] = false
         _shareRequests.value = null
     }
@@ -68,8 +64,6 @@ class IncomingShareManager(
 
     fun setPendingEditorDraft(draft: SharedNoteDraft) {
         pendingEditorDraft = draft
-        savedStateHandle[STATE_PENDING_EDITOR_DRAFT_NAME] = draft.fileName
-        savedStateHandle[STATE_PENDING_EDITOR_DRAFT_CONTENT] = draft.content
     }
 
     fun peekPendingEditorDraft(): SharedNoteDraft? {
@@ -79,8 +73,6 @@ class IncomingShareManager(
     fun consumePendingEditorDraft(): SharedNoteDraft? {
         val draft = peekPendingEditorDraft()
         pendingEditorDraft = null
-        savedStateHandle.set<String?>(STATE_PENDING_EDITOR_DRAFT_NAME, null)
-        savedStateHandle.set<String?>(STATE_PENDING_EDITOR_DRAFT_CONTENT, null)
         return draft
     }
 }
@@ -115,19 +107,25 @@ private fun extractClipText(context: Context, intent: Intent): String? {
                 HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_LEGACY).toString().take(MAX_SHARED_TEXT_CHARS)
             }
             ?: item.uri?.let { uri ->
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    InputStreamReader(input, Charsets.UTF_8).use { reader ->
-                        val buffer = CharArray(SHARED_TEXT_READ_BUFFER_SIZE)
-                        val builder = StringBuilder()
-                        var remaining = MAX_SHARED_TEXT_CHARS
-                        while (remaining > 0) {
-                            val read = reader.read(buffer, 0, minOf(buffer.size, remaining))
-                            if (read <= 0) break
-                            builder.append(buffer, 0, read)
-                            remaining -= read
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        InputStreamReader(input, Charsets.UTF_8).use { reader ->
+                            val buffer = CharArray(SHARED_TEXT_READ_BUFFER_SIZE)
+                            val builder = StringBuilder()
+                            var remaining = MAX_SHARED_TEXT_CHARS
+                            while (remaining > 0) {
+                                val read = reader.read(buffer, 0, minOf(buffer.size, remaining))
+                                if (read <= 0) break
+                                builder.append(buffer, 0, read)
+                                remaining -= read
+                            }
+                            builder.toString()
                         }
-                        builder.toString()
                     }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
                 }
             }
         if (!text.isNullOrBlank()) return text
@@ -174,13 +172,4 @@ internal fun isManagedSharedFileName(fileName: String): Boolean {
 }
 
 private const val SHARED_TEXT_READ_BUFFER_SIZE = 8 * 1024
-private const val STATE_PENDING_SHARE_TEXT = "pending_share_text"
 private const val STATE_AWAITING_ROOT_SELECTION = "awaiting_root_selection"
-private const val STATE_PENDING_EDITOR_DRAFT_NAME = "pending_editor_draft_name"
-private const val STATE_PENDING_EDITOR_DRAFT_CONTENT = "pending_editor_draft_content"
-
-private fun SavedStateHandle.restorePendingEditorDraft(): SharedNoteDraft? {
-    val fileName = get<String>(STATE_PENDING_EDITOR_DRAFT_NAME) ?: return null
-    val content = get<String>(STATE_PENDING_EDITOR_DRAFT_CONTENT) ?: return null
-    return SharedNoteDraft(fileName = fileName, content = content)
-}

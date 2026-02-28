@@ -203,9 +203,11 @@ class BrowserViewModel(
         val sanitized = fileRepository.sanitizeFileName(newName)
         if (sanitized.isBlank()) return
         val resolvedName = if (node.isDirectory) {
-            sanitized
+            truncateNameToByteLimit(sanitized)
         } else {
-            appendExtensionIfMissing(sanitized, node.name)
+            truncateFileNameToByteLimitPreservingExtension(
+                appendExtensionIfMissing(sanitized, node.name)
+            )
         }
         if (resolvedName == node.name) return
         viewModelScope.launch {

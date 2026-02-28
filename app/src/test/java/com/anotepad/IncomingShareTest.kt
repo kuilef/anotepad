@@ -1,6 +1,7 @@
 package com.anotepad
 
 import androidx.lifecycle.SavedStateHandle
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -60,6 +61,7 @@ class IncomingShareTest {
 
     @Test
     fun incomingShareManager_restoresPendingShareAcrossRecreation() = runBlocking {
+        setStoreFile(createStoreFile())
         val handle = SavedStateHandle()
         val manager = IncomingShareManager(handle)
 
@@ -73,7 +75,7 @@ class IncomingShareTest {
     }
 
     @Test
-    fun incomingShareManager_restoresPendingDraftAcrossRecreation() {
+    fun incomingShareManager_keepsPendingDraftAvailableUntilConsumed() {
         val handle = SavedStateHandle()
         val manager = IncomingShareManager(handle)
         val draft = SharedNoteDraft(
@@ -83,14 +85,31 @@ class IncomingShareTest {
 
         manager.setPendingEditorDraft(draft)
 
-        val restored = IncomingShareManager(handle)
+        assertEquals(draft, manager.consumePendingEditorDraft())
+        assertNull(manager.consumePendingEditorDraft())
+    }
 
-        assertEquals(draft, restored.consumePendingEditorDraft())
-        assertNull(restored.consumePendingEditorDraft())
+    @Test
+    fun incomingShareManager_doesNotPersistLargePayloadsInSavedStateHandle() = runBlocking {
+        setStoreFile(createStoreFile())
+        val handle = SavedStateHandle()
+        val manager = IncomingShareManager(handle)
+        val draft = SharedNoteDraft(
+            fileName = "Shared 2026-02-28 14-35-12.txt",
+            content = "Shared 2026-02-28 14-35-12.txt\n\n" + "A".repeat(8_192)
+        )
+
+        manager.submitShare(SharedTextPayload("A".repeat(8_192)))
+        manager.setPendingEditorDraft(draft)
+
+        assertNull(handle.get<String>("pending_share_text"))
+        assertNull(handle.get<String>("pending_editor_draft_name"))
+        assertNull(handle.get<String>("pending_editor_draft_content"))
     }
 
     @Test
     fun incomingShareManager_clearPendingShareResetsAwaitingSelection() = runBlocking {
+        setStoreFile(createStoreFile())
         val handle = SavedStateHandle()
         val manager = IncomingShareManager(handle)
 
@@ -104,6 +123,7 @@ class IncomingShareTest {
 
     @Test
     fun incomingShareManager_replacesPendingShareWithoutDroppingAwaitingSelection() = runBlocking {
+        setStoreFile(createStoreFile())
         val handle = SavedStateHandle()
         val manager = IncomingShareManager(handle)
 
@@ -113,5 +133,16 @@ class IncomingShareTest {
 
         assertEquals(SharedTextPayload("Second share"), manager.peekPendingShare())
         assertTrue(manager.isAwaitingRootSelection())
+    }
+
+    private fun createStoreFile(): File {
+        val root = createTempDir(prefix = "incoming-share-manager")
+        return File(root, "recovery.json")
+    }
+
+    private fun setStoreFile(file: File) {
+        val field = IncomingShareRecoveryStore::class.java.getDeclaredField("file")
+        field.isAccessible = true
+        field.set(IncomingShareRecoveryStore, file)
     }
 }

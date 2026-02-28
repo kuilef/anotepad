@@ -12,6 +12,7 @@ import com.anotepad.file.DocumentNode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.InputStream
 
@@ -120,5 +121,25 @@ class EditorFileNameBuilderTest {
         val fileName = buildFileNameFromText(noteText, ".txt", repository::sanitizeFileName)
 
         assertEquals("Untitled.txt", fileName)
+    }
+
+    @Test
+    fun truncateFileNameToByteLimitPreservingExtension_keepsExtensionWithinLimit() {
+        val longName = "${"a".repeat(400)}.txt"
+
+        val fileName = truncateFileNameToByteLimitPreservingExtension(longName)
+
+        assertTrue(fileName.endsWith(".txt"))
+        assertTrue(fileName.toByteArray(Charsets.UTF_8).size <= MAX_FILE_NAME_BYTES)
+    }
+
+    @Test
+    fun truncateFileNameToByteLimitPreservingExtension_truncatesPlainNames() {
+        val longName = "b".repeat(400)
+
+        val fileName = truncateFileNameToByteLimitPreservingExtension(longName)
+
+        assertTrue(fileName.toByteArray(Charsets.UTF_8).size <= MAX_FILE_NAME_BYTES)
+        assertTrue(fileName.all { it == 'b' })
     }
 }

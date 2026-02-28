@@ -23,6 +23,7 @@ import com.anotepad.sync.SyncScheduler
 import com.anotepad.sync.db.SyncDatabase
 import com.anotepad.ui.FeedManager
 import com.anotepad.ui.theme.ANotepadTheme
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -101,7 +102,13 @@ class MainActivity : ComponentActivity() {
     private fun dispatchIncomingShare(intent: Intent?) {
         if (!isSupportedShareIntent(intent)) return
         lifecycleScope.launch(Dispatchers.IO) {
-            val payload = extractSharedTextPayload(applicationContext, intent)
+            val payload = try {
+                extractSharedTextPayload(applicationContext, intent)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
             if (payload == null) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, R.string.error_shared_text_empty, Toast.LENGTH_SHORT).show()
