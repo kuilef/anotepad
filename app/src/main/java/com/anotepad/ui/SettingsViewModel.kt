@@ -36,6 +36,10 @@ class SettingsViewModel(private val preferencesRepository: PreferencesRepository
         viewModelScope.launch { preferencesRepository.setAutoLinkTel(enabled) }
     }
 
+    fun setOpenNotesInReadMode(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepository.setOpenNotesInReadMode(enabled) }
+    }
+
     fun setSyncTitle(enabled: Boolean) {
         viewModelScope.launch { preferencesRepository.setSyncTitle(enabled) }
     }

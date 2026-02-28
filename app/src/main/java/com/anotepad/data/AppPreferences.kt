@@ -5,6 +5,7 @@ data class AppPreferences(
     val autoLinkWeb: Boolean = true,
     val autoLinkEmail: Boolean = true,
     val autoLinkTel: Boolean = false,
+    val openNotesInReadMode: Boolean = false,
     val syncTitle: Boolean = true,
     val autoSaveDebounceMs: Long = 1200L,
     val autoSaveEnabled: Boolean = true,

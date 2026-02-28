@@ -63,6 +63,8 @@
     <string name="label_autolink_web">Autolink web</string>
     <string name="label_autolink_email">Autolink email</string>
     <string name="label_autolink_tel">Autolink phone</string>
+    <string name="label_open_notes_in_read_mode">Open notes in read mode</string>
+    <string name="label_open_notes_in_read_mode_hint">Do not show the keyboard automatically when opening a note.</string>
     <string name="label_sync_title">Sync title with filename</string>
     <string name="label_editor_title_new">New note</string>
     <string name="label_unsaved">Unsaved</string>

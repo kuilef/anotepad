@@ -155,8 +155,10 @@ fun EditorScreen(
         }
     }
 
-    LaunchedEffect(editTextRef, state.loadToken) {
-        editTextRef?.let { focusAndShowKeyboard(it) }
+    LaunchedEffect(editTextRef, state.loadToken, state.editorPrefsLoaded, state.openNotesInReadMode) {
+        if (state.editorPrefsLoaded && !state.openNotesInReadMode) {
+            editTextRef?.let { focusAndShowKeyboard(it) }
+        }
     }
 
     LaunchedEffect(Unit) {

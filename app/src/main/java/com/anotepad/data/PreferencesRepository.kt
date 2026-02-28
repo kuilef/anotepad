@@ -19,6 +19,7 @@ class PreferencesRepository(private val context: Context) {
         val AUTO_LINK_WEB = booleanPreferencesKey("auto_link_web")
         val AUTO_LINK_EMAIL = booleanPreferencesKey("auto_link_email")
         val AUTO_LINK_TEL = booleanPreferencesKey("auto_link_tel")
+        val OPEN_NOTES_IN_READ_MODE = booleanPreferencesKey("open_notes_in_read_mode")
         val SYNC_TITLE = booleanPreferencesKey("sync_title")
         val AUTO_SAVE_DEBOUNCE = longPreferencesKey("autosave_debounce_ms")
         val AUTO_SAVE_ENABLED = booleanPreferencesKey("autosave_enabled")
@@ -48,6 +49,7 @@ class PreferencesRepository(private val context: Context) {
             autoLinkWeb = prefs[Keys.AUTO_LINK_WEB] ?: true,
             autoLinkEmail = prefs[Keys.AUTO_LINK_EMAIL] ?: true,
             autoLinkTel = prefs[Keys.AUTO_LINK_TEL] ?: false,
+            openNotesInReadMode = prefs[Keys.OPEN_NOTES_IN_READ_MODE] ?: false,
             syncTitle = prefs[Keys.SYNC_TITLE] ?: true,
             autoSaveDebounceMs = prefs[Keys.AUTO_SAVE_DEBOUNCE] ?: 1200L,
             autoSaveEnabled = prefs[Keys.AUTO_SAVE_ENABLED] ?: true,
@@ -89,6 +91,10 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setAutoLinkTel(enabled: Boolean) {
         context.dataStore.edit { it[Keys.AUTO_LINK_TEL] = enabled }
+    }
+
+    suspend fun setOpenNotesInReadMode(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.OPEN_NOTES_IN_READ_MODE] = enabled }
     }
 
     suspend fun setSyncTitle(enabled: Boolean) {

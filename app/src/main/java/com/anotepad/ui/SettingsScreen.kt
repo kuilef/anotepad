@@ -166,6 +166,16 @@ fun SettingsScreen(
                 onToggle = viewModel::setAutoLinkTel
             )
             SettingRow(
+                title = stringResource(id = R.string.label_open_notes_in_read_mode),
+                checked = prefs.openNotesInReadMode,
+                onToggle = viewModel::setOpenNotesInReadMode
+            )
+            Text(
+                text = stringResource(id = R.string.label_open_notes_in_read_mode_hint),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 8.dp)
+            )
+            SettingRow(
                 title = stringResource(id = R.string.label_sync_title),
                 checked = prefs.syncTitle,
                 onToggle = viewModel::setSyncTitle

@@ -40,6 +40,8 @@ data class EditorState(
     val autoLinkWeb: Boolean = false,
     val autoLinkEmail: Boolean = false,
     val autoLinkTel: Boolean = false,
+    val editorPrefsLoaded: Boolean = false,
+    val openNotesInReadMode: Boolean = false,
     val syncTitle: Boolean = false,
     val newFileExtension: String = "txt",
     val editorFontSizeSp: Float = 16f,
@@ -100,6 +102,8 @@ class EditorViewModel(
                         autoLinkWeb = prefs.autoLinkWeb,
                         autoLinkEmail = prefs.autoLinkEmail,
                         autoLinkTel = prefs.autoLinkTel,
+                        editorPrefsLoaded = true,
+                        openNotesInReadMode = prefs.openNotesInReadMode,
                         syncTitle = prefs.syncTitle,
                         editorFontSizeSp = prefs.editorFontSizeSp
                     )
@@ -303,6 +307,17 @@ class EditorViewModel(
     private suspend fun ensureTemplatePrefsLoaded() {
         if (prefsLoaded) return
         val prefs = preferencesRepository.preferencesFlow.first()
+        _state.update {
+            it.copy(
+                autoLinkWeb = prefs.autoLinkWeb,
+                autoLinkEmail = prefs.autoLinkEmail,
+                autoLinkTel = prefs.autoLinkTel,
+                editorPrefsLoaded = true,
+                openNotesInReadMode = prefs.openNotesInReadMode,
+                syncTitle = prefs.syncTitle,
+                editorFontSizeSp = prefs.editorFontSizeSp
+            )
+        }
         autoInsertTemplateEnabled = prefs.autoInsertTemplateEnabled
         autoInsertTemplate = prefs.autoInsertTemplate
         prefsLoaded = true
