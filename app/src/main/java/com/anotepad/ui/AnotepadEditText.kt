@@ -162,7 +162,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
 
     private fun abortFling() {
         if (!scroller.isFinished) {
-            scroller.abortAnimation()
+            scroller.forceFinished(true)
         }
     }
 
