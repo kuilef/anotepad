@@ -15,6 +15,9 @@ local.properties
 Thumbs.db
 
 app/build/
+app/debug/
+app/release/
+app/keystore/
 .kotlin/
 build/
 
@@ -29,3 +32,5 @@ keystore.properties
 .android-sdk/
 .jdks/
 .gradle-wsl/
+
+screenshots/
