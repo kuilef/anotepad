@@ -330,7 +330,7 @@ fun AnotepadEditText(
                 val density = context.resources.displayMetrics.density
                 val horizontalPaddingPx = (12f * density).roundToInt()
                 val topPaddingPx = (8f * density).roundToInt()
-                val bottomPaddingPx = topPaddingPx + lineHeight.coerceAtLeast(0)
+                val bottomPaddingPx = (8f * density).roundToInt()
                 setPaddingRelative(
                     horizontalPaddingPx,
                     topPaddingPx,
@@ -429,8 +429,7 @@ fun AnotepadEditText(
             val density = editText.resources.displayMetrics.density
             val horizontalPaddingPx = (12f * density).roundToInt()
             val topPaddingPx = (8f * density).roundToInt()
-            val extraLinePx = editText.lineHeight.coerceAtLeast(0)
-            val targetBottom = topPaddingPx + extraLinePx
+            val targetBottom = (8f * density).roundToInt()
             if (
                 editText.paddingStart != horizontalPaddingPx ||
                 editText.paddingTop != topPaddingPx ||
