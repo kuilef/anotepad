@@ -139,7 +139,10 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        canvas.save()
+        canvas.translate(scrollX.toFloat(), scrollY.toFloat())
         drawScrollIndicator(canvas)
+        canvas.restore()
     }
 
     override fun computeScroll() {
