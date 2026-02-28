@@ -104,6 +104,10 @@ fun EditorScreen(
     val context = LocalContext.current
     val truncatedMessage = stringResource(id = R.string.label_editor_truncated_notice)
     val saveFailedMessage = stringResource(id = R.string.error_note_save_failed)
+    val discardChangesTitle = stringResource(id = R.string.label_editor_discard_changes_title)
+    val discardChangesMessage = stringResource(id = R.string.label_editor_discard_changes_message)
+    val leaveWithoutSavingLabel = stringResource(id = R.string.action_leave_without_saving)
+    var showDiscardChangesDialog by remember { mutableStateOf(false) }
 
     fun triggerBack() {
         if (backInProgress) return
@@ -120,7 +124,7 @@ fun EditorScreen(
                 return@launch
             }
             if (viewModel.hasUnsavedChanges()) {
-                Toast.makeText(context, saveFailedMessage, Toast.LENGTH_SHORT).show()
+                showDiscardChangesDialog = true
                 backInProgress = false
                 return@launch
             }
@@ -258,6 +262,32 @@ fun EditorScreen(
             dismissButton = {
                 TextButton(onClick = { viewModel.reloadExternalChange() }) {
                     Text(text = stringResource(id = R.string.action_reload))
+                }
+            }
+        )
+    }
+
+    if (showDiscardChangesDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardChangesDialog = false },
+            title = { Text(text = discardChangesTitle) },
+            text = { Text(text = discardChangesMessage) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardChangesDialog = false
+                        scope.launch {
+                            viewModel.discardPendingSharedDraftRecovery()
+                            onBack(null)
+                        }
+                    }
+                ) {
+                    Text(text = leaveWithoutSavingLabel)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardChangesDialog = false }) {
+                    Text(text = stringResource(id = R.string.action_cancel))
                 }
             }
         )

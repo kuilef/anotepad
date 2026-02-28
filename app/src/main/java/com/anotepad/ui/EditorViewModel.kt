@@ -155,6 +155,7 @@ class EditorViewModel(
     private var lastKnownModified: Long? = null
     private var truncatedNoticeCounter = 0L
     private var hasPendingSharedDraftRecovery = false
+    private var activeSharedDraftRecovery: SharedNoteDraft? = null
     private val saveMutex = Mutex()
     val undoStack = mutableStateListOf<TextSnapshot>()
     val redoStack = mutableStateListOf<TextSnapshot>()
@@ -205,6 +206,7 @@ class EditorViewModel(
             ensureTemplatePrefsLoaded()
             isLoaded = false
             hasPendingSharedDraftRecovery = false
+            activeSharedDraftRecovery = null
             openedFileUri = fileUri
             templateInsertionSelection = null
             loadCounter += 1
@@ -260,6 +262,7 @@ class EditorViewModel(
             ensureTemplatePrefsLoaded()
             isLoaded = false
             hasPendingSharedDraftRecovery = true
+            activeSharedDraftRecovery = draft
             openedFileUri = null
             templateInsertionSelection = null
             loadCounter += 1
@@ -344,6 +347,10 @@ class EditorViewModel(
     fun hasExternalChangePending(): Boolean = _state.value.externalChangeDetectedAt != null
 
     fun hasUnsavedChanges(): Boolean = _state.value.canSave
+
+    suspend fun discardPendingSharedDraftRecovery() {
+        clearCurrentSharedDraftRecovery()
+    }
 
     fun showExternalChangeDialog() {
         if (_state.value.externalChangeDetectedAt == null) return
@@ -453,12 +460,11 @@ class EditorViewModel(
 
     fun popRedoSnapshot(): TextSnapshot? = historyManager.popRedo()
 
-    private fun discardBlankSharedDraftRecoveryIfNeeded(state: EditorState) {
+    private suspend fun discardBlankSharedDraftRecoveryIfNeeded(state: EditorState) {
         if (!shouldDiscardBlankSharedDraftRecovery(hasPendingSharedDraftRecovery, state.fileUri, state.text)) {
             return
         }
-        sharedDraftRecoveryStore.clear()
-        hasPendingSharedDraftRecovery = false
+        clearCurrentSharedDraftRecovery()
     }
 
     private suspend fun saveIfNeeded(text: String, ignoreExternalChange: Boolean = false): Boolean {
@@ -535,8 +541,7 @@ class EditorViewModel(
 
                 _state.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
                 if (shouldClearSharedDraftRecovery) {
-                    sharedDraftRecoveryStore.clear()
-                    hasPendingSharedDraftRecovery = false
+                    clearCurrentSharedDraftRecovery()
                 }
                 updateCanSaveState()
                 syncScheduler.scheduleDebounced()
@@ -628,6 +633,15 @@ class EditorViewModel(
             (current.fileUri != null || (current.dirUri != null && current.text.isNotBlank()))
         if (current.canSave == canSave) return
         _state.update { it.copy(canSave = canSave) }
+    }
+
+    private suspend fun clearCurrentSharedDraftRecovery() {
+        val draft = activeSharedDraftRecovery
+        if (draft != null) {
+            sharedDraftRecoveryStore.remove(draft)
+        }
+        hasPendingSharedDraftRecovery = false
+        activeSharedDraftRecovery = null
     }
 
     private fun shouldSuppressSyncTitleForNote(dirUri: Uri?, fileName: String): Boolean {

@@ -68,7 +68,9 @@ fun AppNav(deps: AppDependencies) {
             if (incomingShareManager.peekPendingShare() != null) {
                 Toast.makeText(context, R.string.error_shared_folder_pick_cancelled, Toast.LENGTH_SHORT).show()
             }
-            incomingShareManager.clearPendingShare()
+            scope.launch {
+                incomingShareManager.clearPendingShare()
+            }
         }
     }
 
@@ -301,7 +303,7 @@ private fun resolveDriveFolderName(
     return displayPath.substringAfterLast('/').ifBlank { RECOMMENDED_FOLDER_NAME }
 }
 
-private fun handleSharedDraftOpenFailure(
+private suspend fun handleSharedDraftOpenFailure(
     context: android.content.Context,
     incomingShareManager: IncomingShareManager
 ) {

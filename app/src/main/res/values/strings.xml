@@ -22,6 +22,7 @@
     <string name="action_next">Next</string>
     <string name="action_done">Done</string>
     <string name="action_skip">Skip</string>
+    <string name="action_leave_without_saving">Leave anyway</string>
     <string name="action_reload">Reload</string>
     <string name="action_overwrite">Overwrite</string>
     <string name="action_undo">Undo</string>
@@ -75,6 +76,8 @@
     <string name="label_editor_truncated_notice">File is too large and was truncated while opening.</string>
     <string name="label_editor_external_change_title">File changed on disk</string>
     <string name="label_editor_external_change_message">This file was modified outside the editor. Reload to discard local edits or overwrite to keep them.</string>
+    <string name="label_editor_discard_changes_title">Leave without saving?</string>
+    <string name="label_editor_discard_changes_message">The note could not be saved. Leave the editor and discard recent changes?</string>
     <string name="label_pick_template">Pick a date/time template</string>
     <string name="label_create_note">Create note</string>
     <string name="label_extension">Extension</string>

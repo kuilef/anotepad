@@ -102,13 +102,13 @@ class MainActivity : ComponentActivity() {
         if (!isSupportedShareIntent(intent)) return
         lifecycleScope.launch(Dispatchers.IO) {
             val payload = extractSharedTextPayload(applicationContext, intent)
-            withContext(Dispatchers.Main) {
-                if (payload == null) {
+            if (payload == null) {
+                withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, R.string.error_shared_text_empty, Toast.LENGTH_SHORT).show()
-                    return@withContext
                 }
-                incomingShareViewModel.manager.submitShare(payload)
+                return@launch
             }
+            incomingShareViewModel.manager.submitShare(payload)
         }
     }
 }

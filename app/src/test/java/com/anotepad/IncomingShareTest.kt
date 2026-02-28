@@ -7,6 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Date
+import kotlinx.coroutines.runBlocking
 
 class IncomingShareTest {
 
@@ -22,6 +23,13 @@ class IncomingShareTest {
         val sanitized = sanitizeSharedText(" \u200B \uFEFF ")
 
         assertNull(sanitized)
+    }
+
+    @Test
+    fun sanitizeSharedText_limitsResultLength() {
+        val sanitized = sanitizeSharedText("A".repeat(MAX_SHARED_TEXT_CHARS + 128))
+
+        assertEquals(MAX_SHARED_TEXT_CHARS, sanitized?.length)
     }
 
     @Test
@@ -51,7 +59,7 @@ class IncomingShareTest {
     }
 
     @Test
-    fun incomingShareManager_restoresPendingShareAcrossRecreation() {
+    fun incomingShareManager_restoresPendingShareAcrossRecreation() = runBlocking {
         val handle = SavedStateHandle()
         val manager = IncomingShareManager(handle)
 
@@ -82,7 +90,7 @@ class IncomingShareTest {
     }
 
     @Test
-    fun incomingShareManager_clearPendingShareResetsAwaitingSelection() {
+    fun incomingShareManager_clearPendingShareResetsAwaitingSelection() = runBlocking {
         val handle = SavedStateHandle()
         val manager = IncomingShareManager(handle)
 
@@ -95,7 +103,7 @@ class IncomingShareTest {
     }
 
     @Test
-    fun incomingShareManager_replacesPendingShareWithoutDroppingAwaitingSelection() {
+    fun incomingShareManager_replacesPendingShareWithoutDroppingAwaitingSelection() = runBlocking {
         val handle = SavedStateHandle()
         val manager = IncomingShareManager(handle)
 

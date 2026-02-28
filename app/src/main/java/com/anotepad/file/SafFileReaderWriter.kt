@@ -4,10 +4,10 @@ import android.content.ContentResolver
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
+import java.io.Reader
 import java.security.MessageDigest
 
 class SafFileReaderWriter(
@@ -67,20 +67,8 @@ class SafFileReaderWriter(
         withContext(Dispatchers.IO) {
             if (query.isBlank()) return@withContext null
             resolver.openInputStream(fileUri)?.use { input ->
-                BufferedReader(InputStreamReader(input, Charsets.UTF_8)).use { reader ->
-                    var line = reader.readLine()
-                    while (line != null) {
-                        val match = if (regex != null) {
-                            regex.find(line)?.let { it.range.first to it.value.length }
-                        } else {
-                            val index = line.indexOf(query, ignoreCase = true)
-                            if (index >= 0) index to query.length else null
-                        }
-                        if (match != null) {
-                            return@withContext buildSearchSnippet(line, match.first, match.second)
-                        }
-                        line = reader.readLine()
-                    }
+                InputStreamReader(input, Charsets.UTF_8).use { reader ->
+                    return@withContext searchText(reader, query, regex)
                 }
             }
             null
@@ -117,13 +105,40 @@ class SafFileReaderWriter(
         Unit
     }
 
-    private fun buildSearchSnippet(line: String, start: Int, length: Int): String {
-        val from = (start - SEARCH_SNIPPET_WINDOW).coerceAtLeast(0)
-        val to = (start + length + SEARCH_SNIPPET_WINDOW).coerceAtMost(line.length)
-        val prefix = if (from > 0) "..." else ""
-        val suffix = if (to < line.length) "..." else ""
-        return prefix + line.substring(from, to).replace("\n", " ") + suffix
+}
+
+internal fun searchText(reader: Reader, query: String, regex: Regex?): String? {
+    if (query.isBlank()) return null
+    val buffer = CharArray(READ_BUFFER_SIZE)
+    val overlap = maxOf(query.length, SEARCH_MIN_OVERLAP)
+    val window = StringBuilder()
+    var read = reader.read(buffer)
+    while (read > 0) {
+        window.append(buffer, 0, read)
+        val text = window.toString()
+        val match = if (regex != null) {
+            regex.find(text)?.let { it.range.first to it.value.length }
+        } else {
+            val index = text.indexOf(query, ignoreCase = true)
+            if (index >= 0) index to query.length else null
+        }
+        if (match != null) {
+            return buildSearchSnippet(text, match.first, match.second)
+        }
+        if (window.length > overlap) {
+            window.delete(0, window.length - overlap)
+        }
+        read = reader.read(buffer)
     }
+    return null
+}
+
+private fun buildSearchSnippet(text: CharSequence, start: Int, length: Int): String {
+    val from = (start - SEARCH_SNIPPET_WINDOW).coerceAtLeast(0)
+    val to = (start + length + SEARCH_SNIPPET_WINDOW).coerceAtMost(text.length)
+    val prefix = if (from > 0) "..." else ""
+    val suffix = if (to < text.length) "..." else ""
+    return prefix + text.subSequence(from, to).toString().replace("\n", " ") + suffix
 }
 
 private const val MAX_TEXT_READ_CHARS = 5_000_000
@@ -131,4 +146,5 @@ private const val HASH_BUFFER_SIZE = 8 * 1024
 private const val READ_BUFFER_SIZE = 8 * 1024
 private const val PREVIEW_BUFFER_SIZE = 2 * 1024
 private const val SEARCH_SNIPPET_WINDOW = 48
+private const val SEARCH_MIN_OVERLAP = 4 * 1024
 private const val TRUNCATED_SUFFIX = "\n\n[...truncated]"

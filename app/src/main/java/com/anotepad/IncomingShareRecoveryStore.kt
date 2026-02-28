@@ -2,6 +2,8 @@ package com.anotepad
 
 import android.content.Context
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -17,7 +19,7 @@ internal object IncomingShareRecoveryStore {
         file = File(context.noBackupFilesDir, FILE_NAME)
     }
 
-    fun persist(payload: SharedTextPayload) {
+    suspend fun persist(payload: SharedTextPayload) = withContext(Dispatchers.IO) {
         val target = file ?: return
         runCatching {
             target.parentFile?.mkdirs()
@@ -40,7 +42,7 @@ internal object IncomingShareRecoveryStore {
         }.getOrNull()
     }
 
-    fun clear() {
+    suspend fun clear() = withContext(Dispatchers.IO) {
         val target = file ?: return
         runCatching {
             if (target.exists()) {
