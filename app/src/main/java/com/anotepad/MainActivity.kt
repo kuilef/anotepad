@@ -2,6 +2,7 @@ package com.anotepad
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
@@ -91,7 +92,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun dispatchIncomingShare(intent: Intent?) {
-        val payload = extractSharedTextPayload(applicationContext, intent) ?: return
+        if (!isSupportedShareIntent(intent)) return
+        val payload = extractSharedTextPayload(applicationContext, intent)
+        if (payload == null) {
+            Toast.makeText(this, R.string.error_shared_text_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
         incomingShareManager.submitShare(payload)
     }
 }

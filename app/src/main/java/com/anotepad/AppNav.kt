@@ -3,6 +3,7 @@ package com.anotepad
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -58,10 +59,15 @@ fun AppNav(deps: AppDependencies) {
                 val sharedText = pendingSharedText
                 if (sharedText != null) {
                     pendingSharedText = null
-                    openSharedDraft(navController, deps, uri, sharedText)
+                    if (!openSharedDraft(navController, deps, uri, sharedText)) {
+                        Toast.makeText(context, R.string.error_shared_note_save_failed, Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         } else {
+            if (pendingSharedText != null) {
+                Toast.makeText(context, R.string.error_shared_folder_pick_cancelled, Toast.LENGTH_SHORT).show()
+            }
             pendingSharedText = null
         }
     }

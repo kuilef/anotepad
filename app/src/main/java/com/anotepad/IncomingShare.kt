@@ -45,16 +45,20 @@ class IncomingShareManager {
     }
 }
 
-internal fun extractSharedTextPayload(context: Context, intent: Intent?): SharedTextPayload? {
-    if (intent?.action != Intent.ACTION_SEND) return null
+internal fun isSupportedShareIntent(intent: Intent?): Boolean {
+    if (intent?.action != Intent.ACTION_SEND) return false
     val type = intent.type
-    if (type != null && !type.startsWith("text/")) return null
+    return type == null || type.startsWith("text/")
+}
+
+internal fun extractSharedTextPayload(context: Context, intent: Intent?): SharedTextPayload? {
+    if (!isSupportedShareIntent(intent)) return null
 
     val rawText = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
         ?: intent.getStringExtra(Intent.EXTRA_HTML_TEXT)?.let { html ->
             HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_LEGACY).toString()
         }
-        ?: extractClipText(context, intent)
+        ?: extractClipText(context, intent ?: return null)
 
     val text = sanitizeSharedText(rawText) ?: return null
     return SharedTextPayload(text = text)

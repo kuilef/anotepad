@@ -120,6 +120,9 @@
     <string name="error_drive_picker_auth">Sign in required for Drive Picker.</string>
     <string name="error_drive_picker_failed">Drive Picker failed.</string>
     <string name="error_no_share_target">No app available to share this item.</string>
+    <string name="error_shared_text_empty">Shared text is empty.</string>
+    <string name="error_shared_note_save_failed">Could not save shared text.</string>
+    <string name="error_shared_folder_pick_cancelled">Shared text was not saved because no folder was selected.</string>
     <string name="label_loading">Loading...</string>
     <string name="label_no_folders">No folders found</string>
     <string name="label_file_list_font_size">File list font size</string>
