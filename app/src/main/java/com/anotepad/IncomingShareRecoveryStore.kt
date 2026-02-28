@@ -33,10 +33,10 @@ internal object IncomingShareRecoveryStore {
         }
     }
 
-    fun peek(): SharedTextPayload? {
-        val target = file ?: return null
-        return runCatching {
-            if (!target.exists()) return null
+    suspend fun peek(): SharedTextPayload? = withContext(Dispatchers.IO) {
+        val target = file ?: return@withContext null
+        runCatching {
+            if (!target.exists()) return@runCatching null
             val payload = json.decodeFromString(StoredPayload.serializer(), target.readText())
             SharedTextPayload(text = payload.text)
         }.getOrNull()

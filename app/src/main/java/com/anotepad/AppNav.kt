@@ -93,6 +93,7 @@ fun AppNav(deps: AppDependencies) {
     }
 
     LaunchedEffect(incomingShareManager, navController) {
+        incomingShareManager.initialRestoreCompleted.first { it }
         if (incomingShareManager.peekPendingShare() != null) return@LaunchedEffect
         if (incomingShareManager.isAwaitingRootSelection()) return@LaunchedEffect
         if (incomingShareManager.peekPendingEditorDraft() != null) return@LaunchedEffect

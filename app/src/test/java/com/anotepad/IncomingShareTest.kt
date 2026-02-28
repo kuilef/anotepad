@@ -69,6 +69,7 @@ class IncomingShareTest {
         manager.markAwaitingRootSelection(true)
 
         val restored = IncomingShareManager(handle)
+        restored.restorePendingShare()
 
         assertEquals(SharedTextPayload("Shared body"), restored.peekPendingShare())
         assertTrue(restored.isAwaitingRootSelection())

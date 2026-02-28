@@ -10,10 +10,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 
 internal const val SHARED_NOTES_FOLDER_NAME = "Shared"
 internal const val MAX_SHARED_TEXT_CHARS = 1_000_000
@@ -34,23 +37,47 @@ data class SharedNoteDraft(
 class IncomingShareManager(
     private val savedStateHandle: SavedStateHandle
 ) {
-    private val _shareRequests = MutableStateFlow(IncomingShareRecoveryStore.peek())
+    private val shareRequestMutex = Mutex()
+    private val shareRequestVersion = AtomicLong(0)
+    private val _shareRequests = MutableStateFlow<SharedTextPayload?>(null)
+    private val _initialRestoreCompleted = MutableStateFlow(false)
     private var awaitingRootSelection = savedStateHandle[STATE_AWAITING_ROOT_SELECTION] ?: false
     private var pendingEditorDraft: SharedNoteDraft? = null
     val shareRequests: StateFlow<SharedTextPayload?> = _shareRequests.asStateFlow()
+    val initialRestoreCompleted: StateFlow<Boolean> = _initialRestoreCompleted.asStateFlow()
 
     fun peekPendingShare(): SharedTextPayload? = _shareRequests.value
 
+    suspend fun restorePendingShare() {
+        val expectedVersion = shareRequestVersion.get()
+        try {
+            val payload = IncomingShareRecoveryStore.peek() ?: return
+            shareRequestMutex.withLock {
+                if (shareRequestVersion.get() != expectedVersion) return@withLock
+                if (_shareRequests.value != null) return@withLock
+                _shareRequests.value = payload
+            }
+        } finally {
+            _initialRestoreCompleted.value = true
+        }
+    }
+
     suspend fun submitShare(payload: SharedTextPayload) {
         IncomingShareRecoveryStore.persist(payload)
-        _shareRequests.value = payload
+        shareRequestMutex.withLock {
+            shareRequestVersion.incrementAndGet()
+            _shareRequests.value = payload
+        }
     }
 
     suspend fun clearPendingShare() {
         IncomingShareRecoveryStore.clear()
-        awaitingRootSelection = false
-        savedStateHandle[STATE_AWAITING_ROOT_SELECTION] = false
-        _shareRequests.value = null
+        shareRequestMutex.withLock {
+            shareRequestVersion.incrementAndGet()
+            awaitingRootSelection = false
+            savedStateHandle[STATE_AWAITING_ROOT_SELECTION] = false
+            _shareRequests.value = null
+        }
     }
 
     fun isAwaitingRootSelection(): Boolean {
