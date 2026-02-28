@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import com.anotepad.data.PreferencesRepository
@@ -23,7 +24,7 @@ import com.anotepad.ui.FeedManager
 import com.anotepad.ui.theme.ANotepadTheme
 
 class MainActivity : ComponentActivity() {
-    private val incomingShareManager = IncomingShareManager()
+    private val incomingShareViewModel: IncomingShareViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,7 +61,7 @@ class MainActivity : ComponentActivity() {
                     preferencesRepository = prefs,
                     templateRepository = templates,
                     fileRepository = files,
-                    incomingShareManager = incomingShareManager,
+                    incomingShareManager = incomingShareViewModel.manager,
                     createFeedManager = {
                         FeedManager(readTextPreview = files::readTextPreview)
                     },
@@ -98,6 +99,6 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, R.string.error_shared_text_empty, Toast.LENGTH_SHORT).show()
             return
         }
-        incomingShareManager.submitShare(payload)
+        incomingShareViewModel.manager.submitShare(payload)
     }
 }

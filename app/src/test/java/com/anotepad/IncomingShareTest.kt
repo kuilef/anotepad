@@ -1,6 +1,8 @@
 package com.anotepad
 
+import androidx.lifecycle.SavedStateHandle
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -46,5 +48,49 @@ class IncomingShareTest {
     @Test
     fun isManagedSharedFileName_acceptsTimestampNamesWithCollisionSuffix() {
         assertTrue(isManagedSharedFileName("Shared 2026-02-28 14-35-12(2).txt"))
+    }
+
+    @Test
+    fun incomingShareManager_restoresPendingShareAcrossRecreation() {
+        val handle = SavedStateHandle()
+        val manager = IncomingShareManager(handle)
+
+        manager.submitShare(SharedTextPayload("Shared body"))
+        manager.markAwaitingRootSelection(true)
+
+        val restored = IncomingShareManager(handle)
+
+        assertEquals(SharedTextPayload("Shared body"), restored.peekPendingShare())
+        assertTrue(restored.isAwaitingRootSelection())
+    }
+
+    @Test
+    fun incomingShareManager_restoresPendingDraftAcrossRecreation() {
+        val handle = SavedStateHandle()
+        val manager = IncomingShareManager(handle)
+        val draft = SharedNoteDraft(
+            fileName = "Shared 2026-02-28 14-35-12.txt",
+            content = "Shared 2026-02-28 14-35-12.txt\n\nShared body"
+        )
+
+        manager.setPendingEditorDraft(draft)
+
+        val restored = IncomingShareManager(handle)
+
+        assertEquals(draft, restored.consumePendingEditorDraft())
+        assertNull(restored.consumePendingEditorDraft())
+    }
+
+    @Test
+    fun incomingShareManager_clearPendingShareResetsAwaitingSelection() {
+        val handle = SavedStateHandle()
+        val manager = IncomingShareManager(handle)
+
+        manager.submitShare(SharedTextPayload("Shared body"))
+        manager.markAwaitingRootSelection(true)
+        manager.clearPendingShare()
+
+        assertNull(manager.peekPendingShare())
+        assertFalse(manager.isAwaitingRootSelection())
     }
 }

@@ -8,11 +8,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -26,6 +23,7 @@ import com.anotepad.ui.SearchScreen
 import com.anotepad.ui.SettingsScreen
 import com.anotepad.ui.SyncScreen
 import com.anotepad.ui.TemplatesScreen
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -46,39 +44,41 @@ fun AppNav(deps: AppDependencies) {
     val context = LocalContext.current
     val factory = remember { AppViewModelFactory(deps) }
     val scope = rememberCoroutineScope()
-    var pendingSharedText by remember { mutableStateOf<SharedTextPayload?>(null) }
+    val incomingShareManager = deps.incomingShareManager
 
     val pickDirectoryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
+        incomingShareManager.markAwaitingRootSelection(false)
         if (uri != null) {
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             context.contentResolver.takePersistableUriPermission(uri, flags)
             scope.launch {
                 applyRootSelection(deps, uri)
-                val sharedText = pendingSharedText
+                val sharedText = incomingShareManager.peekPendingShare()
                 if (sharedText != null) {
-                    pendingSharedText = null
                     if (!openSharedDraft(navController, deps, uri, sharedText)) {
                         Toast.makeText(context, R.string.error_shared_note_save_failed, Toast.LENGTH_SHORT).show()
                     }
                 }
             }
         } else {
-            if (pendingSharedText != null) {
+            if (incomingShareManager.peekPendingShare() != null) {
                 Toast.makeText(context, R.string.error_shared_folder_pick_cancelled, Toast.LENGTH_SHORT).show()
             }
-            pendingSharedText = null
+            incomingShareManager.clearPendingShare()
         }
     }
 
-    LaunchedEffect(deps.incomingShareManager) {
-        deps.incomingShareManager.shareRequests.collectLatest { payload ->
+    LaunchedEffect(incomingShareManager) {
+        incomingShareManager.shareRequests.collect { payload ->
+            if (payload == null) return@collect
             val rootUri = deps.preferencesRepository.preferencesFlow.first().rootTreeUri?.let(Uri::parse)
             if (rootUri != null && openSharedDraft(navController, deps, rootUri, payload)) {
-                pendingSharedText = null
-            } else {
-                pendingSharedText = payload
+                return@collect
+            }
+            if (!incomingShareManager.isAwaitingRootSelection()) {
+                incomingShareManager.markAwaitingRootSelection(true)
                 pickDirectoryLauncher.launch(buildInitialFolderUri())
             }
         }
@@ -294,6 +294,7 @@ private suspend fun openSharedDraft(
         create = true
     ) ?: return false
     deps.incomingShareManager.setPendingEditorDraft(buildSharedNoteDraft(payload))
+    deps.incomingShareManager.clearPendingShare()
     navController.navigate("$ROUTE_EDITOR?dir=${encodeUri(sharedDirUri)}&ext=txt")
     return true
 }

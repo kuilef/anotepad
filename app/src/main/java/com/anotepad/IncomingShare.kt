@@ -3,8 +3,10 @@ package com.anotepad
 import android.content.Context
 import android.content.Intent
 import androidx.core.text.HtmlCompat
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import androidx.lifecycle.SavedStateHandle
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -24,24 +26,56 @@ data class SharedNoteDraft(
     val content: String
 )
 
-class IncomingShareManager {
-    private val _shareRequests = MutableSharedFlow<SharedTextPayload>(extraBufferCapacity = 1)
-    val shareRequests = _shareRequests.asSharedFlow()
+private const val KEY_PENDING_SHARE_TEXT = "incoming_share.pending_share_text"
+private const val KEY_PENDING_DRAFT_FILE_NAME = "incoming_share.pending_draft_file_name"
+private const val KEY_PENDING_DRAFT_CONTENT = "incoming_share.pending_draft_content"
+private const val KEY_AWAITING_ROOT_SELECTION = "incoming_share.awaiting_root_selection"
 
-    private var pendingEditorDraft: SharedNoteDraft? = null
+class IncomingShareManager(
+    private val savedStateHandle: SavedStateHandle
+) {
+    private val _shareRequests = MutableStateFlow(
+        savedStateHandle.get<String?>(KEY_PENDING_SHARE_TEXT)?.let(::SharedTextPayload)
+    )
+    val shareRequests: StateFlow<SharedTextPayload?> = _shareRequests.asStateFlow()
+
+    fun peekPendingShare(): SharedTextPayload? = _shareRequests.value
 
     fun submitShare(payload: SharedTextPayload) {
-        _shareRequests.tryEmit(payload)
+        savedStateHandle[KEY_PENDING_SHARE_TEXT] = payload.text
+        savedStateHandle[KEY_AWAITING_ROOT_SELECTION] = false
+        _shareRequests.value = payload
+    }
+
+    fun clearPendingShare() {
+        savedStateHandle[KEY_PENDING_SHARE_TEXT] = null
+        savedStateHandle[KEY_AWAITING_ROOT_SELECTION] = false
+        _shareRequests.value = null
+    }
+
+    fun isAwaitingRootSelection(): Boolean {
+        return savedStateHandle[KEY_AWAITING_ROOT_SELECTION] ?: false
+    }
+
+    fun markAwaitingRootSelection(awaiting: Boolean) {
+        savedStateHandle[KEY_AWAITING_ROOT_SELECTION] = awaiting
     }
 
     fun setPendingEditorDraft(draft: SharedNoteDraft) {
-        pendingEditorDraft = draft
+        savedStateHandle[KEY_PENDING_DRAFT_FILE_NAME] = draft.fileName
+        savedStateHandle[KEY_PENDING_DRAFT_CONTENT] = draft.content
     }
 
     fun consumePendingEditorDraft(): SharedNoteDraft? {
-        val draft = pendingEditorDraft
-        pendingEditorDraft = null
-        return draft
+        val fileName = savedStateHandle.get<String?>(KEY_PENDING_DRAFT_FILE_NAME)
+        val content = savedStateHandle.get<String?>(KEY_PENDING_DRAFT_CONTENT)
+        savedStateHandle[KEY_PENDING_DRAFT_FILE_NAME] = null
+        savedStateHandle[KEY_PENDING_DRAFT_CONTENT] = null
+        return if (fileName != null && content != null) {
+            SharedNoteDraft(fileName = fileName, content = content)
+        } else {
+            null
+        }
     }
 }
 
