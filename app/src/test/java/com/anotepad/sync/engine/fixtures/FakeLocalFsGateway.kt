@@ -21,6 +21,7 @@ class FakeLocalFsGateway : LocalFsGateway {
     private val dirsByRoot = mutableMapOf<String, MutableSet<String>>()
     private val moveFailures = mutableSetOf<String>()
     private val copyFailures = mutableSetOf<String>()
+    private var listFilesRecursiveFailure: Exception? = null
     private var clock = 1_000L
 
     fun putFile(rootId: String, path: String, content: String, lastModified: Long = nextTs()) {
@@ -47,8 +48,14 @@ class FakeLocalFsGateway : LocalFsGateway {
         return this
     }
 
+    fun failListFilesRecursive(error: Exception): FakeLocalFsGateway {
+        listFilesRecursiveFailure = error
+        return this
+    }
+
     override suspend fun listFilesRecursive(rootId: String): List<LocalFileEntry> {
         calls += "listFilesRecursive:$rootId"
+        listFilesRecursiveFailure?.let { throw it }
         return filesByRoot[rootId]
             ?.entries
             ?.map { (path, file) ->

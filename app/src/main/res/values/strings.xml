@@ -73,7 +73,7 @@
     <string name="label_saved">Saved</string>
     <string name="label_autosave">Autosave</string>
     <string name="label_autosave_hint">Save when app is closed or minimized</string>
-    <string name="label_editor_truncated_notice">File is too large and was truncated while opening.</string>
+    <string name="label_editor_truncated_notice">File is too large, was truncated while opening, and is now read-only.</string>
     <string name="label_editor_external_change_title">File changed on disk</string>
     <string name="label_editor_external_change_message">This file was modified outside the editor. Reload to discard local edits or overwrite to keep them.</string>
     <string name="label_editor_discard_changes_title">Leave without saving?</string>

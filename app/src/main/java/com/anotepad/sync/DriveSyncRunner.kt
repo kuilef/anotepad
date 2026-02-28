@@ -1,6 +1,7 @@
 package com.anotepad.sync
 
 import com.anotepad.sync.engine.AuthGateway
+import com.anotepad.sync.engine.LocalStorageUnavailableException
 import com.anotepad.sync.engine.SyncError
 import com.anotepad.sync.engine.SyncStore
 import kotlinx.coroutines.CancellationException
@@ -89,6 +90,13 @@ class DriveSyncWorkerRunner(
                 if (retryable) WorkerDecision.Retry else WorkerDecision.Failure
             }
 
+            is SyncError.LocalStorage -> {
+                val message = error.message ?: "Local folder is inaccessible or permission was lost"
+                logger("sync_error local_storage detail=${error.message ?: "none"}")
+                store.setSyncStatus(SyncState.ERROR, message)
+                WorkerDecision.Failure
+            }
+
             is SyncError.Unexpected -> {
                 val message = error.detail?.let { "Unexpected error: ${error.type}: $it" }
                     ?: "Unexpected error: ${error.type}"
@@ -110,6 +118,8 @@ fun Exception.toSyncError(): SyncError {
                 else -> SyncError.DriveApi(code = code, message = detail)
             }
         }
+
+        is LocalStorageUnavailableException -> SyncError.LocalStorage(message?.ifBlank { null })
 
         else -> {
             val type = this::class.java.simpleName?.ifBlank { "UnknownException" } ?: "UnknownException"

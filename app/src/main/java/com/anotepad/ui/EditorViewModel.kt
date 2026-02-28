@@ -52,6 +52,7 @@ data class EditorState(
     val externalChangeDetectedAt: Long? = null,
     val showExternalChangeDialog: Boolean = false,
     val canSave: Boolean = false,
+    val isReadOnly: Boolean = false,
     val truncatedNoticeToken: Long? = null,
     val proposedFileName: String? = null,
     val suppressSyncTitle: Boolean = false
@@ -191,6 +192,7 @@ class EditorViewModel(
                     externalChangeDetectedAt = null,
                     showExternalChangeDialog = false,
                     canSave = false,
+                    isReadOnly = textResult.truncated,
                     truncatedNoticeToken = nextTruncatedNoticeToken(textResult.truncated),
                     proposedFileName = null,
                     suppressSyncTitle = shouldSuppressSyncTitleForNote(resolvedDir, fileName)
@@ -228,6 +230,7 @@ class EditorViewModel(
                     externalChangeDetectedAt = null,
                     showExternalChangeDialog = false,
                     canSave = false,
+                    isReadOnly = false,
                     truncatedNoticeToken = null,
                     proposedFileName = draft.fileName,
                     suppressSyncTitle = true
@@ -417,6 +420,7 @@ class EditorViewModel(
     private suspend fun saveIfNeeded(text: String, ignoreExternalChange: Boolean = false): Boolean {
         return saveMutex.withLock {
             if (!isLoaded) return@withLock false
+            if (_state.value.isReadOnly) return@withLock false
             if (!ignoreExternalChange && _state.value.externalChangeDetectedAt != null) {
                 _state.update { it.copy(showExternalChangeDialog = true) }
                 return@withLock false
@@ -531,6 +535,7 @@ class EditorViewModel(
                 fileName = updatedName,
                 externalChangeDetectedAt = null,
                 showExternalChangeDialog = false,
+                isReadOnly = updatedTextResult.truncated,
                 truncatedNoticeToken = nextTruncatedNoticeToken(updatedTextResult.truncated)
             )
         }
@@ -576,6 +581,7 @@ class EditorViewModel(
     private fun updateCanSaveState() {
         val current = _state.value
         val canSave = isLoaded &&
+            !current.isReadOnly &&
             current.text != lastSavedText &&
             (current.fileUri != null || (current.dirUri != null && current.text.isNotBlank()))
         if (current.canSave == canSave) return

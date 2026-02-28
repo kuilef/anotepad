@@ -148,9 +148,13 @@ fun EditorScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(pendingTemplate, editTextRef) {
+    LaunchedEffect(pendingTemplate, editTextRef, state.isReadOnly) {
         val textToInsert = pendingTemplate
         if (!textToInsert.isNullOrEmpty()) {
+            if (state.isReadOnly) {
+                viewModel.consumeTemplate()
+                return@LaunchedEffect
+            }
             val editText = editTextRef ?: return@LaunchedEffect
             val savedSelection = viewModel.consumeTemplateInsertionSelection()
             val rawStart = savedSelection?.first ?: editText.selectionStart.coerceAtLeast(0)
@@ -165,9 +169,18 @@ fun EditorScreen(
         }
     }
 
-    LaunchedEffect(editTextRef, state.loadToken, state.editorPrefsLoaded, state.openNotesInReadMode) {
-        if (state.editorPrefsLoaded && !state.openNotesInReadMode) {
+    LaunchedEffect(editTextRef, state.loadToken, state.editorPrefsLoaded, state.openNotesInReadMode, state.isReadOnly) {
+        if (state.editorPrefsLoaded && !state.openNotesInReadMode && !state.isReadOnly) {
             editTextRef?.let { focusAndShowKeyboard(it) }
+        }
+    }
+
+    LaunchedEffect(editTextRef, state.isReadOnly) {
+        if (state.isReadOnly) {
+            editTextRef?.let {
+                hideKeyboard(it)
+                it.clearFocus()
+            }
         }
     }
 
@@ -327,7 +340,8 @@ fun EditorScreen(
                                 val end = editText?.selectionEnd ?: state.text.length
                                 viewModel.rememberTemplateInsertionSelection(start, end)
                                 onOpenTemplatePicker()
-                            }
+                            },
+                            enabled = !state.isReadOnly
                         ) {
                             Icon(
                                 imageVector = Icons.Default.AccessTime,
@@ -389,6 +403,7 @@ fun EditorScreen(
                     editorFontSizeSp = state.editorFontSizeSp,
                     textColor = textColor,
                     backgroundColor = backgroundColor,
+                    readOnly = state.isReadOnly,
                     moveCursorToEndOnLoad = state.moveCursorToEndOnLoad,
                     loadToken = state.loadToken,
                     ignoreChanges = ignoreChanges,

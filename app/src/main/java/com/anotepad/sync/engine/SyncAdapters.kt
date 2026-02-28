@@ -108,7 +108,7 @@ class LocalFsGatewayAdapter(
     private val fileRepository: FileRepository
 ) : LocalFsGateway {
     override suspend fun listFilesRecursive(rootId: String): List<LocalFileEntry> {
-        val rootUri = rootUriOrNull(rootId) ?: return emptyList()
+        val rootUri = requireAccessibleRootUri(rootId)
         return fileRepository.listFilesRecursive(rootUri).mapNotNull { node ->
             val relativePath = fileRepository.getRelativePath(rootUri, node.uri) ?: return@mapNotNull null
             val lastModified = fileRepository.getLastModified(node.uri) ?: 0L
@@ -118,7 +118,7 @@ class LocalFsGatewayAdapter(
     }
 
     override suspend fun getFileMeta(rootId: String, relativePath: String): LocalFileEntry? {
-        val rootUri = rootUriOrNull(rootId) ?: return null
+        val rootUri = requireAccessibleRootUri(rootId)
         val uri = fileRepository.findFileByRelativePath(rootUri, relativePath) ?: return null
         val lastModified = fileRepository.getLastModified(uri) ?: 0L
         val size = fileRepository.getSize(uri) ?: 0L
@@ -126,23 +126,23 @@ class LocalFsGatewayAdapter(
     }
 
     override suspend fun exists(rootId: String, relativePath: String): Boolean {
-        val rootUri = rootUriOrNull(rootId) ?: return false
+        val rootUri = requireAccessibleRootUri(rootId)
         return fileRepository.findFileByRelativePath(rootUri, relativePath) != null
     }
 
     override fun openInputStream(rootId: String, relativePath: String): InputStream? {
-        val rootUri = rootUriOrNull(rootId) ?: return null
+        val rootUri = requireAccessibleRootUriBlocking(rootId)
         val uri = runBlocking { fileRepository.findFileByRelativePath(rootUri, relativePath) } ?: return null
         return fileRepository.openInputStream(uri)
     }
 
     override suspend fun createFile(rootId: String, relativePath: String, mimeType: String): Boolean {
-        val rootUri = rootUriOrNull(rootId) ?: return false
+        val rootUri = requireAccessibleRootUri(rootId)
         return fileRepository.createFileByRelativePath(rootUri, relativePath, mimeType) != null
     }
 
     override suspend fun writeStream(rootId: String, relativePath: String, input: InputStream): Boolean {
-        val rootUri = rootUriOrNull(rootId) ?: return false
+        val rootUri = requireAccessibleRootUri(rootId)
         val existing = fileRepository.findFileByRelativePath(rootUri, relativePath)
             ?: fileRepository.createFileByRelativePath(rootUri, relativePath, fileRepository.guessMimeType(relativePath))
             ?: return false
@@ -151,13 +151,13 @@ class LocalFsGatewayAdapter(
     }
 
     override suspend fun computeHash(rootId: String, relativePath: String): String {
-        val rootUri = rootUriOrNull(rootId) ?: return ""
+        val rootUri = requireAccessibleRootUri(rootId)
         val uri = fileRepository.findFileByRelativePath(rootUri, relativePath) ?: return ""
         return fileRepository.computeHash(uri)
     }
 
     override suspend fun moveFile(rootId: String, fromPath: String, toPath: String): Boolean {
-        val rootUri = rootUriOrNull(rootId) ?: return false
+        val rootUri = requireAccessibleRootUri(rootId)
         val fromUri = fileRepository.findFileByRelativePath(rootUri, fromPath) ?: return false
         val targetDir = toPath.substringBeforeLast('/', "")
         val targetDirUri = fileRepository.resolveDirByRelativePath(rootUri, targetDir, create = true) ?: return false
@@ -166,7 +166,7 @@ class LocalFsGatewayAdapter(
     }
 
     override suspend fun copyFile(rootId: String, fromPath: String, toPath: String): Boolean {
-        val rootUri = rootUriOrNull(rootId) ?: return false
+        val rootUri = requireAccessibleRootUri(rootId)
         val fromUri = fileRepository.findFileByRelativePath(rootUri, fromPath) ?: return false
         val targetDir = toPath.substringBeforeLast('/', "")
         val targetDirUri = fileRepository.resolveDirByRelativePath(rootUri, targetDir, create = true) ?: return false
@@ -175,19 +175,19 @@ class LocalFsGatewayAdapter(
     }
 
     override suspend fun deleteFile(rootId: String, relativePath: String): Boolean {
-        val rootUri = rootUriOrNull(rootId) ?: return false
+        val rootUri = requireAccessibleRootUri(rootId)
         val fileUri = fileRepository.findFileByRelativePath(rootUri, relativePath) ?: return false
         return fileRepository.deleteFile(fileUri)
     }
 
     override suspend fun ensureDirectory(rootId: String, relativePath: String): Boolean {
+        val rootUri = requireAccessibleRootUri(rootId)
         if (relativePath.isBlank()) return true
-        val rootUri = rootUriOrNull(rootId) ?: return false
         return fileRepository.resolveDirByRelativePath(rootUri, relativePath, create = true) != null
     }
 
     override suspend fun deleteDirectory(rootId: String, relativePath: String): Boolean {
-        val rootUri = rootUriOrNull(rootId) ?: return false
+        val rootUri = requireAccessibleRootUri(rootId)
         return fileRepository.deleteDirectoryByRelativePath(rootUri, relativePath)
     }
 
@@ -195,7 +195,21 @@ class LocalFsGatewayAdapter(
 
     override fun guessMimeType(name: String): String = fileRepository.guessMimeType(name)
 
-    private fun rootUriOrNull(rootId: String): Uri? = runCatching { Uri.parse(rootId) }.getOrNull()
+    private suspend fun requireAccessibleRootUri(rootId: String): Uri {
+        val rootUri = Uri.parse(rootId)
+        if (fileRepository.resolveDirByRelativePath(rootUri, "", create = false) != null) {
+            return rootUri
+        }
+        throw LocalStorageUnavailableException()
+    }
+
+    private fun requireAccessibleRootUriBlocking(rootId: String): Uri {
+        val rootUri = Uri.parse(rootId)
+        if (runBlocking { fileRepository.resolveDirByRelativePath(rootUri, "", create = false) } != null) {
+            return rootUri
+        }
+        throw LocalStorageUnavailableException()
+    }
 }
 
 class SyncStoreAdapter(

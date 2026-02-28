@@ -1,5 +1,6 @@
 package com.anotepad.sync
 
+import com.anotepad.sync.engine.LocalStorageUnavailableException
 import com.anotepad.sync.engine.fixtures.SyncFixtureBuilder
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -110,6 +111,27 @@ class DriveSyncWorkerTest {
         // Then
         assertEquals(WorkerDecision.Retry, result)
         assertTrue(builder.store.statuses.last().message?.contains("Unexpected error") == true)
+    }
+
+    @Test
+    fun worker_fails_onLocalStorageError() = runTest {
+        // Given
+        val builder = SyncFixtureBuilder()
+            .withDriveFolder("drive-root", "Anotepad")
+            .withStartPageToken("p1")
+        builder.localFs.failListFilesRecursive(LocalStorageUnavailableException())
+        val runner = DriveSyncWorkerRunner(
+            engine = builder.buildEngine(),
+            store = builder.store,
+            authGateway = builder.auth
+        )
+
+        // When
+        val result = runner.run()
+
+        // Then
+        assertEquals(WorkerDecision.Failure, result)
+        assertEquals("Local folder is inaccessible or permission was lost", builder.store.statuses.last().message)
     }
 
     @Test

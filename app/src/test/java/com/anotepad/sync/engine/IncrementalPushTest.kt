@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
@@ -226,6 +227,29 @@ class IncrementalPushTest {
         // Then
         assertFalse(builder.drive.calls.any { it == "trashFile:d1" || it == "deleteFile:d1" })
         assertNotNull(builder.drive.remoteFile("d1"))
+    }
+
+    @Test
+    fun push_aborts_whenLocalRootBecomesInaccessible() = runTest {
+        // Given
+        val builder = SyncFixtureBuilder()
+            .withStoreItem(path = "note.txt", driveFileId = "d1")
+            .withRemoteFile("d1", "note.txt", "drive-root", content = "x")
+        builder.localFs.failListFilesRecursive(LocalStorageUnavailableException())
+        val push = builder.buildWired().push
+
+        // When
+        try {
+            push.execute("token", builder.prefs.prefs, FakeLocalFsGateway.DEFAULT_ROOT, "drive-root")
+            fail("Expected LocalStorageUnavailableException")
+        } catch (_: LocalStorageUnavailableException) {
+            // Expected.
+        }
+
+        // Then
+        assertFalse(builder.drive.calls.contains("trashFile:d1"))
+        assertFalse(builder.drive.calls.contains("deleteFile:d1"))
+        assertNotNull(builder.store.item("note.txt"))
     }
 }
 

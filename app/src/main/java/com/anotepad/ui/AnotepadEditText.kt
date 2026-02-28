@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.text.method.KeyListener
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
@@ -52,6 +53,8 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     private var deferCursorVisibilityUntilTouchEnds = false
     private var hasDeferredCursorVisibilityUpdate = false
     private var restoreCursorAfterTouch = false
+    private var editableKeyListener: KeyListener? = null
+    private var readOnly = false
 
     fun runWithoutHistoryAndChangeCallbacks(block: () -> Unit) {
         suppressChangesDepth += 1
@@ -82,6 +85,33 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         restoreCursorVisibilityAfterTouch()
         recycleVelocityTracker()
         resetTouchTracking()
+    }
+
+    fun setReadOnly(enabled: Boolean) {
+        if (editableKeyListener == null && keyListener != null) {
+            editableKeyListener = keyListener
+        }
+        if (readOnly == enabled) {
+            showSoftInputOnFocus = !enabled
+            isCursorVisible = !enabled
+            setTextIsSelectable(enabled)
+            return
+        }
+        readOnly = enabled
+        if (enabled) {
+            editableKeyListener = keyListener ?: editableKeyListener
+            keyListener = null
+            showSoftInputOnFocus = false
+            isCursorVisible = false
+            setTextIsSelectable(true)
+        } else {
+            if (keyListener == null) {
+                keyListener = editableKeyListener
+            }
+            showSoftInputOnFocus = true
+            isCursorVisible = true
+            setTextIsSelectable(false)
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -282,6 +312,7 @@ fun AnotepadEditText(
     editorFontSizeSp: Float,
     textColor: Int,
     backgroundColor: Int,
+    readOnly: Boolean,
     moveCursorToEndOnLoad: Boolean,
     loadToken: Long,
     ignoreChanges: Boolean,
@@ -327,6 +358,7 @@ fun AnotepadEditText(
                 isNestedScrollingEnabled = false
                 isVerticalScrollBarEnabled = false
                 overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                setReadOnly(readOnly)
                 val density = context.resources.displayMetrics.density
                 val horizontalPaddingPx = (12f * density).roundToInt()
                 val topPaddingPx = (8f * density).roundToInt()
@@ -426,6 +458,7 @@ fun AnotepadEditText(
             editText.updateScrollIndicatorColor(textColor)
             editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, editorFontSizeSp)
             editText.setBackgroundColor(backgroundColor)
+            editText.setReadOnly(readOnly)
             val density = editText.resources.displayMetrics.density
             val horizontalPaddingPx = (12f * density).roundToInt()
             val topPaddingPx = (8f * density).roundToInt()
