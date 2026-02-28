@@ -63,6 +63,14 @@ data class EditorSaveResult(
     val dirUri: Uri?
 )
 
+internal fun shouldDiscardBlankSharedDraftRecovery(
+    hasPendingSharedDraftRecovery: Boolean,
+    fileUri: Uri?,
+    text: String
+): Boolean {
+    return hasPendingSharedDraftRecovery && fileUri == null && text.isBlank()
+}
+
 private const val MAX_FILE_NAME_BYTES = 255
 
 internal fun buildFileNameFromText(
@@ -320,6 +328,7 @@ class EditorViewModel(
     }
 
     suspend fun saveAndGetResult(): EditorSaveResult? {
+        discardBlankSharedDraftRecoveryIfNeeded(_state.value)
         runSaveCatching {
             saveIfNeeded(_state.value.text)
         }
@@ -443,6 +452,14 @@ class EditorViewModel(
     fun popUndoSnapshot(): TextSnapshot? = historyManager.popUndo()
 
     fun popRedoSnapshot(): TextSnapshot? = historyManager.popRedo()
+
+    private fun discardBlankSharedDraftRecoveryIfNeeded(state: EditorState) {
+        if (!shouldDiscardBlankSharedDraftRecovery(hasPendingSharedDraftRecovery, state.fileUri, state.text)) {
+            return
+        }
+        sharedDraftRecoveryStore.clear()
+        hasPendingSharedDraftRecovery = false
+    }
 
     private suspend fun saveIfNeeded(text: String, ignoreExternalChange: Boolean = false): Boolean {
         return saveMutex.withLock {

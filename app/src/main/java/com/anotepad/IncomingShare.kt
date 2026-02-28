@@ -4,9 +4,11 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.text.HtmlCompat
 import androidx.lifecycle.SavedStateHandle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -76,18 +78,19 @@ internal fun isSupportedShareIntent(intent: Intent?): Boolean {
     return type == null || type.startsWith("text/")
 }
 
-internal fun extractSharedTextPayload(context: Context, intent: Intent?): SharedTextPayload? {
-    if (!isSupportedShareIntent(intent)) return null
+internal suspend fun extractSharedTextPayload(context: Context, intent: Intent?): SharedTextPayload? =
+    withContext(Dispatchers.IO) {
+        if (!isSupportedShareIntent(intent)) return@withContext null
 
-    val rawText = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
-        ?: intent.getStringExtra(Intent.EXTRA_HTML_TEXT)?.let { html ->
-            HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_LEGACY).toString()
-        }
-        ?: extractClipText(context, intent ?: return null)
+        val rawText = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+            ?: intent.getStringExtra(Intent.EXTRA_HTML_TEXT)?.let { html ->
+                HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_LEGACY).toString()
+            }
+            ?: extractClipText(context, intent ?: return@withContext null)
 
-    val text = sanitizeSharedText(rawText) ?: return null
-    return SharedTextPayload(text = text)
-}
+        val text = sanitizeSharedText(rawText) ?: return@withContext null
+        SharedTextPayload(text = text)
+    }
 
 private fun extractClipText(context: Context, intent: Intent): String? {
     val clipData = intent.clipData ?: return null

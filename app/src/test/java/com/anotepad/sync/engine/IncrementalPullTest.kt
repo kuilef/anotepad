@@ -236,6 +236,33 @@ class IncrementalPullTest {
     }
 
     @Test
+    fun pull_usesUuidFallback_whenDuplicateLimitIsExceeded() = runTest {
+        // Given
+        val builder = SyncFixtureBuilder()
+            .withLocalFile("note.txt", "local", 200L)
+            .withStoreItem(path = "note.txt", driveFileId = "another")
+        repeat(MAX_DUPLICATE_NAME_ATTEMPTS) { index ->
+            val suffix = index + 1
+            val path = "note ($suffix).txt"
+            builder.withLocalFile(path, "local-$suffix", 200L + suffix)
+            builder.withStoreItem(path = path, driveFileId = "other-$suffix")
+        }
+        val file = driveFile("r1", "note.txt", parents = listOf("drive-root"), modified = 300L)
+        builder.drive.putFile("r1", "note.txt", "drive-root", content = "remote", modifiedTime = 300L)
+        builder.withChangesPage("p1", DriveChangesPage(listOf(DriveChange("r1", false, file)), null, "new"))
+        val pull = builder.buildWired().pull
+
+        // When
+        pull.execute("token", prefs(), FakeLocalFsGateway.DEFAULT_ROOT, "drive-root", "p1")
+
+        // Then
+        val collided = builder.store.getAllItems().firstOrNull { it.driveFileId == "r1" }
+        assertNotNull(collided)
+        assertTrue(collided!!.localRelativePath.startsWith("note (conflict-"))
+        assertTrue(collided.localRelativePath.endsWith(").txt"))
+    }
+
+    @Test
     fun pull_createsConflictCopy_whenBothSidesChanged() = runTest {
         // Given
         val builder = SyncFixtureBuilder()

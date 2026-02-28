@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.lifecycle.lifecycleScope
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.data.TemplateRepository
 import com.anotepad.file.FileRepository
@@ -22,6 +23,9 @@ import com.anotepad.sync.SyncScheduler
 import com.anotepad.sync.db.SyncDatabase
 import com.anotepad.ui.FeedManager
 import com.anotepad.ui.theme.ANotepadTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val incomingShareViewModel: IncomingShareViewModel by viewModels()
@@ -96,11 +100,15 @@ class MainActivity : ComponentActivity() {
 
     private fun dispatchIncomingShare(intent: Intent?) {
         if (!isSupportedShareIntent(intent)) return
-        val payload = extractSharedTextPayload(applicationContext, intent)
-        if (payload == null) {
-            Toast.makeText(this, R.string.error_shared_text_empty, Toast.LENGTH_SHORT).show()
-            return
+        lifecycleScope.launch(Dispatchers.IO) {
+            val payload = extractSharedTextPayload(applicationContext, intent)
+            withContext(Dispatchers.Main) {
+                if (payload == null) {
+                    Toast.makeText(this@MainActivity, R.string.error_shared_text_empty, Toast.LENGTH_SHORT).show()
+                    return@withContext
+                }
+                incomingShareViewModel.manager.submitShare(payload)
+            }
         }
-        incomingShareViewModel.manager.submitShare(payload)
     }
 }

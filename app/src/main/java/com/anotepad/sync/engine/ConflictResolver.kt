@@ -1,6 +1,7 @@
 package com.anotepad.sync.engine
 
 import com.anotepad.sync.db.SyncItemEntity
+import java.util.UUID
 
 class ConflictResolver(
     private val drive: DriveGateway,
@@ -65,6 +66,18 @@ class ConflictResolver(
             }
             index++
         }
-        return desiredPath
+        while (true) {
+            val candidateName = if (ext.isBlank()) {
+                "$base (conflict-${UUID.randomUUID()})"
+            } else {
+                "$base (conflict-${UUID.randomUUID()}).$ext"
+            }
+            val candidatePath = if (dirPath.isBlank()) candidateName else "$dirPath/$candidateName"
+            val candidateItem = store.getItemByPath(candidatePath)
+            val candidateLocal = localFs.exists(rootId, candidatePath)
+            if (candidateItem == null && !candidateLocal) {
+                return candidatePath
+            }
+        }
     }
 }

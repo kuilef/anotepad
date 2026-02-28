@@ -8,6 +8,11 @@ import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+internal fun isSafeRelativePath(relativePath: String): Boolean {
+    if (relativePath.startsWith('/')) return false
+    return relativePath.split('/').none { it == ".." }
+}
+
 class SafFileOpsHandler(
     private val context: Context,
     private val resolver: ContentResolver,
@@ -49,6 +54,7 @@ class SafFileOpsHandler(
     override suspend fun deleteDirectoryByRelativePath(rootTreeUri: Uri, relativePath: String): Boolean =
         withContext(Dispatchers.IO) {
             if (relativePath.isBlank()) return@withContext false
+            if (!isSafeRelativePath(relativePath)) return@withContext false
             val dirUri = resolveDirByRelativePath(rootTreeUri, relativePath, create = false)
                 ?: return@withContext false
             val dir = resolveDirDocumentFile(dirUri) ?: return@withContext false
@@ -119,6 +125,7 @@ class SafFileOpsHandler(
 
     override suspend fun resolveDirByRelativePath(rootTreeUri: Uri, relativePath: String, create: Boolean): Uri? =
         withContext(Dispatchers.IO) {
+            if (!isSafeRelativePath(relativePath)) return@withContext null
             val root = resolveDirDocumentFile(rootTreeUri) ?: return@withContext null
             val segments = relativePath.split('/').filter { it.isNotBlank() }
             var current = root
@@ -138,6 +145,7 @@ class SafFileOpsHandler(
 
     override suspend fun findFileByRelativePath(rootTreeUri: Uri, relativePath: String): Uri? =
         withContext(Dispatchers.IO) {
+            if (!isSafeRelativePath(relativePath)) return@withContext null
             val root = resolveDirDocumentFile(rootTreeUri) ?: return@withContext null
             val segments = relativePath.split('/').filter { it.isNotBlank() }
             if (segments.isEmpty()) return@withContext null
@@ -156,6 +164,7 @@ class SafFileOpsHandler(
         relativePath: String,
         mimeType: String
     ): Uri? = withContext(Dispatchers.IO) {
+        if (!isSafeRelativePath(relativePath)) return@withContext null
         val segments = relativePath.split('/').filter { it.isNotBlank() }
         if (segments.isEmpty()) return@withContext null
         val dirSegments = segments.dropLast(1)

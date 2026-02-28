@@ -60,7 +60,7 @@ fun AppNav(deps: AppDependencies) {
                 val sharedText = incomingShareManager.peekPendingShare()
                 if (sharedText != null) {
                     if (!openSharedDraft(navController, deps, uri, sharedText)) {
-                        Toast.makeText(context, R.string.error_shared_note_save_failed, Toast.LENGTH_SHORT).show()
+                        handleSharedDraftOpenFailure(context, incomingShareManager)
                     }
                 }
             }
@@ -76,7 +76,11 @@ fun AppNav(deps: AppDependencies) {
         incomingShareManager.shareRequests.collect { payload ->
             if (payload == null) return@collect
             val rootUri = deps.preferencesRepository.preferencesFlow.first().rootTreeUri?.let(Uri::parse)
-            if (rootUri != null && openSharedDraft(navController, deps, rootUri, payload)) {
+            if (rootUri != null) {
+                if (openSharedDraft(navController, deps, rootUri, payload)) {
+                    return@collect
+                }
+                handleSharedDraftOpenFailure(context, incomingShareManager)
                 return@collect
             }
             if (!incomingShareManager.isAwaitingRootSelection()) {
@@ -295,6 +299,14 @@ private fun resolveDriveFolderName(
     if (!displayName.isNullOrBlank()) return displayName
     val displayPath = fileRepository.getTreeDisplayPath(pickedUri)
     return displayPath.substringAfterLast('/').ifBlank { RECOMMENDED_FOLDER_NAME }
+}
+
+private fun handleSharedDraftOpenFailure(
+    context: android.content.Context,
+    incomingShareManager: IncomingShareManager
+) {
+    incomingShareManager.clearPendingShare()
+    Toast.makeText(context, R.string.error_shared_folder_create_failed, Toast.LENGTH_SHORT).show()
 }
 
 private suspend fun openSharedDraft(
