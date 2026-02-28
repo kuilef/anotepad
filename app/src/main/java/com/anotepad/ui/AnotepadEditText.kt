@@ -7,9 +7,13 @@ import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.inputmethod.EditorInfo
+import android.view.VelocityTracker
 import android.widget.EditText
+import android.widget.OverScroller
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,11 +22,21 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class AnotepadEditorEditText(context: Context) : EditText(context) {
+    private val viewConfiguration = ViewConfiguration.get(context)
+    private val scroller = OverScroller(context)
+    private var velocityTracker: VelocityTracker? = null
     private var suppressChangesDepth = 0
     private var suppressHistoryDepth = 0
+    private var activePointerId = MotionEvent.INVALID_POINTER_ID
+    private var initialTouchX = 0f
+    private var initialTouchY = 0f
+    private var startScrollY = 0
+    private var hasVerticalDrag = false
+    private var hasMultiplePointers = false
 
     fun runWithoutHistoryAndChangeCallbacks(block: () -> Unit) {
         suppressChangesDepth += 1
@@ -39,9 +53,131 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
 
     fun isHistoryCallbacksSuppressed(): Boolean = suppressHistoryDepth > 0
 
+    fun stopFling() {
+        abortFling()
+        recycleVelocityTracker()
+        resetTouchTracking()
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                abortFling()
+                resetTouchTracking()
+                activePointerId = event.getPointerId(0)
+                initialTouchX = event.x
+                initialTouchY = event.y
+                startScrollY = scrollY
+                recycleVelocityTracker()
+                velocityTracker = VelocityTracker.obtain()
+            }
+
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                hasMultiplePointers = true
+            }
+        }
+
+        velocityTracker?.addMovement(event)
+        val handled = super.onTouchEvent(event)
+
+        when (event.actionMasked) {
+            MotionEvent.ACTION_MOVE -> {
+                updateVerticalDragState(event)
+            }
+
+            MotionEvent.ACTION_UP -> {
+                maybeStartFling()
+                recycleVelocityTracker()
+                resetTouchTracking()
+            }
+
+            MotionEvent.ACTION_CANCEL -> {
+                recycleVelocityTracker()
+                resetTouchTracking()
+            }
+        }
+
+        return handled
+    }
+
+    override fun computeScroll() {
+        if (scroller.computeScrollOffset()) {
+            scrollTo(scrollX, scroller.currY)
+            postInvalidateOnAnimation()
+            return
+        }
+        super.computeScroll()
+    }
+
     override fun onSelectionChanged(selStart: Int, selEnd: Int) {
         super.onSelectionChanged(selStart, selEnd)
         ensureCursorVisible(this, allowPost = false)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        abortFling()
+    }
+
+    override fun onDetachedFromWindow() {
+        abortFling()
+        recycleVelocityTracker()
+        super.onDetachedFromWindow()
+    }
+
+    private fun updateVerticalDragState(event: MotionEvent) {
+        if (hasMultiplePointers) return
+        val pointerIndex = event.findPointerIndex(activePointerId)
+        if (pointerIndex < 0) return
+        val totalDy = event.getY(pointerIndex) - initialTouchY
+        val totalDx = event.getX(pointerIndex) - initialTouchX
+        if (abs(totalDy) <= viewConfiguration.scaledTouchSlop) return
+        if (abs(totalDy) > abs(totalDx) || abs(scrollY - startScrollY) > viewConfiguration.scaledTouchSlop) {
+            hasVerticalDrag = true
+        }
+    }
+
+    private fun maybeStartFling() {
+        if (!hasVerticalDrag || hasMultiplePointers) return
+        val scrollRange = computeVerticalScrollRange() - computeVerticalScrollExtent()
+        if (scrollRange <= 0) return
+        val tracker = velocityTracker ?: return
+        tracker.computeCurrentVelocity(1000, viewConfiguration.scaledMaximumFlingVelocity.toFloat())
+        val velocityY = tracker.getYVelocity(activePointerId)
+        val velocityX = tracker.getXVelocity(activePointerId)
+        if (abs(velocityY) < viewConfiguration.scaledMinimumFlingVelocity) return
+        if (abs(velocityY) <= abs(velocityX)) return
+        scroller.fling(
+            scrollX,
+            scrollY,
+            0,
+            (-velocityY).roundToInt(),
+            0,
+            0,
+            0,
+            scrollRange
+        )
+        postInvalidateOnAnimation()
+    }
+
+    private fun abortFling() {
+        if (!scroller.isFinished) {
+            scroller.abortAnimation()
+        }
+    }
+
+    private fun recycleVelocityTracker() {
+        velocityTracker?.recycle()
+        velocityTracker = null
+    }
+
+    private fun resetTouchTracking() {
+        activePointerId = MotionEvent.INVALID_POINTER_ID
+        hasVerticalDrag = false
+        hasMultiplePointers = false
+        initialTouchX = 0f
+        initialTouchY = 0f
+        startScrollY = scrollY
     }
 }
 
@@ -163,6 +299,7 @@ fun AnotepadEditText(
         },
         update = { editText ->
             if (editText.text.toString() != text) {
+                editText.stopFling()
                 latestOnIgnoreChangesChange(true)
                 editText.runWithoutHistoryAndChangeCallbacks {
                     val selection = editText.selectionStart
