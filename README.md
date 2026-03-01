@@ -13,7 +13,7 @@ You choose one folder on your phone, and the app works directly inside it:
 - create subfolders
 - browse files and folders
 - search through notes
-- sync with Google Drive if you want
+- optional sync with Google Drive
 
 The app works locally even without an account or cloud sync.
 
@@ -23,11 +23,7 @@ The app works locally even without an account or cloud sync.
 - Pick your main folder once and change it later if needed.
 - Create new notes in the current folder.
 - Create subfolders and move deeper into them.
-- Go back to parent folders.
-- Rename files and folders.
-- Delete files and folders.
-- Copy notes to another folder.
-- Move notes to another folder.
+- Delete, rename, copy, move files and folders.
 
 ### Work with plain text files
 - Notes are stored as `.txt` files.
@@ -37,14 +33,12 @@ The app works locally even without an account or cloud sync.
 ### Browse notes in two ways
 - `List view` for a compact file list.
 - `Feed view` for reading note previews one after another.
-- Refresh the current folder at any time.
 - Change the note list font size.
 - Sort files from `A to Z` or from `Z to A`.
 
 ### Open and edit notes quickly
 - Create a note from the top toolbar or the floating action button.
-- Auto-save while editing.
-- Save manually with the save button.
+- Auto-save while editing or save manually.
 - Save when the app goes to the background.
 - Undo and redo changes.
 - Show links inside notes:
@@ -60,15 +54,13 @@ The app works locally even without an account or cloud sync.
 - Shared notes use a timestamp-based name automatically.
 
 ### Use date and time templates
-- Insert the current date or time into a note with one tap.
+- Insert the current date or time into a note with one tap using templates.
 - Manage your own date/time templates.
-- Use built-in examples such as full date and time or short date formats.
-- Automatically insert a chosen template when creating a new note.
+- Automatically insert a chosen template when creating a new note (on by default)
 
 ### Search inside notes
 - Search through notes in the current folder and its subfolders.
-- Use normal text search.
-- Use regex search when needed.
+- Use normal or regex text search.
 - Open a note directly from the search results.
 - See a short text snippet for each match.
 
@@ -88,7 +80,7 @@ The app works locally even without an account or cloud sync.
 
 ## Google Drive sync
 
-Google Drive sync is optional.
+Google Drive sync is optional and mainly meant for backing up your notes and keeping them available across devices that also use Anotepad.
 
 If you enable it, you can:
 - sign in with your Google account
@@ -100,7 +92,19 @@ If you enable it, you can:
 - pause sync temporarily
 - ignore deletions that come from Drive
 
-Drive sync is mainly meant for keeping your Anotepad notes backed up and available across devices that use Anotepad.
+### How sync works
+
+**Why this approach?** Due to Google's API limitations, the app was designed to request access only to the folder you choose, not all your files.
+
+**Here's how it works:**
+
+- **Limited scope**: The app can only access the folder you explicitly select on Google Drive.
+
+- **Only sees its own files**: The app only tracks files it created or synced. If you add new files to the Drive folder from another device or manually, Anotepad won't sync them.
+
+- **Syncs existing files**: You can modify existing files directly on Google Drive (including from another device with Anotepad installed), and the app will see and sync those changes.
+
+- **Conflict handling**: If the same file changes both locally and on Drive since the last sync, the app creates a copy with a `conflict ...` prefix to prevent data loss. You can then decide which version to keep.
 
 ## Settings overview
 
@@ -139,12 +143,6 @@ Drive sync is mainly meant for keeping your Anotepad notes backed up and availab
 - Pause sync
 - Auto sync on start
 - Ignore deletions from Drive
-
-## Recent updates
-
-Recent git changes reflected in the app:
-- Shared note names are now cleaner and no longer include milliseconds.
-- The browser now refreshes automatically after the first shared note creates the `Shared` folder.
 
 ## Privacy and permissions
 
