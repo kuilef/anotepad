@@ -8,6 +8,7 @@ import com.anotepad.data.FileSortOrder
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.ChildBatch
 import com.anotepad.file.DocumentNode
+import com.anotepad.file.DocumentNodeListUpdater
 import com.anotepad.file.FileRepository
 import com.anotepad.sync.SyncRepository
 import com.anotepad.sync.SyncState
@@ -331,25 +332,19 @@ class BrowserViewModel(
         viewModelScope.launch {
             val name = fileRepository.getDisplayName(targetUri) ?: return@launch
             val updatedNode = DocumentNode(name = name, uri = targetUri, isDirectory = false)
-            val entries = _state.value.entries
-            val matchIndex = entries.indexOfFirst { !it.isDirectory && it.uri == matchUri }
-            val currentIndex = if (matchIndex >= 0 || matchUri == targetUri) {
-                -1
-            } else {
-                entries.indexOfFirst { !it.isDirectory && it.uri == targetUri }
-            }
-            val indexToUpdate = if (matchIndex >= 0) matchIndex else currentIndex
-            val updatedEntries = if (indexToUpdate >= 0) {
-                entries.toMutableList().apply { set(indexToUpdate, updatedNode) }
-            } else {
-                entries + updatedNode
-            }
+            val updatedEntries = DocumentNodeListUpdater.mergeAndSortEntries(
+                entries = _state.value.entries,
+                updatedNode = updatedNode,
+                matchUri = matchUri,
+                sortOrder = _state.value.fileSortOrder
+            )
             _state.update { it.copy(entries = updatedEntries) }
             feedManager.updateForEditedFile(
                 stateProvider = { _state.value },
                 updateState = { reducer -> _state.update(reducer) },
                 matchUri = matchUri,
-                updatedNode = updatedNode
+                updatedNode = updatedNode,
+                sortOrder = _state.value.fileSortOrder
             )
         }
     }

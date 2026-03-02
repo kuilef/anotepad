@@ -1,7 +1,9 @@
 package com.anotepad.ui
 
 import android.net.Uri
+import com.anotepad.data.FileSortOrder
 import com.anotepad.file.DocumentNode
+import com.anotepad.file.DocumentNodeListUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -97,37 +99,38 @@ class FeedManager(
         stateProvider: () -> BrowserState,
         updateState: ((BrowserState) -> BrowserState) -> Unit,
         matchUri: Uri,
-        updatedNode: DocumentNode
+        updatedNode: DocumentNode,
+        sortOrder: FileSortOrder
     ) {
-        val matchIndex = feedFiles.indexOfFirst { it.uri == matchUri }
-        val currentIndex = if (matchIndex >= 0 || matchUri == updatedNode.uri) {
-            -1
-        } else {
-            feedFiles.indexOfFirst { it.uri == updatedNode.uri }
-        }
-        val indexToUpdate = if (matchIndex >= 0) matchIndex else currentIndex
-        feedFiles = if (indexToUpdate >= 0) {
-            feedFiles.toMutableList().apply { set(indexToUpdate, updatedNode) }
-        } else {
-            feedFiles + updatedNode
+        feedFiles = DocumentNodeListUpdater.mergeAndSortEntries(
+            entries = feedFiles,
+            updatedNode = updatedNode,
+            matchUri = matchUri,
+            sortOrder = sortOrder
+        ).filterNot { it.isDirectory }
+
+        val currentItems = stateProvider().feedItems
+        if (currentItems.isEmpty()) {
+            updateState { it.copy(feedHasMore = feedFiles.isNotEmpty()) }
+            return
         }
 
-        val feedItems = stateProvider().feedItems
-        val matchItemIndex = feedItems.indexOfFirst { it.node.uri == matchUri }
-        val currentItemIndex = if (matchItemIndex >= 0 || matchUri == updatedNode.uri) {
-            -1
-        } else {
-            feedItems.indexOfFirst { it.node.uri == updatedNode.uri }
-        }
-        val itemIndex = if (matchItemIndex >= 0) matchItemIndex else currentItemIndex
-        if (itemIndex >= 0) {
-            val updatedText = readTextPreview(updatedNode.uri, previewChars)
-            val updatedItems = feedItems.toMutableList().apply {
-                set(itemIndex, FeedItem(node = updatedNode, text = updatedText))
+        val visibleCount = currentItems.size.coerceAtMost(feedFiles.size)
+        val previousItemsByUri = currentItems.associateBy { it.node.uri }
+        val reorderedItems = mutableListOf<FeedItem>()
+        for (node in feedFiles.take(visibleCount)) {
+            val text = if (node.uri == updatedNode.uri) {
+                readTextPreview(node.uri, previewChars)
+            } else {
+                previousItemsByUri[node.uri]?.text ?: readTextPreview(node.uri, previewChars)
             }
-            updateState { it.copy(feedItems = updatedItems, feedHasMore = updatedItems.size < feedFiles.size) }
-        } else {
-            updateState { it.copy(feedHasMore = it.feedItems.size < feedFiles.size) }
+            reorderedItems += FeedItem(node = node, text = text)
+        }
+        updateState {
+            it.copy(
+                feedItems = reorderedItems,
+                feedHasMore = reorderedItems.size < feedFiles.size
+            )
         }
     }
 }
