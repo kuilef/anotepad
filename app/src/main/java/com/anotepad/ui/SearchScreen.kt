@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
@@ -33,6 +35,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.anotepad.R
 
@@ -46,6 +49,10 @@ fun SearchScreen(
     val state by viewModel.state.collectAsState()
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val runSearch = {
+        keyboardController?.hide()
+        viewModel.runSearch()
+    }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -75,6 +82,9 @@ fun SearchScreen(
                 value = state.query,
                 onValueChange = viewModel::updateQuery,
                 label = { Text(text = stringResource(id = R.string.label_search_query)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { runSearch() }),
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester)
@@ -84,7 +94,7 @@ fun SearchScreen(
                 Switch(checked = state.regexEnabled, onCheckedChange = viewModel::toggleRegex)
             }
             Button(
-                onClick = viewModel::runSearch,
+                onClick = runSearch,
                 enabled = state.baseDir != null && state.query.isNotBlank()
             ) {
                 Icon(Icons.Default.Search, contentDescription = null)
