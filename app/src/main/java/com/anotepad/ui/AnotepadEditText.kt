@@ -1,8 +1,6 @@
 package com.anotepad.ui
 
 import android.content.ActivityNotFoundException
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Canvas
@@ -18,7 +16,6 @@ import android.util.Patterns
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
-import android.view.Menu
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -26,7 +23,6 @@ import android.view.inputmethod.EditorInfo
 import android.view.VelocityTracker
 import android.widget.EditText
 import android.widget.OverScroller
-import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -241,7 +237,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
             !hasVerticalDrag &&
             !linkTouchMoved
         ) {
-            showLinkActions(url)
+            openLink(url)
             clearPressedLink()
             return true
         }
@@ -386,6 +382,8 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         val x = rawX - totalPaddingLeft + scrollX
         val y = rawY - totalPaddingTop + scrollY
         if (x < 0f || y < 0f) return null
+        val lastLine = (layout.lineCount - 1).coerceAtLeast(0)
+        if (y > layout.getLineBottom(lastLine)) return null
         val vertical = y.toInt().coerceAtMost((layout.height - 1).coerceAtLeast(0))
         val line = layout.getLineForVertical(vertical)
         val lineLeft = min(layout.getLineLeft(line), layout.getLineRight(line))
@@ -399,30 +397,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     private fun findUrlAtOffset(text: Spannable, offset: Int): String? {
         val spans = text.getSpans(offset, offset, URLSpan::class.java)
         return spans.firstOrNull()?.url
-    }
-
-    private fun showLinkActions(url: String) {
-        val popupMenu = PopupMenu(context, this)
-        popupMenu.menu.add(Menu.NONE, MENU_ITEM_OPEN_LINK, Menu.NONE, context.getString(com.anotepad.R.string.action_open))
-        popupMenu.menu.add(Menu.NONE, MENU_ITEM_COPY_LINK, Menu.NONE, context.getString(com.anotepad.R.string.action_copy))
-        popupMenu.menu.add(Menu.NONE, MENU_ITEM_CANCEL_LINK, Menu.NONE, context.getString(com.anotepad.R.string.action_cancel))
-        popupMenu.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                MENU_ITEM_OPEN_LINK -> {
-                    openLink(url)
-                    true
-                }
-
-                MENU_ITEM_COPY_LINK -> {
-                    copyLink(url)
-                    true
-                }
-
-                MENU_ITEM_CANCEL_LINK -> true
-                else -> false
-            }
-        }
-        popupMenu.show()
     }
 
     private fun openLink(url: String) {
@@ -442,16 +416,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
             Toast.makeText(context, normalized, Toast.LENGTH_SHORT).show()
         }
     }
-
-    private fun copyLink(url: String) {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
-        clipboard.setPrimaryClip(ClipData.newPlainText("link", url))
-    }
 }
-
-private const val MENU_ITEM_OPEN_LINK = 1
-private const val MENU_ITEM_COPY_LINK = 2
-private const val MENU_ITEM_CANCEL_LINK = 3
 
 @Composable
 fun AnotepadEditText(
