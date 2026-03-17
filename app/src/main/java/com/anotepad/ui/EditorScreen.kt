@@ -2,7 +2,6 @@ package com.anotepad.ui
 
 import android.content.Context
 import android.text.method.ArrowKeyMovementMethod
-import android.text.method.LinkMovementMethod
 import android.text.util.Linkify
 import android.widget.EditText
 import android.widget.Toast
@@ -497,19 +496,16 @@ private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: 
         (if (email) Linkify.EMAIL_ADDRESSES else 0) or
         (if (tel) Linkify.PHONE_NUMBERS else 0)
     editText.autoLinkMask = 0
+    editText.linksClickable = false
+    editText.movementMethod = ArrowKeyMovementMethod.getInstance()
+    editText.text?.let { text ->
+        if (text is android.text.Spannable) {
+            val spans = text.getSpans(0, text.length, android.text.style.URLSpan::class.java)
+            spans.forEach { text.removeSpan(it) }
+        }
+    }
     if (mask != 0) {
         LinkifyCompat.addLinks(editText, mask)
-        editText.linksClickable = true
-        editText.movementMethod = LinkMovementMethod.getInstance()
-    } else {
-        editText.linksClickable = false
-        editText.movementMethod = ArrowKeyMovementMethod.getInstance()
-        editText.text?.let { text ->
-            if (text is android.text.Spannable) {
-                val spans = text.getSpans(0, text.length, android.text.style.URLSpan::class.java)
-                spans.forEach { text.removeSpan(it) }
-            }
-        }
     }
 }
 

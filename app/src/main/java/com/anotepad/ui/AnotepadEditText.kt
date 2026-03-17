@@ -1,16 +1,24 @@
 package com.anotepad.ui
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.text.Editable
 import android.text.InputType
+import android.text.Spannable
 import android.text.TextWatcher
 import android.text.method.KeyListener
+import android.text.style.URLSpan
+import android.util.Patterns
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.Menu
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -18,6 +26,8 @@ import android.view.inputmethod.EditorInfo
 import android.view.VelocityTracker
 import android.widget.EditText
 import android.widget.OverScroller
+import android.widget.PopupMenu
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 class AnotepadEditorEditText(context: Context) : EditText(context) {
@@ -55,6 +66,9 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     private var restoreCursorAfterTouch = false
     private var editableKeyListener: KeyListener? = null
     private var readOnly = false
+    private var pressedLinkUrl: String? = null
+    private var pressedLinkPointerId = MotionEvent.INVALID_POINTER_ID
+    private var linkTouchMoved = false
 
     fun runWithoutHistoryAndChangeCallbacks(block: () -> Unit) {
         suppressChangesDepth += 1
@@ -119,6 +133,9 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
             MotionEvent.ACTION_DOWN -> {
                 abortFling()
                 resetTouchTracking()
+                pressedLinkPointerId = event.getPointerId(0)
+                pressedLinkUrl = findUrlAtTouch(event.x, event.y)
+                linkTouchMoved = false
                 deferCursorVisibilityUntilTouchEnds = true
                 hasDeferredCursorVisibilityUpdate = false
                 restoreCursorAfterTouch = isCursorVisible
@@ -135,6 +152,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
 
             MotionEvent.ACTION_POINTER_DOWN -> {
                 hasMultiplePointers = true
+                clearPressedLink()
             }
         }
 
@@ -144,6 +162,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
                 updateVerticalDragState(event)
+                updatePressedLinkState(event)
             }
 
             MotionEvent.ACTION_UP -> {
@@ -152,6 +171,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
                 flushDeferredCursorVisibility()
                 restoreCursorVisibilityAfterTouch()
                 recycleVelocityTracker()
+                clearPressedLink()
                 resetTouchTracking()
             }
 
@@ -160,6 +180,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
                 flushDeferredCursorVisibility()
                 restoreCursorVisibilityAfterTouch()
                 recycleVelocityTracker()
+                clearPressedLink()
                 resetTouchTracking()
             }
         }
@@ -206,7 +227,25 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     override fun onDetachedFromWindow() {
         abortFling()
         recycleVelocityTracker()
+        clearPressedLink()
         super.onDetachedFromWindow()
+    }
+
+    override fun performLongClick(): Boolean {
+        val url = pressedLinkUrl
+        val hasTextSelection = selectionStart >= 0 && selectionEnd >= 0 && selectionStart != selectionEnd
+        if (
+            url != null &&
+            !hasTextSelection &&
+            !hasMultiplePointers &&
+            !hasVerticalDrag &&
+            !linkTouchMoved
+        ) {
+            showLinkActions(url)
+            clearPressedLink()
+            return true
+        }
+        return super.performLongClick()
     }
 
     private fun updateVerticalDragState(event: MotionEvent) {
@@ -218,6 +257,35 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         if (abs(totalDy) <= viewConfiguration.scaledTouchSlop) return
         if (abs(totalDy) > abs(totalDx) || abs(scrollY - startScrollY) > viewConfiguration.scaledTouchSlop) {
             hasVerticalDrag = true
+        }
+    }
+
+    private fun updatePressedLinkState(event: MotionEvent) {
+        val url = pressedLinkUrl ?: return
+        val pointerId = pressedLinkPointerId
+        if (pointerId == MotionEvent.INVALID_POINTER_ID) {
+            clearPressedLink()
+            return
+        }
+        val pointerIndex = event.findPointerIndex(pointerId)
+        if (pointerIndex < 0) {
+            clearPressedLink()
+            return
+        }
+        val movedX = abs(event.getX(pointerIndex) - initialTouchX)
+        val movedY = abs(event.getY(pointerIndex) - initialTouchY)
+        if (
+            movedX > viewConfiguration.scaledTouchSlop ||
+            movedY > viewConfiguration.scaledTouchSlop ||
+            abs(scrollY - startScrollY) > viewConfiguration.scaledTouchSlop ||
+            hasVerticalDrag
+        ) {
+            linkTouchMoved = true
+            clearPressedLink()
+            return
+        }
+        if (findUrlAtTouch(event.getX(pointerIndex), event.getY(pointerIndex)) != url) {
+            clearPressedLink()
         }
     }
 
@@ -304,7 +372,86 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         initialTouchY = 0f
         startScrollY = scrollY
     }
+
+    private fun clearPressedLink() {
+        pressedLinkUrl = null
+        pressedLinkPointerId = MotionEvent.INVALID_POINTER_ID
+        linkTouchMoved = false
+    }
+
+    private fun findUrlAtTouch(rawX: Float, rawY: Float): String? {
+        val content = text
+        if (content !is Spannable) return null
+        val layout = layout ?: return null
+        val x = rawX - totalPaddingLeft + scrollX
+        val y = rawY - totalPaddingTop + scrollY
+        if (x < 0f || y < 0f) return null
+        val vertical = y.toInt().coerceAtMost((layout.height - 1).coerceAtLeast(0))
+        val line = layout.getLineForVertical(vertical)
+        val lineLeft = min(layout.getLineLeft(line), layout.getLineRight(line))
+        val lineRight = max(layout.getLineLeft(line), layout.getLineRight(line))
+        if (x < lineLeft || x > lineRight) return null
+        val offset = layout.getOffsetForHorizontal(line, x)
+        return findUrlAtOffset(content, offset)
+            ?: if (offset > 0) findUrlAtOffset(content, offset - 1) else null
+    }
+
+    private fun findUrlAtOffset(text: Spannable, offset: Int): String? {
+        val spans = text.getSpans(offset, offset, URLSpan::class.java)
+        return spans.firstOrNull()?.url
+    }
+
+    private fun showLinkActions(url: String) {
+        val popupMenu = PopupMenu(context, this)
+        popupMenu.menu.add(Menu.NONE, MENU_ITEM_OPEN_LINK, Menu.NONE, context.getString(com.anotepad.R.string.action_open))
+        popupMenu.menu.add(Menu.NONE, MENU_ITEM_COPY_LINK, Menu.NONE, context.getString(com.anotepad.R.string.action_copy))
+        popupMenu.menu.add(Menu.NONE, MENU_ITEM_CANCEL_LINK, Menu.NONE, context.getString(com.anotepad.R.string.action_cancel))
+        popupMenu.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                MENU_ITEM_OPEN_LINK -> {
+                    openLink(url)
+                    true
+                }
+
+                MENU_ITEM_COPY_LINK -> {
+                    copyLink(url)
+                    true
+                }
+
+                MENU_ITEM_CANCEL_LINK -> true
+                else -> false
+            }
+        }
+        popupMenu.show()
+    }
+
+    private fun openLink(url: String) {
+        val trimmed = url.trim()
+        if (trimmed.isEmpty()) return
+        val normalized = when {
+            Patterns.EMAIL_ADDRESS.matcher(trimmed).matches() && !trimmed.startsWith("mailto:", ignoreCase = true) -> "mailto:$trimmed"
+            Patterns.PHONE.matcher(trimmed).matches() && !trimmed.startsWith("tel:", ignoreCase = true) -> "tel:$trimmed"
+            else -> trimmed
+        }
+        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(normalized)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, normalized, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun copyLink(url: String) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+        clipboard.setPrimaryClip(ClipData.newPlainText("link", url))
+    }
 }
+
+private const val MENU_ITEM_OPEN_LINK = 1
+private const val MENU_ITEM_COPY_LINK = 2
+private const val MENU_ITEM_CANCEL_LINK = 3
 
 @Composable
 fun AnotepadEditText(
