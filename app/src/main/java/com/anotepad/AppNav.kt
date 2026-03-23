@@ -37,6 +37,7 @@ private const val ROUTE_SYNC = "sync"
 private const val RESULT_EDITED_ORIGINAL_URI = "edited_original_uri"
 private const val RESULT_EDITED_CURRENT_URI = "edited_current_uri"
 private const val RESULT_EDITED_DIR_URI = "edited_dir_uri"
+private const val STATE_EDITOR_CURRENT_FILE_URI = "editor_current_file_uri"
 private const val ARG_SHARED_DRAFT = "shared"
 private const val SHARED_DRAFT_FLAG = "1"
 
@@ -153,11 +154,17 @@ fun AppNav(deps: AppDependencies) {
             val extArg = backStackEntry.arguments?.getString("ext")
             val sharedArg = backStackEntry.arguments?.getString(ARG_SHARED_DRAFT)
             val viewModel: com.anotepad.ui.EditorViewModel = viewModel(factory = factory)
-            val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
-            val templateText = savedStateHandle?.get<String>("template")
+            val savedStateHandle = backStackEntry.savedStateHandle
+            val templateText = savedStateHandle.get<String>("template")
+            val restoredFileArg = remember(backStackEntry) {
+                // Capture the persisted file target once per back stack entry to avoid
+                // reloading the current editor session when we later sync state back into it.
+                savedStateHandle.get<String>(STATE_EDITOR_CURRENT_FILE_URI)
+            }
+            val effectiveFileArg = restoredFileArg?.takeIf { it.isNotBlank() } ?: fileArg
 
-            LaunchedEffect(fileArg, dirArg, extArg, sharedArg) {
-                val sharedDraft = if (fileArg.isNullOrBlank() && sharedArg == SHARED_DRAFT_FLAG) {
+            LaunchedEffect(effectiveFileArg, dirArg, extArg, sharedArg) {
+                val sharedDraft = if (effectiveFileArg.isNullOrBlank() && sharedArg == SHARED_DRAFT_FLAG) {
                     deps.incomingShareManager.consumePendingEditorDraft()
                         ?: deps.sharedDraftRecoveryStore.peek()
                 } else {
@@ -171,16 +178,24 @@ fun AppNav(deps: AppDependencies) {
                     )
                 } else {
                     viewModel.load(
-                        fileUri = parseNavUriArg(fileArg),
+                        fileUri = parseNavUriArg(effectiveFileArg),
                         dirUri = parseNavUriArg(dirArg),
                         newFileExtension = extArg ?: "txt"
                     )
                 }
             }
+            LaunchedEffect(viewModel, backStackEntry) {
+                viewModel.state.collect { editorState ->
+                    val currentFileUri = editorState.fileUri?.toString()?.takeIf { it.isNotBlank() } ?: return@collect
+                    if (savedStateHandle.get<String>(STATE_EDITOR_CURRENT_FILE_URI) != currentFileUri) {
+                        savedStateHandle[STATE_EDITOR_CURRENT_FILE_URI] = currentFileUri
+                    }
+                }
+            }
             LaunchedEffect(templateText) {
                 if (!templateText.isNullOrBlank()) {
                     viewModel.queueTemplate(templateText)
-                    savedStateHandle?.remove<String>("template")
+                    savedStateHandle.remove<String>("template")
                 }
             }
 
