@@ -34,3 +34,8 @@ keystore.properties
 .gradle-wsl/
 
 screenshots/
+credentials/
+Gemfile
+Appfile
+Gemfile.lock
+metadata/
