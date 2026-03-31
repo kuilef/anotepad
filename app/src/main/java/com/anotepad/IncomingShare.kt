@@ -174,15 +174,20 @@ internal fun buildSharedNoteDraft(
     payload: SharedTextPayload,
     now: Date = Date()
 ): SharedNoteDraft {
+    val title = buildSharedNoteTitle(now)
     return SharedNoteDraft(
-        fileName = buildSharedNoteFileName(now),
-        content = payload.text
+        fileName = "$title.txt",
+        content = "$title\n\n${payload.text}"
     )
 }
 
-internal fun buildSharedNoteFileName(now: Date = Date()): String {
+internal fun buildSharedNoteTitle(now: Date = Date()): String {
     val timestamp = SimpleDateFormat("yyyy-MM-dd HH-mm-ss", Locale.US).format(now)
-    return "Shared $timestamp.txt"
+    return "Shared $timestamp"
+}
+
+internal fun buildSharedNoteFileName(now: Date = Date()): String {
+    return buildSharedNoteTitle(now) + ".txt"
 }
 
 private const val SHARED_TEXT_READ_BUFFER_SIZE = 8 * 1024

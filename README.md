@@ -68,7 +68,7 @@ The app works locally even without an account or cloud sync.
 - Send text from another app to Anotepad through Android Share.
 - The app creates a note in the `Shared` folder automatically.
 - If the `Shared` folder does not exist yet, Anotepad creates it for you.
-- Shared notes start with a timestamp-based file name and keep it until the first edit.
+- Shared notes start with a timestamp-based title on the first line and keep the timestamp-based file name until the first edit.
 
 ### Share notes out of the app
 - Share a note with other apps.

@@ -34,7 +34,7 @@ class IncomingShareTest {
     }
 
     @Test
-    fun buildSharedNoteDraft_usesGeneratedFileNameAndKeepsSharedTextUntouched() {
+    fun buildSharedNoteDraft_usesGeneratedTitleOnFirstLine() {
         val now = Date(1_709_132_112_000L)
         val draft = buildSharedNoteDraft(
             payload = SharedTextPayload("Shared body"),
@@ -42,7 +42,15 @@ class IncomingShareTest {
         )
 
         assertEquals(buildSharedNoteFileName(now), draft.fileName)
-        assertEquals("Shared body", draft.content)
+        assertEquals("${buildSharedNoteTitle(now)}\n\nShared body", draft.content)
+    }
+
+    @Test
+    fun buildSharedNoteTitle_omitsFileExtension() {
+        val title = buildSharedNoteTitle(Date(1_709_132_112_789L))
+
+        assertTrue(Regex("""^Shared \d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}$""").matches(title))
+        assertFalse(title.endsWith(".txt"))
     }
 
     @Test
@@ -75,7 +83,7 @@ class IncomingShareTest {
         val manager = IncomingShareManager(handle)
         val draft = SharedNoteDraft(
             fileName = "Shared 2026-02-28 14-35-12.txt",
-            content = "Shared body"
+            content = "Shared 2026-02-28 14-35-12\n\nShared body"
         )
 
         manager.setPendingEditorDraft(draft)
@@ -91,7 +99,7 @@ class IncomingShareTest {
         val manager = IncomingShareManager(handle)
         val draft = SharedNoteDraft(
             fileName = "Shared 2026-02-28 14-35-12.txt",
-            content = "A".repeat(8_192)
+            content = "Shared 2026-02-28 14-35-12\n\n" + "A".repeat(8_192)
         )
 
         manager.submitShare(SharedTextPayload("A".repeat(8_192)))
