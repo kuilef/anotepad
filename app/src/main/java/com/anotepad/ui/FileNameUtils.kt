@@ -15,6 +15,21 @@ internal fun buildFileNameFromText(
     return fitFileNameToByteLimit(base = base, extension = extension)
 }
 
+internal fun resolveInitialFileName(
+    text: String,
+    extension: String,
+    proposedFileName: String?,
+    syncTitle: Boolean,
+    keepProposedFileNameUntilEdit: Boolean,
+    sanitizeFileName: (String) -> String
+): String {
+    return if (!proposedFileName.isNullOrBlank() && (!syncTitle || keepProposedFileNameUntilEdit)) {
+        proposedFileName
+    } else {
+        buildFileNameFromText(text, extension, sanitizeFileName)
+    }
+}
+
 internal fun fitFileNameToByteLimit(
     base: String,
     extension: String,

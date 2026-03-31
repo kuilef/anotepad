@@ -22,8 +22,6 @@ internal const val SHARED_NOTES_FOLDER_NAME = "Shared"
 internal const val MAX_SHARED_TEXT_CHARS = 1_000_000
 
 private val invisibleShareChars = Regex("[\\u200B\\u200C\\u200D\\u2060\\uFEFF]")
-private val sharedFileNameRegex =
-    Regex("""^Shared \d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}(?:-\d{3})?(?:\(\d+\))?\.txt$""")
 
 data class SharedTextPayload(
     val text: String
@@ -176,26 +174,15 @@ internal fun buildSharedNoteDraft(
     payload: SharedTextPayload,
     now: Date = Date()
 ): SharedNoteDraft {
-    val fileName = buildSharedNoteFileName(now)
     return SharedNoteDraft(
-        fileName = fileName,
-        content = "$fileName\n\n${payload.text}"
+        fileName = buildSharedNoteFileName(now),
+        content = payload.text
     )
-}
-
-internal fun replaceSharedNoteHeader(content: String, fileName: String): String {
-    val firstBreak = content.indexOf('\n')
-    if (firstBreak < 0) return fileName
-    return fileName + content.substring(firstBreak)
 }
 
 internal fun buildSharedNoteFileName(now: Date = Date()): String {
     val timestamp = SimpleDateFormat("yyyy-MM-dd HH-mm-ss", Locale.US).format(now)
     return "Shared $timestamp.txt"
-}
-
-internal fun isManagedSharedFileName(fileName: String): Boolean {
-    return sharedFileNameRegex.matches(fileName)
 }
 
 private const val SHARED_TEXT_READ_BUFFER_SIZE = 8 * 1024

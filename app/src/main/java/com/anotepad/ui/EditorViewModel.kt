@@ -5,9 +5,7 @@ import com.anotepad.SharedDraftRecoveryStore
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.anotepad.SHARED_NOTES_FOLDER_NAME
 import com.anotepad.SharedNoteDraft
-import com.anotepad.isManagedSharedFileName
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
 import com.anotepad.file.ReadTextResult
@@ -55,7 +53,7 @@ data class EditorState(
     val isReadOnly: Boolean = false,
     val truncatedNoticeToken: Long? = null,
     val proposedFileName: String? = null,
-    val suppressSyncTitle: Boolean = false
+    val keepProposedFileNameUntilEdit: Boolean = false
 )
 
 data class EditorSaveResult(
@@ -195,7 +193,7 @@ class EditorViewModel(
                     isReadOnly = textResult.truncated,
                     truncatedNoticeToken = nextTruncatedNoticeToken(textResult.truncated),
                     proposedFileName = null,
-                    suppressSyncTitle = shouldSuppressSyncTitleForNote(resolvedDir, fileName)
+                    keepProposedFileNameUntilEdit = false
                 )
             }
             lastSavedText = if (fileUri == null) "" else initialText
@@ -233,7 +231,7 @@ class EditorViewModel(
                     isReadOnly = false,
                     truncatedNoticeToken = null,
                     proposedFileName = draft.fileName,
-                    suppressSyncTitle = true
+                    keepProposedFileNameUntilEdit = true
                 )
             }
             lastSavedText = ""
@@ -244,7 +242,13 @@ class EditorViewModel(
     }
 
     fun updateText(text: String) {
-        _state.update { it.copy(text = text) }
+        _state.update { current ->
+            current.copy(
+                text = text,
+                keepProposedFileNameUntilEdit =
+                    current.keepProposedFileNameUntilEdit && current.text == text
+            )
+        }
         textChanges.value = text
         updateCanSaveState()
     }
@@ -448,11 +452,16 @@ class EditorViewModel(
             val shouldClearSharedDraftRecovery = hasPendingSharedDraftRecovery
             if (fileUri == null) {
                 if (dirUri == null || text.isBlank()) return@withLock false
-                val desiredName = _state.value.proposedFileName ?: run {
-                    val rawExtension = _state.value.newFileExtension.ifBlank { "txt" }
-                    val extension = ".${rawExtension.lowercase(Locale.getDefault())}"
-                    buildNameFromText(textToSave, extension)
-                }
+                val rawExtension = _state.value.newFileExtension.ifBlank { "txt" }
+                val extension = ".${rawExtension.lowercase(Locale.getDefault())}"
+                val desiredName = resolveInitialFileName(
+                    text = textToSave,
+                    extension = extension,
+                    proposedFileName = _state.value.proposedFileName,
+                    syncTitle = _state.value.syncTitle,
+                    keepProposedFileNameUntilEdit = _state.value.keepProposedFileNameUntilEdit,
+                    sanitizeFileName = fileRepository::sanitizeFileName
+                )
                 val uniqueName = ensureUniqueName(dirUri, desiredName, null)
                 if (_state.value.proposedFileName != null) {
                     _state.update {
@@ -464,7 +473,7 @@ class EditorViewModel(
                 }
                 fileUri = fileRepository.createFile(dirUri, uniqueName, fileRepository.guessMimeType(uniqueName))
                 if (fileUri == null) return@withLock false
-                _state.update { it.copy(fileUri = fileUri, fileName = uniqueName) }
+                _state.update { it.copy(fileUri = fileUri, fileName = uniqueName, proposedFileName = null) }
             }
             var currentFileUri = fileUri ?: return@withLock false
 
@@ -476,7 +485,7 @@ class EditorViewModel(
                 lastSavedText = textToSave
                 lastKnownModified = fileRepository.getLastModified(currentFileUri) ?: System.currentTimeMillis()
 
-                if (_state.value.syncTitle && !_state.value.suppressSyncTitle) {
+                if (_state.value.syncTitle && !_state.value.keepProposedFileNameUntilEdit) {
                     val currentName = _state.value.fileName
                     val ext = currentName.substringAfterLast('.', "txt")
                     val desiredName = buildNameFromText(textToSave, ".${ext}")
@@ -595,11 +604,5 @@ class EditorViewModel(
         }
         hasPendingSharedDraftRecovery = false
         activeSharedDraftRecovery = null
-    }
-
-    private fun shouldSuppressSyncTitleForNote(dirUri: Uri?, fileName: String): Boolean {
-        if (dirUri == null || fileName.isBlank()) return false
-        if (!isManagedSharedFileName(fileName)) return false
-        return fileRepository.getTreeDisplayName(dirUri) == SHARED_NOTES_FOLDER_NAME
     }
 }

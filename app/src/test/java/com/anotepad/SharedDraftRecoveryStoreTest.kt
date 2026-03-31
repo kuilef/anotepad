@@ -13,7 +13,7 @@ class SharedDraftRecoveryStoreTest {
         val store = createStore()
         val draft = SharedNoteDraft(
             fileName = "Shared 2026-02-28 20-10-00.txt",
-            content = "Shared 2026-02-28 20-10-00.txt\n\nRecovered body"
+            content = "Recovered body"
         )
 
         store.persist(draft)
@@ -27,7 +27,7 @@ class SharedDraftRecoveryStoreTest {
         store.persist(
             SharedNoteDraft(
                 fileName = "Shared 2026-02-28 20-10-00.txt",
-                content = "Shared 2026-02-28 20-10-00.txt\n\nRecovered body"
+                content = "Recovered body"
             )
         )
 
@@ -51,11 +51,11 @@ class SharedDraftRecoveryStoreTest {
         val store = createStore()
         val first = SharedNoteDraft(
             fileName = "Shared 2026-02-28 20-10-00-001.txt",
-            content = "Shared 2026-02-28 20-10-00-001.txt\n\nFirst"
+            content = "First"
         )
         val second = SharedNoteDraft(
             fileName = "Shared 2026-02-28 20-10-00-002.txt",
-            content = "Shared 2026-02-28 20-10-00-002.txt\n\nSecond"
+            content = "Second"
         )
 
         store.persist(first)

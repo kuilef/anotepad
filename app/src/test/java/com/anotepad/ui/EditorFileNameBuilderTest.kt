@@ -124,6 +124,48 @@ class EditorFileNameBuilderTest {
     }
 
     @Test
+    fun resolveInitialFileName_prefersProposedNameWhenSyncTitleIsDisabled() {
+        val fileName = resolveInitialFileName(
+            text = "Shopping list\nMilk",
+            extension = ".txt",
+            proposedFileName = "Shared 2026-02-28 20-10-00.txt",
+            syncTitle = false,
+            keepProposedFileNameUntilEdit = false,
+            sanitizeFileName = repository::sanitizeFileName
+        )
+
+        assertEquals("Shared 2026-02-28 20-10-00.txt", fileName)
+    }
+
+    @Test
+    fun resolveInitialFileName_keepsProposedNameUntilFirstEditEvenWhenSyncTitleIsEnabled() {
+        val fileName = resolveInitialFileName(
+            text = "Shopping list\nMilk",
+            extension = ".txt",
+            proposedFileName = "Shared 2026-02-28 20-10-00.txt",
+            syncTitle = true,
+            keepProposedFileNameUntilEdit = true,
+            sanitizeFileName = repository::sanitizeFileName
+        )
+
+        assertEquals("Shared 2026-02-28 20-10-00.txt", fileName)
+    }
+
+    @Test
+    fun resolveInitialFileName_prefersFirstLineAfterFirstEditWhenSyncTitleIsEnabled() {
+        val fileName = resolveInitialFileName(
+            text = "Shopping list\nMilk",
+            extension = ".txt",
+            proposedFileName = "Shared 2026-02-28 20-10-00.txt",
+            syncTitle = true,
+            keepProposedFileNameUntilEdit = false,
+            sanitizeFileName = repository::sanitizeFileName
+        )
+
+        assertEquals("Shopping list.txt", fileName)
+    }
+
+    @Test
     fun truncateFileNameToByteLimitPreservingExtension_keepsExtensionWithinLimit() {
         val longName = "${"a".repeat(400)}.txt"
 

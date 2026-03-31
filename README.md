@@ -51,7 +51,7 @@ The app works locally even without an account or cloud sync.
 ### Let the first line become the file name
 - New notes get a file name automatically.
 - The app can keep the file name synced with the first line of the note.
-- Shared notes use a timestamp-based name automatically.
+- Shared notes keep a timestamp-based file name until you edit them.
 
 ### Use date and time templates
 - Insert the current date or time into a note with one tap using templates.
@@ -68,7 +68,7 @@ The app works locally even without an account or cloud sync.
 - Send text from another app to Anotepad through Android Share.
 - The app creates a note in the `Shared` folder automatically.
 - If the `Shared` folder does not exist yet, Anotepad creates it for you.
-- Shared notes start with a timestamp-based title, then you can edit them like any other note.
+- Shared notes start with a timestamp-based file name and keep it until the first edit.
 
 ### Share notes out of the app
 - Share a note with other apps.

@@ -34,14 +34,15 @@ class IncomingShareTest {
     }
 
     @Test
-    fun buildSharedNoteDraft_usesGeneratedFileNameAsFirstLine() {
+    fun buildSharedNoteDraft_usesGeneratedFileNameAndKeepsSharedTextUntouched() {
+        val now = Date(1_709_132_112_000L)
         val draft = buildSharedNoteDraft(
             payload = SharedTextPayload("Shared body"),
-            now = Date(1_709_132_112_000L)
+            now = now
         )
 
-        assertTrue(isManagedSharedFileName(draft.fileName))
-        assertEquals("${draft.fileName}\n\nShared body", draft.content)
+        assertEquals(buildSharedNoteFileName(now), draft.fileName)
+        assertEquals("Shared body", draft.content)
     }
 
     @Test
@@ -50,21 +51,6 @@ class IncomingShareTest {
 
         assertTrue(Regex("""^Shared \d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}\.txt$""").matches(fileName))
         assertFalse(Regex(""".*-\d{3}\.txt$""").matches(fileName))
-    }
-
-    @Test
-    fun replaceSharedNoteHeader_rewritesOnlyTheFirstLine() {
-        val updated = replaceSharedNoteHeader(
-            content = "Shared 2024-02-28 14-15-12.txt\n\nShared body",
-            fileName = "Shared 2024-02-28 14-15-12(1).txt"
-        )
-
-        assertEquals("Shared 2024-02-28 14-15-12(1).txt\n\nShared body", updated)
-    }
-
-    @Test
-    fun isManagedSharedFileName_acceptsTimestampNamesWithCollisionSuffix() {
-        assertTrue(isManagedSharedFileName("Shared 2026-02-28 14-35-12(2).txt"))
     }
 
     @Test
@@ -89,7 +75,7 @@ class IncomingShareTest {
         val manager = IncomingShareManager(handle)
         val draft = SharedNoteDraft(
             fileName = "Shared 2026-02-28 14-35-12.txt",
-            content = "Shared 2026-02-28 14-35-12.txt\n\nShared body"
+            content = "Shared body"
         )
 
         manager.setPendingEditorDraft(draft)
@@ -105,7 +91,7 @@ class IncomingShareTest {
         val manager = IncomingShareManager(handle)
         val draft = SharedNoteDraft(
             fileName = "Shared 2026-02-28 14-35-12.txt",
-            content = "Shared 2026-02-28 14-35-12.txt\n\n" + "A".repeat(8_192)
+            content = "A".repeat(8_192)
         )
 
         manager.submitShare(SharedTextPayload("A".repeat(8_192)))
