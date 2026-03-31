@@ -1,3 +1,0 @@
-* refactored sync module
-* fixed bugs with sync
-* added gradle tests for sync module

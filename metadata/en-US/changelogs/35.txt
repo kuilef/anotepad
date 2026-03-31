@@ -1,1 +1,0 @@
-Fixed problem: Sometimes after reopening the app, the note that was open before is replaced by a new almost-empty note with a duplicate name.

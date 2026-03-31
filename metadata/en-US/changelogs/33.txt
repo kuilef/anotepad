@@ -1,1 +1,0 @@
-Handle IME search action in search screen - now search starts on enter

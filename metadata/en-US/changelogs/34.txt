@@ -1,1 +1,0 @@
-Fixed problem: when auto-link was enabled, the editor switched the EditText to LinkMovementMethod. Because of that, some third-party keyboards that move the cursor using DPAD_LEFT/DPAD_RIGHT could no longer move the caret left and right correctly.

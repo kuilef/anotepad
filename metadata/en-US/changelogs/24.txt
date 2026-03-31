@@ -1,3 +1,0 @@
-* Added a “New note” button to the top action bar; keyboard now hides when returning to the notes list.
-* Fixed a save race condition between auto-save and manual save (not 100% reproducible on my device); improved UI so the Save button is disabled when there’s nothing to save.
-* Fixed issues when the device is using RTL layout.
