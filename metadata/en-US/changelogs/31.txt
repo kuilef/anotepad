@@ -1,0 +1,3 @@
+Improved reliability of sharing text into Anotepad.
+
+This update adds better recovery for shared notes after app restarts or process death, improves error handling when shared text cannot be saved, and makes the Shared folder flow more reliable. It also hardens file name handling, SAF path validation, large-file behavior, and sync safety to reduce the risk of data loss.

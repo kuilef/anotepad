@@ -1,0 +1,6 @@
+Implement fixes for auth retry, durable saves, and history memory budget
+Fix EditorViewModel scope by removing stray closing brace
+Fix nullable Uri smart cast in EditorViewModel save flow
+Handle invalid SAF roots, expose truncation metadata, and add AndroidView release cleanup
+Fix pull conflicts by validating local content hash
+Fix conflict detection after local move during pull
