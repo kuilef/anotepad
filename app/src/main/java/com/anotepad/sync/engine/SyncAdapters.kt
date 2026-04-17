@@ -1,6 +1,7 @@
 package com.anotepad.sync.engine
 
 import android.net.Uri
+import androidx.core.net.toUri
 import com.anotepad.data.PreferencesRepository
 import com.anotepad.file.FileRepository
 import com.anotepad.sync.DriveAuthManager
@@ -196,7 +197,7 @@ class LocalFsGatewayAdapter(
     override fun guessMimeType(name: String): String = fileRepository.guessMimeType(name)
 
     private suspend fun requireAccessibleRootUri(rootId: String): Uri {
-        val rootUri = Uri.parse(rootId)
+        val rootUri = rootId.toUri()
         if (fileRepository.resolveDirByRelativePath(rootUri, "", create = false) != null) {
             return rootUri
         }
@@ -204,7 +205,7 @@ class LocalFsGatewayAdapter(
     }
 
     private fun requireAccessibleRootUriBlocking(rootId: String): Uri {
-        val rootUri = Uri.parse(rootId)
+        val rootUri = rootId.toUri()
         if (runBlocking { fileRepository.resolveDirByRelativePath(rootUri, "", create = false) } != null) {
             return rootUri
         }

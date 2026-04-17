@@ -30,20 +30,12 @@ class InitialSyncUseCase(
                     driveFileId = null,
                     size = meta.size
                 )
-                val localHash = computeHashIfNeeded(
-                    localFs = localFs,
-                    rootId = rootId,
-                    item = null,
-                    relativePath = path,
-                    lastModified = meta.lastModified,
-                    size = meta.size
-                )
                 store.upsertItem(
                     SyncItemEntity(
                         localRelativePath = path,
                         localLastModified = meta.lastModified,
                         localSize = meta.size,
-                        localHash = localHash,
+                        localHash = "",
                         driveFileId = uploaded.id,
                         driveModifiedTime = uploaded.modifiedTime,
                         lastSyncedAt = System.currentTimeMillis(),
@@ -64,20 +56,12 @@ class InitialSyncUseCase(
                     driveFileId = remoteFile.id,
                     size = meta.size
                 )
-                val localHash = computeHashIfNeeded(
-                    localFs = localFs,
-                    rootId = rootId,
-                    item = null,
-                    relativePath = path,
-                    lastModified = meta.lastModified,
-                    size = meta.size
-                )
                 store.upsertItem(
                     SyncItemEntity(
                         localRelativePath = path,
                         localLastModified = meta.lastModified,
                         localSize = meta.size,
-                        localHash = localHash,
+                        localHash = "",
                         driveFileId = updated.id,
                         driveModifiedTime = updated.modifiedTime,
                         lastSyncedAt = System.currentTimeMillis(),
@@ -122,7 +106,8 @@ class InitialSyncUseCase(
                     driveFileId = remoteFile.id,
                     rootId = rootId,
                     relativePath = relativePath,
-                    mimeType = localFs.guessMimeType(relativePath)
+                    mimeType = localFs.guessMimeType(relativePath),
+                    computeHash = false
                 )
             )
         val result = executor.execute(plan)

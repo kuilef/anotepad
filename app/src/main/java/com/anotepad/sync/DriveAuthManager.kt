@@ -87,9 +87,7 @@ class DriveAuthManager(private val context: Context) {
             lastAccessToken = null
             return@withContext false
         }
-        val cleared = runCatching {
-            GoogleAuthUtil.clearToken(context, tokenToClear)
-        }.isSuccess
+        val cleared = runCatching { GoogleAuthUtil.clearToken(context, tokenToClear) }.isSuccess
         if (cleared) {
             lastAccessToken = null
         }

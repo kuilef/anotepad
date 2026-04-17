@@ -71,7 +71,7 @@ class DriveSyncWorkerRunner(
 
             is SyncError.Auth -> {
                 logger("sync_error auth code=${error.code ?: -1} detail=${error.message ?: "none"}")
-                val shouldRevoke = error.code == 403 || retriedAfter401
+                val shouldRevoke = retriedAfter401
                 if (shouldRevoke) {
                     runCatching { authGateway.revokeAccess() }
                     store.setSyncStatus(SyncState.ERROR, "Sign in required")
@@ -114,7 +114,7 @@ fun Exception.toSyncError(): SyncError {
         is DriveApiException -> {
             val detail = this.userMessage()
             when (code) {
-                401, 403 -> SyncError.Auth(code = code, message = detail)
+                401 -> SyncError.Auth(code = code, message = detail)
                 else -> SyncError.DriveApi(code = code, message = detail)
             }
         }
@@ -122,7 +122,7 @@ fun Exception.toSyncError(): SyncError {
         is LocalStorageUnavailableException -> SyncError.LocalStorage(message?.ifBlank { null })
 
         else -> {
-            val type = this::class.java.simpleName?.ifBlank { "UnknownException" } ?: "UnknownException"
+            val type = this::class.java.simpleName.ifBlank { "UnknownException" }
             SyncError.Unexpected(type, message?.ifBlank { null })
         }
     }

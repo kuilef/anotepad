@@ -20,7 +20,8 @@ sealed class SyncOperation {
         val driveFileId: String,
         val rootId: String,
         val relativePath: String,
-        val mimeType: String
+        val mimeType: String,
+        val computeHash: Boolean = true
     ) : SyncOperation()
 
     data class UploadFile(
@@ -93,7 +94,11 @@ class SyncExecutor(
                         localFs.writeStream(operation.rootId, operation.relativePath, input)
                     }
                     val meta = localFs.getFileMeta(operation.rootId, operation.relativePath)
-                    val hash = localFs.computeHash(operation.rootId, operation.relativePath)
+                    val hash = if (operation.computeHash) {
+                        localFs.computeHash(operation.rootId, operation.relativePath)
+                    } else {
+                        ""
+                    }
                     downloaded[operation.relativePath] = DownloadedMeta(
                         lastModified = meta?.lastModified ?: System.currentTimeMillis(),
                         size = meta?.size ?: 0L,

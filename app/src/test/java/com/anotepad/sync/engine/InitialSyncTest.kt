@@ -28,6 +28,8 @@ class InitialSyncTest {
         // Then
         assertTrue(builder.drive.calls.any { it.startsWith("createOrUpdateFile:") })
         assertNotNull(builder.store.item("note.txt")?.driveFileId)
+        assertEquals("", builder.store.item("note.txt")?.localHash)
+        assertFalse(builder.localFs.calls.any { it == "computeHash:${FakeLocalFsGateway.DEFAULT_ROOT}:note.txt" })
     }
 
     @Test
@@ -44,6 +46,8 @@ class InitialSyncTest {
         assertEquals("r1", builder.store.item("note.txt")?.driveFileId)
         val text = builder.localFs.file("note.txt")?.content?.toString(Charsets.UTF_8)
         assertEquals("remote", text)
+        assertEquals("", builder.store.item("note.txt")?.localHash)
+        assertFalse(builder.localFs.calls.any { it == "computeHash:${FakeLocalFsGateway.DEFAULT_ROOT}:note.txt" })
     }
 
     @Test

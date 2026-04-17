@@ -3,7 +3,6 @@ package com.anotepad.sync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -72,20 +71,6 @@ class DriveClient(
         val markers = findMarkerFiles(token)
         if (markers.any { it.parents.contains(folderId) }) return
         createMarkerFile(token, folderId, folderName)
-    }
-
-    suspend fun listFolders(token: String, pageToken: String?): DriveListResult<DriveFolder> {
-        val query = "mimeType='application/vnd.google-apps.folder' and trashed=false"
-        val url = buildString {
-            append("$DRIVE_BASE/files?spaces=drive&fields=files(id,name),nextPageToken&q=")
-            append(urlEncode(query))
-            if (!pageToken.isNullOrBlank()) append("&pageToken=${urlEncode(pageToken)}")
-        }
-        val response = requestDecoded<DriveFoldersResponseDto>(token, url)
-        val items = response.files.map { item ->
-            DriveFolder(id = item.id, name = item.name)
-        }
-        return DriveListResult(items, response.nextPageToken)
     }
 
     suspend fun findFoldersByName(token: String, name: String): List<DriveFolder> {
@@ -197,11 +182,12 @@ class DriveClient(
         contentProvider: () -> InputStream?,
         appProperties: Map<String, String>
     ): DriveFile {
+        val sanitizedAppProperties = sanitizeDriveAppProperties(appProperties)
         val metadataJson = DRIVE_JSON.encodeToString(
             UploadMetadataRequestDto(
                 name = name,
                 mimeType = mimeType,
-                appProperties = appProperties,
+                appProperties = sanitizedAppProperties,
                 parents = if (fileId == null) listOf(parentId) else null
             )
         )
@@ -261,13 +247,11 @@ class DriveClient(
             try {
                 httpClient.newCall(builder.build()).execute().use { response ->
                     if (!response.isSuccessful) {
-                        throw DriveApiException(response.code, response.body?.string(), url, method)
+                        throw DriveApiException(response.code, response.body?.string())
                     }
                     val payload = response.body?.string().orEmpty()
                     DRIVE_JSON.decodeFromString<DriveFileDto>(payload.ifBlank { "{}" }).toDomain()
                 }
-            } catch (api: DriveApiException) {
-                throw api
             } catch (io: IOException) {
                 throw DriveNetworkException(io)
             }
@@ -293,14 +277,18 @@ class DriveClient(
             .get()
             .build()
         withContext(Dispatchers.IO) {
-            httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    throw DriveApiException(response.code, response.body?.string(), url, "GET")
+            try {
+                httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw DriveApiException(response.code, response.body?.string())
+                    }
+                    val body = response.body ?: throw DriveApiException(response.code, "Empty body")
+                    body.byteStream().use { input ->
+                        consumer(input)
+                    }
                 }
-                val body = response.body ?: throw DriveApiException(response.code, "Empty body", url, "GET")
-                body.byteStream().use { input ->
-                    consumer(input)
-                }
+            } catch (io: IOException) {
+                throw DriveNetworkException(io)
             }
         }
     }
@@ -349,12 +337,16 @@ class DriveClient(
         }
         val request = builder.build()
         return withContext(Dispatchers.IO) {
-            httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    throw DriveApiException(response.code, response.body?.string(), url, method)
+            try {
+                httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw DriveApiException(response.code, response.body?.string())
+                    }
+                    response.header("Location")
+                        ?: throw DriveApiException(response.code, "Missing upload location")
                 }
-                response.header("Location")
-                    ?: throw DriveApiException(response.code, "Missing upload location", url, method)
+            } catch (io: IOException) {
+                throw DriveNetworkException(io)
             }
         }
     }
@@ -374,12 +366,16 @@ class DriveClient(
             .put(body)
             .build()
         return withContext(Dispatchers.IO) {
-            httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    throw DriveApiException(response.code, response.body?.string(), sessionUrl, "PUT")
+            try {
+                httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw DriveApiException(response.code, response.body?.string())
+                    }
+                    val payload = response.body?.string().orEmpty()
+                    DRIVE_JSON.decodeFromString<DriveFileDto>(payload.ifBlank { "{}" }).toDomain()
                 }
-                val payload = response.body?.string().orEmpty()
-                DRIVE_JSON.decodeFromString<DriveFileDto>(payload.ifBlank { "{}" }).toDomain()
+            } catch (io: IOException) {
+                throw DriveNetworkException(io)
             }
         }
     }
@@ -435,12 +431,10 @@ class DriveClient(
             try {
                 httpClient.newCall(builder.build()).execute().use { response ->
                     if (!response.isSuccessful) {
-                        throw DriveApiException(response.code, response.body?.string(), url, method)
+                        throw DriveApiException(response.code, response.body?.string())
                     }
                     response.body?.string().orEmpty()
                 }
-            } catch (api: DriveApiException) {
-                throw api
             } catch (io: IOException) {
                 throw DriveNetworkException(io)
             }
@@ -578,9 +572,7 @@ private val DRIVE_JSON = Json {
 
 class DriveApiException(
     val code: Int,
-    val errorBody: String?,
-    val url: String? = null,
-    val method: String? = null
+    val errorBody: String?
 ) : IOException()
 
 fun DriveApiException.userMessage(): String? {
@@ -600,7 +592,7 @@ fun DriveApiException.userMessage(): String? {
 
 class DriveNetworkException(cause: IOException) : IOException(cause) {
     val detail: String? = cause.message?.ifBlank { null }
-    val type: String? = cause::class.java.simpleName?.ifBlank { null }
+    val type: String? = cause::class.java.simpleName.ifBlank { null }
     val description: String? = when {
         type != null && detail != null -> "$type: $detail"
         type != null -> type

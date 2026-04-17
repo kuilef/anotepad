@@ -88,16 +88,22 @@ class DriveSyncWorkerTest {
     }
 
     @Test
-    fun worker_fails_onDrive403() = runTest {
+    fun worker_fails_onDrive403_withoutRevokingAuth() = runTest {
         // Given
-        val (runner, builder, _) = runnerWithError(DriveApiException(403, """{"error":{"message":"forbidden"}}"""))
+        val (runner, builder, _) = runnerWithError(
+            DriveApiException(
+                403,
+                """{"error":{"message":"forbidden","errors":[{"reason":"propertyLengthLimitExceeded"}]}}"""
+            )
+        )
 
         // When
         val result = runner.run()
 
         // Then
         assertEquals(WorkerDecision.Failure, result)
-        assertEquals(1, builder.auth.revokeCalls)
+        assertEquals(0, builder.auth.revokeCalls)
+        assertTrue(builder.store.statuses.last().message?.contains("Drive error 403") == true)
     }
 
     @Test
