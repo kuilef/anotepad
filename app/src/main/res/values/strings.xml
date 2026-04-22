@@ -6,6 +6,7 @@
     <string name="action_new_folder">New folder</string>
     <string name="action_new_note">New note</string>
     <string name="action_open">Open</string>
+    <string name="action_open_link">Open link</string>
     <string name="action_search">Search</string>
     <string name="action_templates">Templates</string>
     <string name="action_save">Save</string>

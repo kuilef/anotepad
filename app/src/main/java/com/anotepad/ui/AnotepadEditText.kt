@@ -14,8 +14,11 @@ import android.text.method.KeyListener
 import android.text.style.URLSpan
 import android.util.Patterns
 import android.util.TypedValue
+import android.view.ActionMode
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.Menu
+import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -32,9 +35,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import com.anotepad.R
 import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 class AnotepadEditorEditText(context: Context) : EditText(context) {
@@ -62,9 +65,31 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     private var restoreCursorAfterTouch = false
     private var editableKeyListener: KeyListener? = null
     private var readOnly = false
-    private var pressedLinkUrl: String? = null
-    private var pressedLinkPointerId = MotionEvent.INVALID_POINTER_ID
-    private var linkTouchMoved = false
+
+    init {
+        val linkActionModeCallback = object : ActionMode.Callback {
+            override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+                updateOpenLinkMenuItem(menu)
+                return true
+            }
+
+            override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+                return updateOpenLinkMenuItem(menu)
+            }
+
+            override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+                if (item.itemId != MENU_ITEM_OPEN_LINK) return false
+                val url = currentActionModeUrl() ?: return false
+                openLink(url)
+                mode.finish()
+                return true
+            }
+
+            override fun onDestroyActionMode(mode: ActionMode) = Unit
+        }
+        setCustomSelectionActionModeCallback(linkActionModeCallback)
+        setCustomInsertionActionModeCallback(linkActionModeCallback)
+    }
 
     fun runWithoutHistoryAndChangeCallbacks(block: () -> Unit) {
         suppressChangesDepth += 1
@@ -129,9 +154,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
             MotionEvent.ACTION_DOWN -> {
                 abortFling()
                 resetTouchTracking()
-                pressedLinkPointerId = event.getPointerId(0)
-                pressedLinkUrl = findUrlAtTouch(event.x, event.y)
-                linkTouchMoved = false
                 deferCursorVisibilityUntilTouchEnds = true
                 hasDeferredCursorVisibilityUpdate = false
                 restoreCursorAfterTouch = isCursorVisible
@@ -148,7 +170,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
 
             MotionEvent.ACTION_POINTER_DOWN -> {
                 hasMultiplePointers = true
-                clearPressedLink()
             }
         }
 
@@ -158,7 +179,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
                 updateVerticalDragState(event)
-                updatePressedLinkState(event)
             }
 
             MotionEvent.ACTION_UP -> {
@@ -167,7 +187,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
                 flushDeferredCursorVisibility()
                 restoreCursorVisibilityAfterTouch()
                 recycleVelocityTracker()
-                clearPressedLink()
                 resetTouchTracking()
             }
 
@@ -176,7 +195,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
                 flushDeferredCursorVisibility()
                 restoreCursorVisibilityAfterTouch()
                 recycleVelocityTracker()
-                clearPressedLink()
                 resetTouchTracking()
             }
         }
@@ -223,25 +241,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     override fun onDetachedFromWindow() {
         abortFling()
         recycleVelocityTracker()
-        clearPressedLink()
         super.onDetachedFromWindow()
-    }
-
-    override fun performLongClick(): Boolean {
-        val url = pressedLinkUrl
-        val hasTextSelection = selectionStart >= 0 && selectionEnd >= 0 && selectionStart != selectionEnd
-        if (
-            url != null &&
-            !hasTextSelection &&
-            !hasMultiplePointers &&
-            !hasVerticalDrag &&
-            !linkTouchMoved
-        ) {
-            openLink(url)
-            clearPressedLink()
-            return true
-        }
-        return super.performLongClick()
     }
 
     private fun updateVerticalDragState(event: MotionEvent) {
@@ -253,35 +253,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         if (abs(totalDy) <= viewConfiguration.scaledTouchSlop) return
         if (abs(totalDy) > abs(totalDx) || abs(scrollY - startScrollY) > viewConfiguration.scaledTouchSlop) {
             hasVerticalDrag = true
-        }
-    }
-
-    private fun updatePressedLinkState(event: MotionEvent) {
-        val url = pressedLinkUrl ?: return
-        val pointerId = pressedLinkPointerId
-        if (pointerId == MotionEvent.INVALID_POINTER_ID) {
-            clearPressedLink()
-            return
-        }
-        val pointerIndex = event.findPointerIndex(pointerId)
-        if (pointerIndex < 0) {
-            clearPressedLink()
-            return
-        }
-        val movedX = abs(event.getX(pointerIndex) - initialTouchX)
-        val movedY = abs(event.getY(pointerIndex) - initialTouchY)
-        if (
-            movedX > viewConfiguration.scaledTouchSlop ||
-            movedY > viewConfiguration.scaledTouchSlop ||
-            abs(scrollY - startScrollY) > viewConfiguration.scaledTouchSlop ||
-            hasVerticalDrag
-        ) {
-            linkTouchMoved = true
-            clearPressedLink()
-            return
-        }
-        if (findUrlAtTouch(event.getX(pointerIndex), event.getY(pointerIndex)) != url) {
-            clearPressedLink()
         }
     }
 
@@ -369,34 +340,61 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         startScrollY = scrollY
     }
 
-    private fun clearPressedLink() {
-        pressedLinkUrl = null
-        pressedLinkPointerId = MotionEvent.INVALID_POINTER_ID
-        linkTouchMoved = false
-    }
-
-    private fun findUrlAtTouch(rawX: Float, rawY: Float): String? {
+    private fun currentActionModeUrl(): String? {
         val content = text
         if (content !is Spannable) return null
-        val layout = layout ?: return null
-        val x = rawX - totalPaddingLeft + scrollX
-        val y = rawY - totalPaddingTop + scrollY
-        if (x < 0f || y < 0f) return null
-        val lastLine = (layout.lineCount - 1).coerceAtLeast(0)
-        if (y > layout.getLineBottom(lastLine)) return null
-        val vertical = y.toInt().coerceAtMost((layout.height - 1).coerceAtLeast(0))
-        val line = layout.getLineForVertical(vertical)
-        val lineLeft = min(layout.getLineLeft(line), layout.getLineRight(line))
-        val lineRight = max(layout.getLineLeft(line), layout.getLineRight(line))
-        if (x < lineLeft || x > lineRight) return null
-        val offset = layout.getOffsetForHorizontal(line, x)
-        return findUrlAtOffset(content, offset)
-            ?: if (offset > 0) findUrlAtOffset(content, offset - 1) else null
+        if (selectionStart < 0 || selectionEnd < 0) return null
+        val start = minOf(selectionStart, selectionEnd).coerceIn(0, content.length)
+        val end = maxOf(selectionStart, selectionEnd).coerceIn(0, content.length)
+        val span = if (start == end) {
+            findUrlSpanAtOffset(content, start)
+        } else {
+            findSingleUrlSpanInSelection(content, start, end)
+        }
+        return span?.url
     }
 
-    private fun findUrlAtOffset(text: Spannable, offset: Int): String? {
-        val spans = text.getSpans(offset, offset, URLSpan::class.java)
-        return spans.firstOrNull()?.url
+    private fun findUrlSpanAtOffset(text: Spannable, offset: Int): URLSpan? {
+        val clamped = offset.coerceIn(0, text.length)
+        val candidates = linkedSetOf<URLSpan>()
+        candidates.addAll(text.getSpans(clamped, clamped, URLSpan::class.java))
+        if (clamped < text.length) {
+            candidates.addAll(text.getSpans(clamped, clamped + 1, URLSpan::class.java))
+        }
+        if (clamped > 0) {
+            candidates.addAll(text.getSpans(clamped - 1, clamped - 1, URLSpan::class.java))
+        }
+        return candidates.singleOrNull { span ->
+            val start = text.getSpanStart(span)
+            val end = text.getSpanEnd(span)
+            start >= 0 && end >= 0 && clamped >= start && clamped <= end
+        }
+    }
+
+    private fun findSingleUrlSpanInSelection(text: Spannable, start: Int, end: Int): URLSpan? {
+        return text.getSpans(start, end, URLSpan::class.java)
+            .filter { span ->
+                val spanStart = text.getSpanStart(span)
+                val spanEnd = text.getSpanEnd(span)
+                spanStart >= 0 && spanEnd >= 0 && spanStart < end && spanEnd > start &&
+                    start >= spanStart && end <= spanEnd
+            }
+            .distinct()
+            .singleOrNull()
+    }
+
+    private fun updateOpenLinkMenuItem(menu: Menu): Boolean {
+        val hasUrl = currentActionModeUrl() != null
+        val existing = menu.findItem(MENU_ITEM_OPEN_LINK)
+        if (hasUrl) {
+            if (existing != null) return false
+            menu.add(Menu.NONE, MENU_ITEM_OPEN_LINK, Menu.NONE, context.getString(R.string.action_open_link))
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+            return true
+        }
+        if (existing == null) return false
+        menu.removeItem(MENU_ITEM_OPEN_LINK)
+        return true
     }
 
     private fun openLink(url: String) {
@@ -417,6 +415,8 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         }
     }
 }
+
+private const val MENU_ITEM_OPEN_LINK = 10_001
 
 @Composable
 fun AnotepadEditText(

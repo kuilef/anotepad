@@ -502,10 +502,10 @@ private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: 
         if (text is android.text.Spannable) {
             val spans = text.getSpans(0, text.length, android.text.style.URLSpan::class.java)
             spans.forEach { text.removeSpan(it) }
+            if (mask != 0) {
+                LinkifyCompat.addLinks(text, mask)
+            }
         }
-    }
-    if (mask != 0) {
-        LinkifyCompat.addLinks(editText, mask)
     }
 }
 
