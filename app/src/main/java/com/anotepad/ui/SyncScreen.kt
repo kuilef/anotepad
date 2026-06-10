@@ -37,6 +37,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.anotepad.R
 import com.anotepad.sync.SyncState
+import com.anotepad.sync.SyncStatusMessage
+import com.anotepad.sync.SyncStatusMessageType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -222,9 +224,10 @@ fun SyncScreen(viewModel: SyncViewModel, onBack: () -> Unit) {
                 onToggle = viewModel::setIgnoreRemoteDeletes
             )
 
-            if (!state.errorMessage.isNullOrBlank()) {
+            val errorText = state.error?.let { syncFolderErrorText(it) }
+            if (!errorText.isNullOrBlank()) {
                 Text(
-                    text = state.errorMessage.orEmpty(),
+                    text = errorText,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -257,13 +260,76 @@ private fun SectionHeader(text: String) {
     )
 }
 
+@Composable
 private fun statusText(state: SyncUiState): String {
     val base = when (state.status) {
-        SyncState.RUNNING -> "Syncing"
-        SyncState.PENDING -> "Waiting"
-        SyncState.ERROR -> "Error"
-        SyncState.SYNCED -> "Synced"
-        SyncState.IDLE -> "Idle"
+        SyncState.RUNNING -> stringResource(id = R.string.label_sync_state_syncing)
+        SyncState.PENDING -> stringResource(id = R.string.label_sync_state_waiting)
+        SyncState.ERROR -> stringResource(id = R.string.label_sync_state_error)
+        SyncState.SYNCED -> stringResource(id = R.string.label_sync_state_synced)
+        SyncState.IDLE -> stringResource(id = R.string.label_sync_state_idle)
     }
-    return state.statusMessage?.let { "$base · $it" } ?: base
+    val message = state.statusMessage?.let { syncStatusMessageText(it) }
+    return message?.let {
+        stringResource(id = R.string.label_sync_status_with_message, base, it)
+    } ?: base
+}
+
+@Composable
+private fun syncStatusMessageText(message: SyncStatusMessage): String {
+    return when (message.type) {
+        SyncStatusMessageType.WAITING_FOR_SYNC -> stringResource(id = R.string.sync_message_waiting_for_sync)
+        SyncStatusMessageType.SYNC_SCHEDULED -> stringResource(id = R.string.sync_message_scheduled)
+        SyncStatusMessageType.SYNC_DISABLED -> stringResource(id = R.string.sync_message_sync_disabled)
+        SyncStatusMessageType.SYNC_PAUSED -> stringResource(id = R.string.sync_message_sync_paused)
+        SyncStatusMessageType.NO_LOCAL_FOLDER_SELECTED -> stringResource(id = R.string.sync_message_no_local_folder_selected)
+        SyncStatusMessageType.SIGN_IN_REQUIRED -> stringResource(id = R.string.sync_message_sign_in_required)
+        SyncStatusMessageType.REFRESHING_AUTHORIZATION -> stringResource(id = R.string.sync_message_refreshing_authorization)
+        SyncStatusMessageType.MULTIPLE_DRIVE_FOLDERS -> stringResource(id = R.string.sync_message_multiple_drive_folders)
+        SyncStatusMessageType.DRIVE_FOLDER_NOT_CONNECTED -> stringResource(id = R.string.sync_message_drive_folder_not_connected)
+        SyncStatusMessageType.NETWORK_ERROR -> message.detail?.let {
+            stringResource(id = R.string.sync_message_network_error_detail, it)
+        } ?: stringResource(id = R.string.sync_message_network_error)
+        SyncStatusMessageType.NETWORK_ERROR_RETRY -> stringResource(id = R.string.sync_message_network_error_retry)
+        SyncStatusMessageType.AUTHORIZATION_REQUIRED -> message.detail?.let {
+            stringResource(id = R.string.sync_message_authorization_required_detail, it)
+        } ?: stringResource(id = R.string.sync_message_authorization_required)
+        SyncStatusMessageType.DRIVE_ERROR -> {
+            val code = message.code ?: 0
+            message.detail?.let {
+                stringResource(id = R.string.sync_message_drive_error_detail, code, it)
+            } ?: stringResource(id = R.string.sync_message_drive_error, code)
+        }
+        SyncStatusMessageType.LOCAL_STORAGE_UNAVAILABLE -> message.detail?.let {
+            stringResource(id = R.string.sync_message_local_storage_detail, it)
+        } ?: stringResource(id = R.string.sync_message_local_storage)
+        SyncStatusMessageType.UNEXPECTED_ERROR -> message.detail?.let {
+            stringResource(id = R.string.sync_message_unexpected_error_detail, it)
+        } ?: stringResource(id = R.string.sync_message_unexpected_error)
+        SyncStatusMessageType.LEGACY_MESSAGE -> message.detail.orEmpty()
+    }
+}
+
+@Composable
+private fun syncFolderErrorText(error: SyncFolderError): String {
+    return when (error) {
+        SyncFolderError.SignInCanceled -> stringResource(id = R.string.error_sign_in_canceled)
+        is SyncFolderError.SignInFailed -> stringResource(
+            id = R.string.error_sign_in_failed,
+            error.statusText,
+            error.status
+        )
+        is SyncFolderError.DriveError -> error.detail?.let {
+            stringResource(id = R.string.sync_message_drive_error_detail, error.code, it)
+        } ?: stringResource(id = R.string.sync_message_drive_error, error.code)
+        is SyncFolderError.NetworkError -> error.detail?.let {
+            stringResource(id = R.string.sync_message_network_error_detail, it)
+        } ?: stringResource(id = R.string.sync_message_network_error)
+        SyncFolderError.FailedToFindFolders -> stringResource(id = R.string.error_drive_failed_to_find_folders)
+        SyncFolderError.FailedToCreateFolder -> stringResource(id = R.string.error_drive_failed_to_create_folder)
+        SyncFolderError.SignInRequired -> stringResource(id = R.string.sync_message_sign_in_required)
+        SyncFolderError.DrivePermissionRequired -> stringResource(id = R.string.error_drive_permission_required)
+        SyncFolderError.UnableToRequestDrivePermission -> stringResource(id = R.string.error_drive_permission_request_failed)
+        SyncFolderError.UnableToGetAccessToken -> stringResource(id = R.string.error_drive_access_token_failed)
+    }
 }

@@ -14,6 +14,7 @@ import com.anotepad.sync.DriveNetworkException
 import com.anotepad.sync.SyncRepository
 import com.anotepad.sync.SyncScheduler
 import com.anotepad.sync.SyncState
+import com.anotepad.sync.SyncStatusMessage
 import com.anotepad.sync.userMessage
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
@@ -28,7 +29,7 @@ import kotlinx.coroutines.launch
 data class SyncUiState(
     val prefs: AppPreferences = AppPreferences(),
     val status: SyncState = SyncState.IDLE,
-    val statusMessage: String? = null,
+    val statusMessage: SyncStatusMessage? = null,
     val lastSyncedAt: Long? = null,
     val isSignedIn: Boolean = false,
     val accountEmail: String? = null,
@@ -37,8 +38,21 @@ data class SyncUiState(
     val showFolderConflictDialog: Boolean = false,
     val foundFolders: List<DriveFolder> = emptyList(),
     val isLoadingFolders: Boolean = false,
-    val errorMessage: String? = null
+    val error: SyncFolderError? = null
 )
+
+sealed class SyncFolderError {
+    data object SignInCanceled : SyncFolderError()
+    data class SignInFailed(val statusText: String, val status: Int) : SyncFolderError()
+    data class DriveError(val code: Int, val detail: String?) : SyncFolderError()
+    data class NetworkError(val detail: String?) : SyncFolderError()
+    data object FailedToFindFolders : SyncFolderError()
+    data object FailedToCreateFolder : SyncFolderError()
+    data object SignInRequired : SyncFolderError()
+    data object DrivePermissionRequired : SyncFolderError()
+    data object UnableToRequestDrivePermission : SyncFolderError()
+    data object UnableToGetAccessToken : SyncFolderError()
+}
 
 class SyncViewModel(
     private val preferencesRepository: PreferencesRepository,
@@ -77,7 +91,7 @@ class SyncViewModel(
                     showFolderConflictDialog = folders.showConflictDialog,
                     foundFolders = folders.foundFolders,
                     isLoadingFolders = folders.isLoading,
-                    errorMessage = folders.errorMessage
+                    error = folders.error
                 )
             }.collectLatest { combined ->
                 _state.value = combined
@@ -93,7 +107,7 @@ class SyncViewModel(
 
     fun handleSignInResult(data: Intent?) {
         if (data == null) {
-            updateFolderState(error = "Sign-in canceled")
+            updateFolderState(error = SyncFolderError.SignInCanceled)
             refreshAuthState()
             return
         }
@@ -105,7 +119,7 @@ class SyncViewModel(
         } catch (error: ApiException) {
             val status = error.statusCode
             val statusText = GoogleSignInStatusCodes.getStatusCodeString(status)
-            updateFolderState(error = "Sign-in failed: $statusText ($status)")
+            updateFolderState(error = SyncFolderError.SignInFailed(statusText, status))
             refreshAuthState()
         }
     }
@@ -270,20 +284,18 @@ class SyncViewModel(
             }
         } catch (error: DriveApiException) {
             val detail = error.userMessage()
-            val message = detail?.let { "Drive error ${error.code}: $it" } ?: "Drive error ${error.code}"
-            updateFolderState(isLoading = false, error = message)
+            updateFolderState(isLoading = false, error = SyncFolderError.DriveError(error.code, detail))
         } catch (error: DriveNetworkException) {
-            val message = error.description?.let { "Network error: $it" } ?: "Network error"
-            updateFolderState(isLoading = false, error = message)
+            updateFolderState(isLoading = false, error = SyncFolderError.NetworkError(error.description))
         } catch (_: Exception) {
-            updateFolderState(isLoading = false, error = "Failed to find folders")
+            updateFolderState(isLoading = false, error = SyncFolderError.FailedToFindFolders)
         }
     }
 
     private suspend fun createDriveFolderInternal(name: String, tokenOverride: String? = null) {
         val token = tokenOverride ?: getAccessTokenOrRequestPermission()
         if (token.isNullOrBlank()) {
-            updateFolderState(error = "Sign in required", isLoading = false)
+            updateFolderState(error = SyncFolderError.SignInRequired, isLoading = false)
             return
         }
         updateFolderState(isLoading = true, error = null)
@@ -300,13 +312,11 @@ class SyncViewModel(
             )
         } catch (error: DriveApiException) {
             val detail = error.userMessage()
-            val message = detail?.let { "Drive error ${error.code}: $it" } ?: "Drive error ${error.code}"
-            updateFolderState(isLoading = false, error = message)
+            updateFolderState(isLoading = false, error = SyncFolderError.DriveError(error.code, detail))
         } catch (error: DriveNetworkException) {
-            val message = error.description?.let { "Network error: $it" } ?: "Network error"
-            updateFolderState(isLoading = false, error = message)
+            updateFolderState(isLoading = false, error = SyncFolderError.NetworkError(error.description))
         } catch (_: Exception) {
-            updateFolderState(isLoading = false, error = "Failed to create folder")
+            updateFolderState(isLoading = false, error = SyncFolderError.FailedToCreateFolder)
         }
     }
 
@@ -332,7 +342,7 @@ class SyncViewModel(
         foundFolders: List<DriveFolder> = folderState.value.foundFolders,
         showFolderConflictDialog: Boolean = folderState.value.showConflictDialog,
         isLoading: Boolean = folderState.value.isLoading,
-        error: String? = null
+        error: SyncFolderError? = null
     ) {
         folderState.value = FolderState(
             folderId = folderId,
@@ -340,7 +350,7 @@ class SyncViewModel(
             foundFolders = foundFolders,
             showConflictDialog = showFolderConflictDialog,
             isLoading = isLoading,
-            errorMessage = error
+            error = error
         )
     }
 
@@ -350,19 +360,19 @@ class SyncViewModel(
             is DriveAccessTokenResult.Recoverable -> {
                 if (result.intent != null) {
                     authIntent.value = result.intent
-                    updateFolderState(error = "Google Drive permission required")
+                    updateFolderState(error = SyncFolderError.DrivePermissionRequired)
                     null
                 } else {
-                    updateFolderState(error = "Unable to request Drive permission")
+                    updateFolderState(error = SyncFolderError.UnableToRequestDrivePermission)
                     null
                 }
             }
             DriveAccessTokenResult.NoAccount -> {
-                updateFolderState(error = "Sign in required")
+                updateFolderState(error = SyncFolderError.SignInRequired)
                 null
             }
             DriveAccessTokenResult.Error -> {
-                updateFolderState(error = "Unable to get access token")
+                updateFolderState(error = SyncFolderError.UnableToGetAccessToken)
                 null
             }
         }
@@ -379,6 +389,6 @@ class SyncViewModel(
         val foundFolders: List<DriveFolder> = emptyList(),
         val showConflictDialog: Boolean = false,
         val isLoading: Boolean = false,
-        val errorMessage: String? = null
+        val error: SyncFolderError? = null
     )
 }

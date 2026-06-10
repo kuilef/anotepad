@@ -1,0 +1,12 @@
+default_platform(:android)
+
+platform :android do
+  desc "Build debug APKs and capture localized Play Store screenshots"
+  lane :screenshots do
+    gradle(task: "clean")
+    gradle(task: "assembleDebug")
+    gradle(task: "assembleDebugAndroidTest")
+
+    capture_android_screenshots
+  end
+end

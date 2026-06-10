@@ -38,7 +38,10 @@ class DriveSyncWorkerRunner(
                         logger("sync_failure auth=${result.authError}")
                         if (result.authError && retriedAfter401) {
                             runCatching { authGateway.revokeAccess() }
-                            store.setSyncStatus(SyncState.ERROR, "Sign in required")
+                            store.setSyncStatus(
+                                SyncState.ERROR,
+                                SyncStatusMessage(SyncStatusMessageType.SIGN_IN_REQUIRED)
+                            )
                         }
                         return if (result.authError) WorkerDecision.Failure else WorkerDecision.Retry
                     }
@@ -52,7 +55,10 @@ class DriveSyncWorkerRunner(
                     retriedAfter401 = true
                     val invalidated = runCatching { authGateway.invalidateAccessToken() }.getOrDefault(false)
                     logger("sync_auth_401_retry invalidated=$invalidated")
-                    store.setSyncStatus(SyncState.PENDING, "Refreshing authorization")
+                    store.setSyncStatus(
+                        SyncState.PENDING,
+                        SyncStatusMessage(SyncStatusMessageType.REFRESHING_AUTHORIZATION)
+                    )
                     continue
                 }
                 return mapSyncError(syncError, retriedAfter401)
@@ -63,9 +69,18 @@ class DriveSyncWorkerRunner(
     private suspend fun mapSyncError(error: SyncError, retriedAfter401: Boolean): WorkerDecision {
         return when (error) {
             is SyncError.Network -> {
-                val message = error.detail?.let { "Network error: $it" } ?: "Network error, will retry"
                 logger("sync_retry network_error detail=${error.detail ?: "none"}")
-                store.setSyncStatus(SyncState.ERROR, message)
+                store.setSyncStatus(
+                    SyncState.ERROR,
+                    SyncStatusMessage(
+                        type = if (error.detail == null) {
+                            SyncStatusMessageType.NETWORK_ERROR_RETRY
+                        } else {
+                            SyncStatusMessageType.NETWORK_ERROR
+                        },
+                        detail = error.detail
+                    )
+                )
                 WorkerDecision.Retry
             }
 
@@ -74,34 +89,57 @@ class DriveSyncWorkerRunner(
                 val shouldRevoke = retriedAfter401
                 if (shouldRevoke) {
                     runCatching { authGateway.revokeAccess() }
-                    store.setSyncStatus(SyncState.ERROR, "Sign in required")
+                    store.setSyncStatus(
+                        SyncState.ERROR,
+                        SyncStatusMessage(SyncStatusMessageType.SIGN_IN_REQUIRED)
+                    )
                 } else {
-                    val message = error.message?.let { "Authorization required: $it" } ?: "Authorization required"
-                    store.setSyncStatus(SyncState.ERROR, message)
+                    store.setSyncStatus(
+                        SyncState.ERROR,
+                        SyncStatusMessage(
+                            type = SyncStatusMessageType.AUTHORIZATION_REQUIRED,
+                            detail = error.message
+                        )
+                    )
                 }
                 WorkerDecision.Failure
             }
 
             is SyncError.DriveApi -> {
                 val retryable = error.code == 429 || error.code >= 500
-                val readable = error.message?.let { "Drive error ${error.code}: $it" } ?: "Drive error ${error.code}"
                 logger("sync_error code=${error.code} detail=${error.message ?: "none"}")
-                store.setSyncStatus(SyncState.ERROR, readable)
+                store.setSyncStatus(
+                    SyncState.ERROR,
+                    SyncStatusMessage(
+                        type = SyncStatusMessageType.DRIVE_ERROR,
+                        detail = error.message,
+                        code = error.code
+                    )
+                )
                 if (retryable) WorkerDecision.Retry else WorkerDecision.Failure
             }
 
             is SyncError.LocalStorage -> {
-                val message = error.message ?: "Local folder is inaccessible or permission was lost"
                 logger("sync_error local_storage detail=${error.message ?: "none"}")
-                store.setSyncStatus(SyncState.ERROR, message)
+                store.setSyncStatus(
+                    SyncState.ERROR,
+                    SyncStatusMessage(
+                        type = SyncStatusMessageType.LOCAL_STORAGE_UNAVAILABLE,
+                        detail = error.message
+                    )
+                )
                 WorkerDecision.Failure
             }
 
             is SyncError.Unexpected -> {
-                val message = error.detail?.let { "Unexpected error: ${error.type}: $it" }
-                    ?: "Unexpected error: ${error.type}"
                 logger("sync_retry unexpected_error type=${error.type} detail=${error.detail ?: "none"}")
-                store.setSyncStatus(SyncState.ERROR, message)
+                store.setSyncStatus(
+                    SyncState.ERROR,
+                    SyncStatusMessage(
+                        type = SyncStatusMessageType.UNEXPECTED_ERROR,
+                        detail = listOfNotNull(error.type, error.detail).joinToString(": ")
+                    )
+                )
                 WorkerDecision.Retry
             }
         }

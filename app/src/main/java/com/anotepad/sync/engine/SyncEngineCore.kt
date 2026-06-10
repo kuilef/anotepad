@@ -43,7 +43,6 @@ class SyncEngineCore(
 
         store.setSyncStatus(
             SyncState.SYNCED,
-            "Synced",
             lastSyncedAt = System.currentTimeMillis()
         )
         return SyncResult.Success

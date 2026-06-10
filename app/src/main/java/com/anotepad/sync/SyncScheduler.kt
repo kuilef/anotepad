@@ -26,7 +26,10 @@ class SyncScheduler(
         val prefs = prefsGateway.getPreferences()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused) return
         workGateway.enqueueDebounced()
-        syncStore.setSyncStatus(SyncState.PENDING, "Waiting for sync")
+        syncStore.setSyncStatus(
+            SyncState.PENDING,
+            SyncStatusMessage(SyncStatusMessageType.WAITING_FOR_SYNC)
+        )
     }
 
     suspend fun schedulePeriodic() {
@@ -44,14 +47,20 @@ class SyncScheduler(
         if (prefs.rootTreeUri.isNullOrBlank()) return
         val folderId = syncStore.getDriveFolderId()
         if (folderId.isNullOrBlank()) return
-        syncStore.setSyncStatus(SyncState.PENDING, "Sync scheduled")
+        syncStore.setSyncStatus(
+            SyncState.PENDING,
+            SyncStatusMessage(SyncStatusMessageType.SYNC_SCHEDULED)
+        )
         workGateway.enqueueStartup()
     }
 
     suspend fun syncNow() {
         val prefs = prefsGateway.getPreferences()
         if (!prefs.driveSyncEnabled || prefs.driveSyncPaused) return
-        syncStore.setSyncStatus(SyncState.PENDING, "Sync scheduled")
+        syncStore.setSyncStatus(
+            SyncState.PENDING,
+            SyncStatusMessage(SyncStatusMessageType.SYNC_SCHEDULED)
+        )
         workGateway.enqueueManual()
     }
 }

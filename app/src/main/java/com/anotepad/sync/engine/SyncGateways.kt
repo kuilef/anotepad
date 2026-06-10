@@ -5,6 +5,7 @@ import com.anotepad.sync.DriveChange
 import com.anotepad.sync.DriveFile
 import com.anotepad.sync.DriveFolder
 import com.anotepad.sync.SyncState
+import com.anotepad.sync.SyncStatusMessage
 import com.anotepad.sync.db.SyncFolderEntity
 import com.anotepad.sync.db.SyncItemEntity
 import java.io.InputStream
@@ -91,7 +92,7 @@ interface SyncStore {
     suspend fun deleteFolderByPath(path: String)
     suspend fun deleteFoldersByPathPrefix(path: String)
 
-    suspend fun setSyncStatus(state: SyncState, message: String? = null, lastSyncedAt: Long? = null)
+    suspend fun setSyncStatus(state: SyncState, message: SyncStatusMessage? = null, lastSyncedAt: Long? = null)
 
     suspend fun getDriveFolderId(): String?
     suspend fun setDriveFolderId(id: String)

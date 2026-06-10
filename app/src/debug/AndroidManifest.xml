@@ -1,0 +1,27 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission
+        android:name="android.permission.CHANGE_CONFIGURATION"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.DUMP"
+        tools:ignore="ProtectedPermissions" />
+
+    <queries>
+        <package android:name="com.android.documentsui" />
+        <package android:name="com.google.android.documentsui" />
+        <package android:name="com.google.android.apps.docs" />
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:restoreAnyVersion="false"
+        tools:replace="android:allowBackup,android:restoreAnyVersion" />
+
+</manifest>

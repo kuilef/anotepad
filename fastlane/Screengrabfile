@@ -1,0 +1,35 @@
+app_package_name("com.anotepad")
+test_instrumentation_runner("androidx.test.runner.AndroidJUnitRunner")
+
+app_apk_path("app/build/outputs/apk/debug/app-debug.apk")
+tests_apk_path("app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
+
+default_locales = [
+  "en-US",
+  "bn-BD",
+  "de-DE",
+  "es-ES",
+  "fr-FR",
+  "hi-IN",
+  "id-ID",
+  "pt-BR",
+  "ru-RU",
+  "tr-TR",
+  "vi-VN"
+]
+
+selected_locales = ENV.fetch("SCREENSHOT_LOCALES", default_locales.join(","))
+locales(selected_locales.split(",").map(&:strip).reject(&:empty?))
+
+launch_arguments([
+  "targetFolderName #{ENV.fetch("SCREENSHOT_TARGET_FOLDER_NAME", "anotepad")}"
+])
+
+output_directory("metadata")
+device_type("phone")
+use_tests_in_classes(["com.anotepad.storecaptures.PlayStoreScreenshotTest"])
+
+clear_previous_screenshots(true)
+reinstall_app(true)
+skip_open_summary(true)
+use_timestamp_suffix(false)

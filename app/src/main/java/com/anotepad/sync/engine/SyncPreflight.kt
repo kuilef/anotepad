@@ -3,6 +3,8 @@ package com.anotepad.sync.engine
 import com.anotepad.data.AppPreferences
 import com.anotepad.sync.SyncResult
 import com.anotepad.sync.SyncState
+import com.anotepad.sync.SyncStatusMessage
+import com.anotepad.sync.SyncStatusMessageType
 
 data class PreflightContext(
     val token: String,
@@ -26,31 +28,43 @@ class SyncPreflight(
     suspend fun run(): SyncPreflightResult {
         val prefs = prefsGateway.getPreferences()
         if (!prefs.driveSyncEnabled) {
-            store.setSyncStatus(SyncState.IDLE, "Sync disabled")
+            store.setSyncStatus(
+                SyncState.IDLE,
+                SyncStatusMessage(SyncStatusMessageType.SYNC_DISABLED)
+            )
             return SyncPreflightResult.Done(SyncResult.Skipped)
         }
         if (prefs.driveSyncPaused) {
-            store.setSyncStatus(SyncState.PENDING, "Sync paused")
+            store.setSyncStatus(
+                SyncState.PENDING,
+                SyncStatusMessage(SyncStatusMessageType.SYNC_PAUSED)
+            )
             return SyncPreflightResult.Done(SyncResult.Skipped)
         }
         val rootId = prefs.rootTreeUri
         if (rootId.isNullOrBlank()) {
-            store.setSyncStatus(SyncState.ERROR, "No local folder selected")
+            store.setSyncStatus(
+                SyncState.ERROR,
+                SyncStatusMessage(SyncStatusMessageType.NO_LOCAL_FOLDER_SELECTED)
+            )
             return SyncPreflightResult.Done(SyncResult.Failure(authError = false))
         }
 
         val token = authGateway.getAccessToken()
         if (token.isNullOrBlank()) {
-            store.setSyncStatus(SyncState.ERROR, "Sign in required")
+            store.setSyncStatus(
+                SyncState.ERROR,
+                SyncStatusMessage(SyncStatusMessageType.SIGN_IN_REQUIRED)
+            )
             return SyncPreflightResult.Done(SyncResult.Failure(authError = true))
         }
 
-        store.setSyncStatus(SyncState.RUNNING, "Syncing...")
+        store.setSyncStatus(SyncState.RUNNING)
 
         val folderId = when (val folder = ensureDriveFolder(token, prefs)) {
             is EnsureDriveFolderResult.Found -> folder.id
             is EnsureDriveFolderResult.Error -> {
-                store.setSyncStatus(SyncState.ERROR, folder.message)
+                store.setSyncStatus(SyncState.ERROR, SyncStatusMessage(folder.messageType))
                 return SyncPreflightResult.Done(SyncResult.Failure(authError = false))
             }
         }
@@ -85,7 +99,7 @@ class SyncPreflight(
 
             markerFolders.size > 1 -> {
                 return EnsureDriveFolderResult.Error(
-                    "Multiple Drive folders found. Open Sync settings to choose."
+                    SyncStatusMessageType.MULTIPLE_DRIVE_FOLDERS
                 )
             }
         }
@@ -103,16 +117,16 @@ class SyncPreflight(
 
             foldersByName.size > 1 -> {
                 EnsureDriveFolderResult.Error(
-                    "Multiple Drive folders found by name. Open Sync settings to choose."
+                    SyncStatusMessageType.MULTIPLE_DRIVE_FOLDERS
                 )
             }
 
-            else -> EnsureDriveFolderResult.Error("Drive folder not connected")
+            else -> EnsureDriveFolderResult.Error(SyncStatusMessageType.DRIVE_FOLDER_NOT_CONNECTED)
         }
     }
 }
 
 sealed class EnsureDriveFolderResult {
     data class Found(val id: String) : EnsureDriveFolderResult()
-    data class Error(val message: String) : EnsureDriveFolderResult()
+    data class Error(val messageType: SyncStatusMessageType) : EnsureDriveFolderResult()
 }

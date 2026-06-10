@@ -4,6 +4,7 @@ import com.anotepad.data.AppPreferences
 import com.anotepad.sync.DriveFolder
 import com.anotepad.sync.SyncResult
 import com.anotepad.sync.SyncState
+import com.anotepad.sync.SyncStatusMessageType
 import com.anotepad.sync.engine.fixtures.FakeLocalFsGateway
 import com.anotepad.sync.engine.fixtures.SyncFixtureBuilder
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -110,7 +111,10 @@ class SyncEnginePreflightTest {
         // Then
         assertTrue(result is SyncResult.Failure)
         assertEquals(SyncState.ERROR, builder.store.statuses.last().state)
-        assertEquals("Drive folder not connected", builder.store.statuses.last().message)
+        assertEquals(
+            SyncStatusMessageType.DRIVE_FOLDER_NOT_CONNECTED,
+            builder.store.statuses.last().message?.type
+        )
     }
 
     @Test
@@ -141,7 +145,7 @@ class SyncEnginePreflightTest {
 
         // Then
         assertEquals(
-            EnsureDriveFolderResult.Error("Multiple Drive folders found. Open Sync settings to choose."),
+            EnsureDriveFolderResult.Error(SyncStatusMessageType.MULTIPLE_DRIVE_FOLDERS),
             result
         )
     }
@@ -160,7 +164,7 @@ class SyncEnginePreflightTest {
 
         // Then
         assertEquals(
-            EnsureDriveFolderResult.Error("Multiple Drive folders found by name. Open Sync settings to choose."),
+            EnsureDriveFolderResult.Error(SyncStatusMessageType.MULTIPLE_DRIVE_FOLDERS),
             result
         )
     }

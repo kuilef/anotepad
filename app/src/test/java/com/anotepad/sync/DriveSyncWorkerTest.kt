@@ -84,7 +84,7 @@ class DriveSyncWorkerTest {
         assertEquals(WorkerDecision.Failure, result)
         assertEquals(1, builder.auth.invalidateCalls)
         assertEquals(1, builder.auth.revokeCalls)
-        assertEquals("Sign in required", builder.store.statuses.last().message)
+        assertEquals(SyncStatusMessageType.SIGN_IN_REQUIRED, builder.store.statuses.last().message?.type)
     }
 
     @Test
@@ -103,7 +103,8 @@ class DriveSyncWorkerTest {
         // Then
         assertEquals(WorkerDecision.Failure, result)
         assertEquals(0, builder.auth.revokeCalls)
-        assertTrue(builder.store.statuses.last().message?.contains("Drive error 403") == true)
+        assertEquals(SyncStatusMessageType.DRIVE_ERROR, builder.store.statuses.last().message?.type)
+        assertEquals(403, builder.store.statuses.last().message?.code)
     }
 
     @Test
@@ -116,7 +117,7 @@ class DriveSyncWorkerTest {
 
         // Then
         assertEquals(WorkerDecision.Retry, result)
-        assertTrue(builder.store.statuses.last().message?.contains("Unexpected error") == true)
+        assertEquals(SyncStatusMessageType.UNEXPECTED_ERROR, builder.store.statuses.last().message?.type)
     }
 
     @Test
@@ -137,7 +138,7 @@ class DriveSyncWorkerTest {
 
         // Then
         assertEquals(WorkerDecision.Failure, result)
-        assertEquals("Local folder is inaccessible or permission was lost", builder.store.statuses.last().message)
+        assertEquals(SyncStatusMessageType.LOCAL_STORAGE_UNAVAILABLE, builder.store.statuses.last().message?.type)
     }
 
     @Test
@@ -151,12 +152,13 @@ class DriveSyncWorkerTest {
         runner.run()
 
         // Then
-        val message = builder.store.statuses.last().message.orEmpty()
-        assertTrue(message.contains("Drive error 400"))
+        val message = builder.store.statuses.last().message
+        assertEquals(SyncStatusMessageType.DRIVE_ERROR, message?.type)
+        assertEquals(400, message?.code)
         assertTrue(
-            message.contains("Bad request") ||
-                message.contains("invalidArgument") ||
-                message == "Drive error 400"
+            message?.detail?.contains("Bad request") == true ||
+                message?.detail?.contains("invalidArgument") == true ||
+                message?.detail == null
         )
     }
 
@@ -169,8 +171,8 @@ class DriveSyncWorkerTest {
         runner.run()
 
         // Then
-        val message = builder.store.statuses.last().message.orEmpty()
-        assertTrue(message.contains("Network error"))
+        val message = builder.store.statuses.last().message
+        assertEquals(SyncStatusMessageType.NETWORK_ERROR, message?.type)
     }
 
     private fun runnerWithError(error: Exception): Triple<DriveSyncWorkerRunner, SyncFixtureBuilder, MutableList<String>> {

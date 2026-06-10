@@ -8,6 +8,7 @@ import com.anotepad.sync.DriveAuthManager
 import com.anotepad.sync.DriveClient
 import com.anotepad.sync.SyncRepository
 import com.anotepad.sync.SyncState
+import com.anotepad.sync.SyncStatusMessage
 import com.anotepad.sync.db.SyncFolderEntity
 import com.anotepad.sync.db.SyncItemEntity
 import kotlinx.coroutines.flow.first
@@ -250,7 +251,7 @@ class SyncStoreAdapter(
     override suspend fun deleteFoldersByPathPrefix(path: String) =
         syncRepository.deleteFoldersByPathPrefix(path)
 
-    override suspend fun setSyncStatus(state: SyncState, message: String?, lastSyncedAt: Long?) {
+    override suspend fun setSyncStatus(state: SyncState, message: SyncStatusMessage?, lastSyncedAt: Long?) {
         syncRepository.setSyncStatus(state, message, lastSyncedAt)
     }
 

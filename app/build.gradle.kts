@@ -22,8 +22,9 @@ android {
         applicationId = "com.anotepad"
         minSdk = 29
         targetSdk = 35
-        versionCode = 38
+        versionCode = 39
         versionName = "4.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     val releaseSigning = if (hasKeystoreProperties) {
@@ -110,5 +111,15 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
 
+    debugImplementation(platform("androidx.compose:compose-bom:2024.10.00"))
     debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.10.00"))
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("tools.fastlane:screengrab:2.1.1")
 }

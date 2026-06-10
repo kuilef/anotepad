@@ -1,6 +1,7 @@
 package com.anotepad.sync.engine.fixtures
 
 import com.anotepad.sync.SyncState
+import com.anotepad.sync.SyncStatusMessage
 import com.anotepad.sync.db.SyncFolderEntity
 import com.anotepad.sync.db.SyncItemEntity
 import com.anotepad.sync.engine.SyncStore
@@ -8,7 +9,7 @@ import com.anotepad.sync.engine.SyncStore
 class FakeSyncStore : SyncStore {
     data class StatusEntry(
         val state: SyncState,
-        val message: String?,
+        val message: SyncStatusMessage?,
         val lastSyncedAt: Long?
     )
 
@@ -85,8 +86,8 @@ class FakeSyncStore : SyncStore {
             .forEach { folders.remove(it) }
     }
 
-    override suspend fun setSyncStatus(state: SyncState, message: String?, lastSyncedAt: Long?) {
-        calls += "setSyncStatus:${state.name}:${message ?: ""}"
+    override suspend fun setSyncStatus(state: SyncState, message: SyncStatusMessage?, lastSyncedAt: Long?) {
+        calls += "setSyncStatus:${state.name}:${message?.type?.name ?: ""}"
         statuses += StatusEntry(state, message, lastSyncedAt)
     }
 

@@ -64,23 +64,35 @@ class SyncRepository(private val db: SyncDatabase) {
     fun syncStatusFlow(): Flow<SyncStatus> {
         val stateFlow = metaDao.observeValue(KEY_SYNC_STATUS)
         val messageFlow = metaDao.observeValue(KEY_SYNC_MESSAGE)
+        val messageDetailFlow = metaDao.observeValue(KEY_SYNC_MESSAGE_DETAIL)
+        val messageCodeFlow = metaDao.observeValue(KEY_SYNC_MESSAGE_CODE)
         val lastSyncedFlow = metaDao.observeValue(KEY_SYNC_LAST_SYNCED_AT)
-        return combine(stateFlow, messageFlow, lastSyncedFlow) { stateRaw, message, lastSynced ->
+        return combine(
+            stateFlow,
+            messageFlow,
+            messageDetailFlow,
+            messageCodeFlow,
+            lastSyncedFlow
+        ) { stateRaw, messageRaw, detail, codeRaw, lastSynced ->
             val state = SyncState.entries.firstOrNull { it.name == stateRaw } ?: SyncState.IDLE
             SyncStatus(
                 state = state,
                 lastSyncedAt = lastSynced?.toLongOrNull(),
-                message = message?.ifBlank { null }
+                message = parseSyncStatusMessage(messageRaw, detail, codeRaw)
             )
         }
     }
 
-    suspend fun setSyncStatus(state: SyncState, message: String? = null, lastSyncedAt: Long? = null) {
+    suspend fun setSyncStatus(state: SyncState, message: SyncStatusMessage? = null, lastSyncedAt: Long? = null) {
         setMeta(KEY_SYNC_STATUS, state.name)
         if (message != null) {
-            setMeta(KEY_SYNC_MESSAGE, message)
+            setMeta(KEY_SYNC_MESSAGE, message.type.name)
+            setMeta(KEY_SYNC_MESSAGE_DETAIL, message.detail.orEmpty())
+            setMeta(KEY_SYNC_MESSAGE_CODE, message.code?.toString().orEmpty())
         } else {
             setMeta(KEY_SYNC_MESSAGE, "")
+            setMeta(KEY_SYNC_MESSAGE_DETAIL, "")
+            setMeta(KEY_SYNC_MESSAGE_CODE, "")
         }
         if (lastSyncedAt != null) {
             setMeta(KEY_SYNC_LAST_SYNCED_AT, lastSyncedAt.toString())
@@ -141,6 +153,26 @@ class SyncRepository(private val db: SyncDatabase) {
         const val KEY_LAST_FULL_SCAN_AT = "drive_last_full_scan_at"
         const val KEY_SYNC_STATUS = "sync_status"
         const val KEY_SYNC_MESSAGE = "sync_message"
+        const val KEY_SYNC_MESSAGE_DETAIL = "sync_message_detail"
+        const val KEY_SYNC_MESSAGE_CODE = "sync_message_code"
         const val KEY_SYNC_LAST_SYNCED_AT = "sync_last_synced_at"
     }
+}
+
+private fun parseSyncStatusMessage(
+    rawType: String?,
+    detail: String?,
+    codeRaw: String?
+): SyncStatusMessage? {
+    val typeText = rawType?.ifBlank { null } ?: return null
+    val type = SyncStatusMessageType.entries.firstOrNull { it.name == typeText }
+        ?: return SyncStatusMessage(
+            type = SyncStatusMessageType.LEGACY_MESSAGE,
+            detail = typeText
+        )
+    return SyncStatusMessage(
+        type = type,
+        detail = detail?.ifBlank { null },
+        code = codeRaw?.toIntOrNull()
+    )
 }
