@@ -29,7 +29,7 @@ output_directory("metadata")
 device_type("phone")
 use_tests_in_classes(["com.anotepad.storecaptures.PlayStoreScreenshotTest"])
 
-clear_previous_screenshots(true)
+clear_previous_screenshots(false)
 reinstall_app(true)
 skip_open_summary(true)
 use_timestamp_suffix(false)

@@ -32,7 +32,7 @@ private const val PICKER_WAIT_MS = 12_000L
 private const val APP_RETURN_WAIT_MS = 15_000L
 private const val FILE_LIST_SETTLE_MS = 1_000L
 private const val DEFAULT_TARGET_FOLDER_NAME = "anotepad"
-private const val ABOUT_FILE_NAME = "About Anotepad.txt"
+private const val ABOUT_FILE_NAME = "01_local_notes.txt"
 private const val LOG_TAG = "StoreScreenshots"
 
 private val DOCUMENTS_UI_PACKAGE_PATTERN = Pattern.compile("com\\.(google\\.)?android\\.documentsui")
@@ -56,8 +56,21 @@ private val NON_LOCAL_STORAGE_ROOT_TEXT_PATTERN = Pattern.compile(
         "изображ|фото|видео|аудио|загруз|диск)",
     Pattern.CASE_INSENSITIVE
 )
-private val USE_THIS_FOLDER_TEXT_PATTERN =
-    Pattern.compile("(use this folder|select|choose)", Pattern.CASE_INSENSITIVE)
+
+private val USE_THIS_FOLDER_TEXT_PATTERN = Pattern.compile(
+    "(use[\\s\\u00A0]+this[\\s\\u00A0]+folder|" +
+        "select|choose|" +
+        "использовать[\\s\\u00A0]+эту[\\s\\u00A0]+папку|" +
+        "diesen[\\s\\u00A0]+ordner[\\s\\u00A0]+verwenden|" +
+        "utiliser[\\s\\u00A0]+ce[\\s\\u00A0]+dossier|" +
+        "usar[\\s\\u00A0]+esta[\\s\\u00A0]+carpeta)",
+    Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE
+)
+
+private val CONFIRM_FOLDER_ACCESS_TEXT_PATTERN = Pattern.compile(
+    "(allow|ok|разрешить|ок|zulassen|autoriser|permitir|aceptar)",
+    Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE
+)
 
 @RunWith(AndroidJUnit4::class)
 class PlayStoreScreenshotTest {
@@ -301,13 +314,13 @@ private fun selectExistingFolderInPicker(
         throw IllegalStateException("Folder picker is not visible. currentPackage=${device.currentPackageName}")
     }
 
-    if (!openTargetFolderIfVisible(device, targetFolderName)) {
+    if (!isCurrentPickerFolder(device, targetFolderName) && !openTargetFolderIfVisible(device, targetFolderName)) {
         openDocumentsRootDrawer(device, context)
         if (!selectLocalStorageRoot(device)) {
             throw IllegalStateException("Unable to find the local storage root in the system folder picker.")
         }
         scrollPickerListToTop(device)
-        if (!openTargetFolderIfVisible(device, targetFolderName)) {
+        if (!isCurrentPickerFolder(device, targetFolderName) && !openTargetFolderIfVisible(device, targetFolderName)) {
             throw IllegalStateException("Unable to find existing /emulated/0/$targetFolderName in the system folder picker.")
         }
     }
@@ -317,6 +330,11 @@ private fun selectExistingFolderInPicker(
     }
 
     confirmFolderAccessIfAsked(device)
+}
+
+private fun isCurrentPickerFolder(device: UiDevice, targetFolderName: String): Boolean {
+    return device.hasObject(By.text(exactTextPattern(targetFolderName))) &&
+        findUseThisFolderButton(device) != null
 }
 
 private fun isDocumentsUiVisible(device: UiDevice): Boolean {
@@ -417,9 +435,7 @@ private fun collectDescendants(root: UiObject2): List<UiObject2> {
 }
 
 private fun clickUseThisFolder(device: UiDevice, context: Context): Boolean {
-    val selectButton = device.findObject(By.res(DOCUMENTS_UI_ACTION_SELECT_RES_PATTERN))
-        ?: device.findObject(By.text(USE_THIS_FOLDER_TEXT_PATTERN))
-        ?: device.findObject(By.desc(USE_THIS_FOLDER_TEXT_PATTERN))
+    val selectButton = findUseThisFolderButton(device)
     if (selectButton != null) {
         clickObjectOrClickableParent(selectButton)
     } else {
@@ -434,14 +450,29 @@ private fun clickUseThisFolder(device: UiDevice, context: Context): Boolean {
     return true
 }
 
-private fun confirmFolderAccessIfAsked(device: UiDevice) {
-    device.wait(Until.hasObject(By.res("android:id/button1")), 2_000L)
-    val allowButton = device.findObject(By.res("android:id/button1"))
-        ?: device.findObject(By.text(Pattern.compile("(allow|ok|разреш|ок)", Pattern.CASE_INSENSITIVE)))
-        ?: return
+private fun findUseThisFolderButton(device: UiDevice): UiObject2? {
+    return device.findObject(By.res(DOCUMENTS_UI_ACTION_SELECT_RES_PATTERN))
+        ?: device.findObject(By.text(USE_THIS_FOLDER_TEXT_PATTERN))
+        ?: device.findObject(By.desc(USE_THIS_FOLDER_TEXT_PATTERN))
+        ?: device.findObject(By.res("android:id/button1"))
+}
 
-    clickObjectOrClickableParent(allowButton)
-    device.waitForIdle()
+private fun confirmFolderAccessIfAsked(device: UiDevice) {
+    val deadline = System.currentTimeMillis() + PICKER_WAIT_MS
+    while (System.currentTimeMillis() < deadline) {
+        val allowButton = device.findObject(By.res("android:id/button1"))
+            ?: device.findObject(By.text(CONFIRM_FOLDER_ACCESS_TEXT_PATTERN))
+            ?: device.findObject(By.desc(CONFIRM_FOLDER_ACCESS_TEXT_PATTERN))
+
+        if (allowButton != null) {
+            clickObjectOrClickableParent(allowButton)
+            device.waitForIdle()
+            return
+        }
+
+        if (!isDocumentsUiVisible(device)) return
+        Thread.sleep(250L)
+    }
 }
 
 private fun clickObjectOrClickableParent(target: UiObject2) {
