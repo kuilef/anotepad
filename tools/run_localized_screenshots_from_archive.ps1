@@ -68,11 +68,11 @@ $localeToZipDir = [ordered]@{
     "es-ES" = "values-es"
     "fr-FR" = "values-fr"
     "hi-IN" = "values-hi"
-    "id-ID" = "values-in"
+    "id" = "values-in"
     "pt-BR" = "values-pt-rBR"
     "ru-RU" = "values-ru"
     "tr-TR" = "values-tr"
-    "vi-VN" = "values-vi"
+    "vi" = "values-vi"
 }
 
 $normalizedLocales = @(

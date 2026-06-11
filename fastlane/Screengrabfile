@@ -11,11 +11,11 @@ default_locales = [
   "es-ES",
   "fr-FR",
   "hi-IN",
-  "id-ID",
+  "id",
   "pt-BR",
   "ru-RU",
   "tr-TR",
-  "vi-VN"
+  "vi"
 ]
 
 selected_locales = ENV.fetch("SCREENSHOT_LOCALES", default_locales.join(","))
