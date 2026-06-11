@@ -2,7 +2,8 @@ param(
     [string]$DeviceSerial = "",
     [string[]]$Locales = @(),
     [string]$TargetFolderName = "anotepad",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$ReuseInstalledApp
 )
 
 $ErrorActionPreference = "Stop"
@@ -76,12 +77,19 @@ try {
     }
 
     $env:SCREENSHOT_TARGET_FOLDER_NAME = $TargetFolderName
+    $env:SCREENSHOT_REINSTALL_APP = if ($ReuseInstalledApp) { "0" } else { "1" }
 
-    # Prevent Android Auto Backup from restoring an obsolete DataStore root_tree_uri
-    # without the matching persisted SAF permission.
-    Invoke-AdbBestEffort @("shell", "bmgr", "wipe", "com.anotepad")
-    Invoke-AdbBestEffort @("uninstall", "com.anotepad")
-    Invoke-AdbBestEffort @("uninstall", "com.anotepad.test")
+    if ($ReuseInstalledApp) {
+        # Keep the persisted SAF folder grant and DataStore root_tree_uri, but
+        # restart the app so it reloads the locale-specific payload.
+        Invoke-AdbBestEffort @("shell", "am", "force-stop", "com.anotepad")
+    } else {
+        # Prevent Android Auto Backup from restoring an obsolete DataStore root_tree_uri
+        # without the matching persisted SAF permission.
+        Invoke-AdbBestEffort @("shell", "bmgr", "wipe", "com.anotepad")
+        Invoke-AdbBestEffort @("uninstall", "com.anotepad")
+        Invoke-AdbBestEffort @("uninstall", "com.anotepad.test")
+    }
 
     # The UI test selects this folder through SAF. It does not create the folder itself.
     & $adb @adbArgs shell mkdir -p "/sdcard/$TargetFolderName" | Out-Null

@@ -36,8 +36,11 @@ private const val PICKER_WAIT_MS = 12_000L
 private const val APP_RETURN_WAIT_MS = 15_000L
 private const val FILE_LIST_SETTLE_MS = 1_000L
 private const val SYSTEM_BARS_HIDE_SETTLE_MS = 500L
+private const val UI_DEVICE_CONNECT_RETRIES = 4
+private const val UI_DEVICE_CONNECT_RETRY_WAIT_MS = 1_500L
 private const val DEFAULT_TARGET_FOLDER_NAME = "anotepad"
 private const val ABOUT_FILE_NAME = "01_local_notes.txt"
+private const val SHARED_FOLDER_NAME = "Shared"
 private const val LOG_TAG = "StoreScreenshots"
 
 private val DOCUMENTS_UI_PACKAGE_PATTERN = Pattern.compile("com\\.(google\\.)?android\\.documentsui")
@@ -90,7 +93,7 @@ class PlayStoreScreenshotTest {
     fun captureLocalizedStoreScreenshots() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val targetContext = instrumentation.targetContext
-        val device = UiDevice.getInstance(instrumentation)
+        val device = getUiDeviceWithRetry(instrumentation)
         val args = InstrumentationRegistry.getArguments()
         val screenshotLocale = args.getString("testLocale")
             ?: args.getString("locale")
@@ -107,6 +110,9 @@ class PlayStoreScreenshotTest {
         wakeDevice(device)
         device.waitForIdle()
         selectExistingWorkFolderIfRequested(device, targetContext, targetFolderName)
+        dismissToolbarOnboardingIfVisible(device, targetContext)
+        returnToBrowserScreen(device, targetContext)
+        ensureListView(device, targetContext)
         waitForFolderContents(device, targetContext)
         dismissToolbarOnboardingIfVisible(device, targetContext)
         captureScreenshotWithoutSystemBars(device, "01_home_files", screenshotStrategy, screenshotCallback)
@@ -139,6 +145,22 @@ class PlayStoreScreenshotTest {
         Thread.sleep(SYSTEM_BARS_HIDE_SETTLE_MS)
         Screengrab.screenshot(screenshotName, screenshotStrategy, screenshotCallback)
     }
+}
+
+private fun getUiDeviceWithRetry(instrumentation: android.app.Instrumentation): UiDevice {
+    var lastError: RuntimeException? = null
+
+    repeat(UI_DEVICE_CONNECT_RETRIES) { attempt ->
+        try {
+            return UiDevice.getInstance(instrumentation)
+        } catch (error: RuntimeException) {
+            lastError = error
+            Log.w(LOG_TAG, "UiDevice connection failed on attempt ${attempt + 1}", error)
+            Thread.sleep(UI_DEVICE_CONNECT_RETRY_WAIT_MS)
+        }
+    }
+
+    throw lastError ?: IllegalStateException("Unable to connect UiDevice.")
 }
 
 private fun wakeDevice(device: UiDevice) {
@@ -216,7 +238,10 @@ private fun openSystemFolderPickerFromCurrentPrompt(device: UiDevice, context: C
         Thread.sleep(250L)
     }
 
-    throw IllegalStateException("System folder picker did not open. currentPackage=${device.currentPackageName}")
+    throw IllegalStateException(
+        "System folder picker did not open. " +
+            folderPickerOpenDiagnostics(device, continueLabel, pickFolderLabel)
+    )
 }
 
 private fun waitForFolderContents(device: UiDevice, context: Context) {
@@ -350,12 +375,45 @@ private fun selectExistingFolderInPicker(
 }
 
 private fun isCurrentPickerFolder(device: UiDevice, targetFolderName: String): Boolean {
-    return device.hasObject(By.text(exactTextPattern(targetFolderName))) &&
-        findUseThisFolderButton(device) != null
+    if (findUseThisFolderButton(device) == null) return false
+
+    return hasTextOrDescription(device, exactTextPattern(targetFolderName)) ||
+        hasTargetFolderPayloadVisible(device)
+}
+
+private fun hasTargetFolderPayloadVisible(device: UiDevice): Boolean {
+    return hasTextOrDescription(device, exactTextPattern(ABOUT_FILE_NAME)) ||
+        hasTextOrDescription(device, exactTextPattern(SHARED_FOLDER_NAME))
+}
+
+private fun hasTextOrDescription(device: UiDevice, textPattern: Pattern): Boolean {
+    return device.hasObject(By.text(textPattern)) ||
+        device.hasObject(By.desc(textPattern))
 }
 
 private fun isDocumentsUiVisible(device: UiDevice): Boolean {
+    return isDocumentsUiForeground(device) || hasDocumentsUiObject(device)
+}
+
+private fun isDocumentsUiForeground(device: UiDevice): Boolean {
+    val currentPackage = device.currentPackageName ?: return false
+    return DOCUMENTS_UI_PACKAGE_PATTERN.matcher(currentPackage).matches()
+}
+
+private fun hasDocumentsUiObject(device: UiDevice): Boolean {
     return device.hasObject(By.pkg(DOCUMENTS_UI_PACKAGE_PATTERN))
+}
+
+private fun folderPickerOpenDiagnostics(
+    device: UiDevice,
+    continueLabel: String,
+    pickFolderLabel: String
+): String {
+    return "currentPackage=${device.currentPackageName}, " +
+        "hasDocumentsUiObject=${hasDocumentsUiObject(device)}, " +
+        "hasAppObject=${device.hasObject(By.pkg(APP_PACKAGE))}, " +
+        "hasContinueButton=${findObjectByTextOrDescription(device, continueLabel) != null}, " +
+        "hasPickFolderButton=${findObjectByTextOrDescription(device, pickFolderLabel) != null}"
 }
 
 private fun openTargetFolderIfVisible(device: UiDevice, targetFolderName: String): Boolean {
@@ -528,9 +586,13 @@ private fun returnToBrowserScreen(device: UiDevice, context: Context) {
     val settingsLabel = context.getString(R.string.action_settings)
     val settingsButton = By.pkg(APP_PACKAGE).desc(settingsLabel)
 
+    dismissToolbarOnboardingIfVisible(device, context)
     if (device.hasObject(settingsButton)) return
 
     repeat(3) {
+        dismissToolbarOnboardingIfVisible(device, context)
+        if (device.hasObject(settingsButton)) return
+
         val backButton = device.findObject(By.pkg(APP_PACKAGE).desc(backLabel))
         if (backButton != null) {
             clickObjectOrClickableParent(backButton)
@@ -538,6 +600,7 @@ private fun returnToBrowserScreen(device: UiDevice, context: Context) {
             device.pressBack()
         }
         device.waitForIdle()
+        dismissToolbarOnboardingIfVisible(device, context)
         if (device.wait(Until.hasObject(settingsButton), SCREEN_WAIT_MS)) return
     }
 

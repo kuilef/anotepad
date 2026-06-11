@@ -30,6 +30,6 @@ device_type("phone")
 use_tests_in_classes(["com.anotepad.storecaptures.PlayStoreScreenshotTest"])
 
 clear_previous_screenshots(false)
-reinstall_app(true)
+reinstall_app(ENV.fetch("SCREENSHOT_REINSTALL_APP", "1") !~ /^(0|false|no)$/i)
 skip_open_summary(true)
 use_timestamp_suffix(false)

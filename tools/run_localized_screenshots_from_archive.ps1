@@ -4,7 +4,9 @@ param(
     [string]$TargetFolderName = "anotepad",
     [string]$ZipPath = "",
     [string]$AdbPath = "",
-    [string]$JavaHome = "C:\Program Files\Android\Android Studio\jbr"
+    [string]$JavaHome = "C:\Program Files\Android\Android Studio\jbr",
+    [switch]$ResetAppEachLocale,
+    [int]$InstrumentationSettleSeconds = 3
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,9 +60,9 @@ function Resolve-AdbPath {
 }
 
 $localeToZipDir = [ordered]@{
+    "en-US" = "values-en"
     "bn-BD" = "values-bn"
     "de-DE" = "values-de"
-    "en-US" = "values-en"
     "es-ES" = "values-es"
     "fr-FR" = "values-fr"
     "hi-IN" = "values-hi"
@@ -109,6 +111,43 @@ $expectedScreenshots = @(
     "04_settings.png"
 )
 
+function Invoke-AdbChecked {
+    param(
+        [string[]]$CommandArgs
+    )
+
+    & $adb @adbArgs @CommandArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "adb command failed with exit code ${LASTEXITCODE}: adb $($CommandArgs -join ' ')"
+    }
+}
+
+function Invoke-AdbBestEffort {
+    param(
+        [string[]]$CommandArgs
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $adb @adbArgs @CommandArgs *> $null
+    } catch {
+        # Process cleanup is best effort; the following instrumentation run is authoritative.
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
+function Get-DeviceApiVersion {
+    $apiText = (& $adb @adbArgs shell getprop ro.build.version.sdk).Trim()
+    $apiVersion = 0
+    if ([int]::TryParse($apiText, [ref]$apiVersion)) {
+        return $apiVersion
+    }
+
+    return 0
+}
+
 function New-LocalePayload {
     param(
         [string]$Locale,
@@ -138,8 +177,80 @@ function New-LocalePayload {
     return $payloadDir
 }
 
+function Clear-ExpectedLocalScreenshots {
+    param(
+        [string]$Locale
+    )
+
+    $screenshotDir = Join-Path $repoRoot "metadata\$Locale\images\phoneScreenshots"
+    New-Item -ItemType Directory -Force -Path $screenshotDir | Out-Null
+
+    foreach ($name in $expectedScreenshots) {
+        $path = Join-Path $screenshotDir $name
+        if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Force
+        }
+    }
+}
+
+function Invoke-ReusedInstallScreenshotRun {
+    param(
+        [string]$Locale,
+        [int]$DeviceApiVersion
+    )
+
+    Clear-ExpectedLocalScreenshots -Locale $Locale
+
+    Invoke-AdbBestEffort @("shell", "am", "force-stop", "com.anotepad.test")
+    Invoke-AdbBestEffort @("shell", "am", "force-stop", "com.anotepad")
+    if ($InstrumentationSettleSeconds -gt 0) {
+        Start-Sleep -Seconds $InstrumentationSettleSeconds
+    }
+
+    $deviceScreenshotDir = "/sdcard/Android/data/com.anotepad/files/screengrab/$Locale/images/screenshots"
+    Invoke-AdbChecked @("shell", "rm", "-rf", $deviceScreenshotDir)
+    Invoke-AdbChecked @("shell", "mkdir", "-p", $deviceScreenshotDir)
+
+    $instrumentArgs = @(
+        "shell",
+        "am",
+        "instrument",
+        "--no-window-animation",
+        "-w",
+        "-e",
+        "testLocale",
+        $Locale
+    )
+    if ($DeviceApiVersion -ge 28) {
+        $instrumentArgs += "--no-hidden-api-checks"
+    }
+    $instrumentArgs += @(
+        "-e",
+        "appendTimestamp",
+        "false",
+        "-e",
+        "class",
+        "com.anotepad.storecaptures.PlayStoreScreenshotTest",
+        "-e",
+        "targetFolderName",
+        $TargetFolderName,
+        "com.anotepad.test/androidx.test.runner.AndroidJUnitRunner"
+    )
+
+    $testOutput = & $adb @adbArgs @instrumentArgs 2>&1
+    $testExitCode = $LASTEXITCODE
+    $testOutput | ForEach-Object { Write-Host $_ }
+    if ($testExitCode -ne 0 -or ($testOutput -match "FAILURES!!!")) {
+        throw "Instrumentation failed for $Locale."
+    }
+
+    $screenshotDir = Join-Path $repoRoot "metadata\$Locale\images\phoneScreenshots"
+    Invoke-AdbChecked @("pull", "$deviceScreenshotDir/.", $screenshotDir)
+}
+
 Push-Location $repoRoot
 try {
+    $deviceApiVersion = Get-DeviceApiVersion
     for ($localeIndex = 0; $localeIndex -lt $selectedLocales.Count; $localeIndex++) {
         $locale = $selectedLocales[$localeIndex]
         $zipDir = $localeToZipDir[$locale]
@@ -169,10 +280,14 @@ try {
 
         if ($localeIndex -eq 0) {
             Write-Host "Running screenshots for $locale with a fresh debug APK build"
+            & powershell @screenshotArgs
+        } elseif ($ResetAppEachLocale) {
+            Write-Host "Running screenshots for $locale using already built debug APKs with a fresh app install"
+            & powershell @screenshotArgs
         } else {
-            Write-Host "Running screenshots for $locale using already built debug APKs"
+            Write-Host "Running screenshots for $locale by reusing the existing app install and folder permission"
+            Invoke-ReusedInstallScreenshotRun -Locale $locale -DeviceApiVersion $deviceApiVersion
         }
-        & powershell @screenshotArgs
 
         $screenshotDir = Join-Path $repoRoot "metadata\$locale\images\phoneScreenshots"
         foreach ($name in $expectedScreenshots) {
