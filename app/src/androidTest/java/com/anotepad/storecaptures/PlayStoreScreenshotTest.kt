@@ -2,7 +2,11 @@ package com.anotepad.storecaptures
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.util.Log
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -31,6 +35,7 @@ private const val SCREEN_WAIT_MS = 5_000L
 private const val PICKER_WAIT_MS = 12_000L
 private const val APP_RETURN_WAIT_MS = 15_000L
 private const val FILE_LIST_SETTLE_MS = 1_000L
+private const val SYSTEM_BARS_HIDE_SETTLE_MS = 500L
 private const val DEFAULT_TARGET_FOLDER_NAME = "anotepad"
 private const val ABOUT_FILE_NAME = "01_local_notes.txt"
 private const val LOG_TAG = "StoreScreenshots"
@@ -104,23 +109,35 @@ class PlayStoreScreenshotTest {
         selectExistingWorkFolderIfRequested(device, targetContext, targetFolderName)
         waitForFolderContents(device, targetContext)
         dismissToolbarOnboardingIfVisible(device, targetContext)
-        wakeDevice(device)
-        Screengrab.screenshot("01_home_files", screenshotStrategy, screenshotCallback)
+        captureScreenshotWithoutSystemBars(device, "01_home_files", screenshotStrategy, screenshotCallback)
 
-        wakeDevice(device)
         openFeedForScreenshot(device, targetContext)
-        wakeDevice(device)
-        Screengrab.screenshot("02_feed", screenshotStrategy, screenshotCallback)
+        captureScreenshotWithoutSystemBars(device, "02_feed", screenshotStrategy, screenshotCallback)
 
-        wakeDevice(device)
         openFileForScreenshot(device, targetContext, ABOUT_FILE_NAME)
-        wakeDevice(device)
-        Screengrab.screenshot("03_about_anotepad", screenshotStrategy, screenshotCallback)
+        captureScreenshotWithoutSystemBars(device, "03_about_anotepad", screenshotStrategy, screenshotCallback)
 
-        wakeDevice(device)
         openSettings(device, targetContext)
+        captureScreenshotWithoutSystemBars(device, "04_settings", screenshotStrategy, screenshotCallback)
+    }
+
+    private fun captureScreenshotWithoutSystemBars(
+        device: UiDevice,
+        screenshotName: String,
+        screenshotStrategy: UiAutomatorScreenshotStrategy,
+        screenshotCallback: ScreenshotCallback
+    ) {
         wakeDevice(device)
-        Screengrab.screenshot("04_settings", screenshotStrategy, screenshotCallback)
+        activityRule.scenario.onActivity { activity ->
+            WindowCompat.setDecorFitsSystemWindows(activity.window, false)
+            WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                hide(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+        device.waitForIdle()
+        Thread.sleep(SYSTEM_BARS_HIDE_SETTLE_MS)
+        Screengrab.screenshot(screenshotName, screenshotStrategy, screenshotCallback)
     }
 }
 
@@ -541,17 +558,67 @@ private class ExternalFilesScreenshotCallback(
         }
 
         val screenshotFile = File(screenshotsDir, "$screenshotName.png")
+        val outputScreenshot = screenshot.withoutTopBlackSystemBarBand()
         try {
             BufferedOutputStream(FileOutputStream(screenshotFile)).use { output ->
-                screenshot.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, output)
+                outputScreenshot.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, output)
             }
             Log.d("Screengrab", "Captured screenshot \"${screenshotFile.name}\"")
         } finally {
+            if (outputScreenshot !== screenshot) {
+                outputScreenshot.recycle()
+            }
             screenshot.recycle()
         }
     }
 
     companion object {
         private const val PNG_QUALITY = 100
+        private const val MAX_TOP_BLACK_BAND_HEIGHT_RATIO = 0.15f
+        private const val BLACK_CHANNEL_THRESHOLD = 12
+        private const val MIN_BLACK_ROW_COVERAGE = 0.98f
+    }
+
+    private fun Bitmap.withoutTopBlackSystemBarBand(): Bitmap {
+        val cropTop = detectTopBlackBandHeight()
+        if (cropTop <= 0 || cropTop >= height) return this
+
+        Log.d("Screengrab", "Cropping $cropTop px top black system bar band")
+        return Bitmap.createBitmap(this, 0, cropTop, width, height - cropTop)
+    }
+
+    private fun Bitmap.detectTopBlackBandHeight(): Int {
+        val maxRows = (height * MAX_TOP_BLACK_BAND_HEIGHT_RATIO).roundToInt().coerceAtLeast(1)
+        val sampleStep = (width / 120).coerceAtLeast(1)
+        var blackRows = 0
+
+        for (y in 0 until maxRows) {
+            if (!isMostlyBlackRow(y, sampleStep)) break
+            blackRows++
+        }
+
+        return blackRows
+    }
+
+    private fun Bitmap.isMostlyBlackRow(y: Int, sampleStep: Int): Boolean {
+        var samples = 0
+        var blackSamples = 0
+
+        var x = 0
+        while (x < width) {
+            samples++
+            if (getPixel(x, y).isBlackPixel()) {
+                blackSamples++
+            }
+            x += sampleStep
+        }
+
+        return samples > 0 && blackSamples.toFloat() / samples >= MIN_BLACK_ROW_COVERAGE
+    }
+
+    private fun Int.isBlackPixel(): Boolean {
+        return Color.red(this) <= BLACK_CHANNEL_THRESHOLD &&
+            Color.green(this) <= BLACK_CHANNEL_THRESHOLD &&
+            Color.blue(this) <= BLACK_CHANNEL_THRESHOLD
     }
 }

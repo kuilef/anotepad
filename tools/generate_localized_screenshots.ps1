@@ -1,7 +1,8 @@
 param(
     [string]$DeviceSerial = "",
     [string[]]$Locales = @(),
-    [string]$TargetFolderName = "anotepad"
+    [string]$TargetFolderName = "anotepad",
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,7 +86,11 @@ try {
     # The UI test selects this folder through SAF. It does not create the folder itself.
     & $adb @adbArgs shell mkdir -p "/sdcard/$TargetFolderName" | Out-Null
 
-    bundle exec fastlane android screenshots
+    if ($SkipBuild) {
+        bundle exec fastlane android screenshots_capture_only
+    } else {
+        bundle exec fastlane android screenshots
+    }
 }
 finally {
     Pop-Location

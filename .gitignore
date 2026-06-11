@@ -39,3 +39,5 @@ Gemfile
 Appfile
 Gemfile.lock
 metadata/
+
+fastlane/report.xml

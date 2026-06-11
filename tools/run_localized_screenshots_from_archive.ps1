@@ -60,6 +60,7 @@ function Resolve-AdbPath {
 $localeToZipDir = [ordered]@{
     "bn-BD" = "values-bn"
     "de-DE" = "values-de"
+    "en-US" = "values-en"
     "es-ES" = "values-es"
     "fr-FR" = "values-fr"
     "hi-IN" = "values-hi"
@@ -139,7 +140,8 @@ function New-LocalePayload {
 
 Push-Location $repoRoot
 try {
-    foreach ($locale in $selectedLocales) {
+    for ($localeIndex = 0; $localeIndex -lt $selectedLocales.Count; $localeIndex++) {
+        $locale = $selectedLocales[$localeIndex]
         $zipDir = $localeToZipDir[$locale]
         Write-Host "Preparing $locale from $zipDir"
         $payloadDir = New-LocalePayload -Locale $locale -ZipDir $zipDir
@@ -148,11 +150,29 @@ try {
         & $adb @adbArgs shell "rm -rf /sdcard/$TargetFolderName/*; mkdir -p /sdcard/$TargetFolderName/Shared"
         & $adb @adbArgs push "$payloadDir\." "/sdcard/$TargetFolderName/"
 
-        Write-Host "Running screenshots for $locale"
-        & powershell -NoProfile -ExecutionPolicy Bypass -File ".\tools\generate_localized_screenshots.ps1" `
-            -DeviceSerial $DeviceSerial `
-            -Locales $locale `
-            -TargetFolderName $TargetFolderName
+        $screenshotArgs = @(
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            ".\tools\generate_localized_screenshots.ps1",
+            "-DeviceSerial",
+            $DeviceSerial,
+            "-Locales",
+            $locale,
+            "-TargetFolderName",
+            $TargetFolderName
+        )
+        if ($localeIndex -gt 0) {
+            $screenshotArgs += "-SkipBuild"
+        }
+
+        if ($localeIndex -eq 0) {
+            Write-Host "Running screenshots for $locale with a fresh debug APK build"
+        } else {
+            Write-Host "Running screenshots for $locale using already built debug APKs"
+        }
+        & powershell @screenshotArgs
 
         $screenshotDir = Join-Path $repoRoot "metadata\$locale\images\phoneScreenshots"
         foreach ($name in $expectedScreenshots) {

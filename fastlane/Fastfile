@@ -9,4 +9,9 @@ platform :android do
 
     capture_android_screenshots
   end
+
+  desc "Capture localized Play Store screenshots using already built debug APKs"
+  lane :screenshots_capture_only do
+    capture_android_screenshots
+  end
 end

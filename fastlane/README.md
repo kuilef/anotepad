@@ -23,6 +23,14 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 Build debug APKs and capture localized Play Store screenshots
 
+### android screenshots_capture_only
+
+```sh
+[bundle exec] fastlane android screenshots_capture_only
+```
+
+Capture localized Play Store screenshots using already built debug APKs
+
 ----
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.
