@@ -6,7 +6,9 @@ param(
     [string]$AdbPath = "",
     [string]$JavaHome = "C:\Program Files\Android\Android Studio\jbr",
     [switch]$ResetAppEachLocale,
-    [int]$InstrumentationSettleSeconds = 3
+    [switch]$ReuseInstalledAppFromFirstLocale,
+    [int]$InstrumentationSettleSeconds = 3,
+    [int]$InstrumentationMaxAttempts = 3
 )
 
 $ErrorActionPreference = "Stop"
@@ -193,6 +195,28 @@ function Clear-ExpectedLocalScreenshots {
     }
 }
 
+function Test-IsRecoverableUiAutomationFailure {
+    param(
+        [object[]]$Output
+    )
+
+    $text = ($Output | Out-String)
+    return $text -match "UiAutomation not connected" -or
+        $text -match "Error while connecting UiAutomation"
+}
+
+function Test-IsInstrumentationFailure {
+    param(
+        [object[]]$Output
+    )
+
+    $text = ($Output | Out-String)
+    return $text -match "FAILURES!!!" -or
+        $text -match "Error in captureLocalizedStoreScreenshots" -or
+        $text -match "Process crashed" -or
+        $text -match "INSTRUMENTATION_RESULT: shortMsg="
+}
+
 function Invoke-ReusedInstallScreenshotRun {
     param(
         [string]$Locale,
@@ -201,15 +225,7 @@ function Invoke-ReusedInstallScreenshotRun {
 
     Clear-ExpectedLocalScreenshots -Locale $Locale
 
-    Invoke-AdbBestEffort @("shell", "am", "force-stop", "com.anotepad.test")
-    Invoke-AdbBestEffort @("shell", "am", "force-stop", "com.anotepad")
-    if ($InstrumentationSettleSeconds -gt 0) {
-        Start-Sleep -Seconds $InstrumentationSettleSeconds
-    }
-
     $deviceScreenshotDir = "/sdcard/Android/data/com.anotepad/files/screengrab/$Locale/images/screenshots"
-    Invoke-AdbChecked @("shell", "rm", "-rf", $deviceScreenshotDir)
-    Invoke-AdbChecked @("shell", "mkdir", "-p", $deviceScreenshotDir)
 
     $instrumentArgs = @(
         "shell",
@@ -237,15 +253,38 @@ function Invoke-ReusedInstallScreenshotRun {
         "com.anotepad.test/androidx.test.runner.AndroidJUnitRunner"
     )
 
-    $testOutput = & $adb @adbArgs @instrumentArgs 2>&1
-    $testExitCode = $LASTEXITCODE
-    $testOutput | ForEach-Object { Write-Host $_ }
-    if ($testExitCode -ne 0 -or ($testOutput -match "FAILURES!!!")) {
+    for ($attempt = 1; $attempt -le $InstrumentationMaxAttempts; $attempt++) {
+        if ($InstrumentationMaxAttempts -gt 1) {
+            Write-Host "Instrumentation attempt $attempt/$InstrumentationMaxAttempts for $Locale"
+        }
+
+        Invoke-AdbBestEffort @("shell", "am", "force-stop", "com.anotepad.test")
+        Invoke-AdbBestEffort @("shell", "am", "force-stop", "com.anotepad")
+        if ($InstrumentationSettleSeconds -gt 0) {
+            Start-Sleep -Seconds ($InstrumentationSettleSeconds * $attempt)
+        }
+
+        Invoke-AdbChecked @("shell", "rm", "-rf", $deviceScreenshotDir)
+        Invoke-AdbChecked @("shell", "mkdir", "-p", $deviceScreenshotDir)
+
+        $testOutput = & $adb @adbArgs @instrumentArgs 2>&1
+        $testExitCode = $LASTEXITCODE
+        $testOutput | ForEach-Object { Write-Host $_ }
+
+        $hasInstrumentationFailure = Test-IsInstrumentationFailure -Output $testOutput
+        if ($testExitCode -eq 0 -and !$hasInstrumentationFailure) {
+            $screenshotDir = Join-Path $repoRoot "metadata\$Locale\images\phoneScreenshots"
+            Invoke-AdbChecked @("pull", "$deviceScreenshotDir/.", $screenshotDir)
+            return
+        }
+
+        if ($attempt -lt $InstrumentationMaxAttempts -and (Test-IsRecoverableUiAutomationFailure -Output $testOutput)) {
+            Write-Host "Recoverable UiAutomation failure for $Locale; retrying after process cleanup"
+            continue
+        }
+
         throw "Instrumentation failed for $Locale."
     }
-
-    $screenshotDir = Join-Path $repoRoot "metadata\$Locale\images\phoneScreenshots"
-    Invoke-AdbChecked @("pull", "$deviceScreenshotDir/.", $screenshotDir)
 }
 
 Push-Location $repoRoot
@@ -278,7 +317,9 @@ try {
             $screenshotArgs += "-SkipBuild"
         }
 
-        if ($localeIndex -eq 0) {
+        $shouldReuseInstalledApp = !$ResetAppEachLocale -and ($localeIndex -gt 0 -or $ReuseInstalledAppFromFirstLocale)
+
+        if (!$shouldReuseInstalledApp -and $localeIndex -eq 0) {
             Write-Host "Running screenshots for $locale with a fresh debug APK build"
             & powershell @screenshotArgs
         } elseif ($ResetAppEachLocale) {
