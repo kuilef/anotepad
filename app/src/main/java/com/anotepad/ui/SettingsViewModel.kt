@@ -44,6 +44,10 @@ class SettingsViewModel(private val preferencesRepository: PreferencesRepository
         viewModelScope.launch { preferencesRepository.setSyncTitle(enabled) }
     }
 
+    fun setAskFileNameOnCreate(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepository.setAskFileNameOnCreate(enabled) }
+    }
+
     fun setAutoSaveEnabled(enabled: Boolean) {
         viewModelScope.launch { preferencesRepository.setAutoSaveEnabled(enabled) }
     }

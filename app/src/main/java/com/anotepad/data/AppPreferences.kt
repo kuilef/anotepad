@@ -7,6 +7,7 @@ data class AppPreferences(
     val autoLinkTel: Boolean = false,
     val openNotesInReadMode: Boolean = false,
     val syncTitle: Boolean = true,
+    val askFileNameOnCreate: Boolean = false,
     val autoSaveDebounceMs: Long = 1200L,
     val autoSaveEnabled: Boolean = true,
     val browserFontSizeSp: Float = 14f,

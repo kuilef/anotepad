@@ -28,6 +28,7 @@
     <string name="action_overwrite">Overwrite</string>
     <string name="action_undo">Undo</string>
     <string name="action_redo">Redo</string>
+    <string name="action_change_name">Change name</string>
     <string name="action_insert_date_time_template">Insert date/time template</string>
     <string name="action_toggle_feed">Show feed</string>
     <string name="action_toggle_list">Show list</string>
@@ -68,6 +69,7 @@
     <string name="label_open_notes_in_read_mode">Open notes in read mode</string>
     <string name="label_open_notes_in_read_mode_hint">Do not show the keyboard automatically when opening a note.</string>
     <string name="label_sync_title">Sync title with filename</string>
+    <string name="label_ask_file_name_on_create">Ask for filename when creating a note</string>
     <string name="label_editor_title_new">New note</string>
     <string name="label_unsaved">Unsaved</string>
     <string name="label_saving">Saving...</string>

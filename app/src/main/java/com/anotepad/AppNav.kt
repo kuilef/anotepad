@@ -39,6 +39,7 @@ private const val RESULT_EDITED_CURRENT_URI = "edited_current_uri"
 private const val RESULT_EDITED_DIR_URI = "edited_dir_uri"
 private const val STATE_EDITOR_CURRENT_FILE_URI = "editor_current_file_uri"
 private const val ARG_SHARED_DRAFT = "shared"
+private const val ARG_PROPOSED_FILE_NAME = "name"
 private const val SHARED_DRAFT_FLAG = "1"
 
 @Composable
@@ -131,8 +132,12 @@ fun AppNav(deps: AppDependencies) {
                 onOpenFile = { fileUri, dirUri ->
                     navController.navigate("$ROUTE_EDITOR?file=${encodeUri(fileUri)}&dir=${encodeUri(dirUri)}")
                 },
-                onNewFile = { dirUri, extension ->
-                    navController.navigate("$ROUTE_EDITOR?dir=${encodeUri(dirUri)}&ext=$extension")
+                onNewFile = { dirUri, extension, proposedFileName ->
+                    val nameArg = proposedFileName
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { "&$ARG_PROPOSED_FILE_NAME=${encodeArg(it)}" }
+                        .orEmpty()
+                    navController.navigate("$ROUTE_EDITOR?dir=${encodeUri(dirUri)}&ext=$extension$nameArg")
                 },
                 onSearch = { dirUri ->
                     navController.navigate("$ROUTE_SEARCH?dir=${encodeUri(dirUri)}")
@@ -141,17 +146,19 @@ fun AppNav(deps: AppDependencies) {
             )
         }
         composable(
-            route = "$ROUTE_EDITOR?file={file}&dir={dir}&ext={ext}&$ARG_SHARED_DRAFT={$ARG_SHARED_DRAFT}",
+            route = "$ROUTE_EDITOR?file={file}&dir={dir}&ext={ext}&$ARG_PROPOSED_FILE_NAME={$ARG_PROPOSED_FILE_NAME}&$ARG_SHARED_DRAFT={$ARG_SHARED_DRAFT}",
             arguments = listOf(
                 navArgument("file") { type = NavType.StringType; nullable = true },
                 navArgument("dir") { type = NavType.StringType; nullable = true },
                 navArgument("ext") { type = NavType.StringType; nullable = true },
+                navArgument(ARG_PROPOSED_FILE_NAME) { type = NavType.StringType; nullable = true },
                 navArgument(ARG_SHARED_DRAFT) { type = NavType.StringType; nullable = true }
             )
         ) { backStackEntry ->
             val fileArg = backStackEntry.arguments?.getString("file")
             val dirArg = backStackEntry.arguments?.getString("dir")
             val extArg = backStackEntry.arguments?.getString("ext")
+            val proposedFileNameArg = backStackEntry.arguments?.getString(ARG_PROPOSED_FILE_NAME)
             val sharedArg = backStackEntry.arguments?.getString(ARG_SHARED_DRAFT)
             val viewModel: com.anotepad.ui.EditorViewModel = viewModel(factory = factory)
             val savedStateHandle = backStackEntry.savedStateHandle
@@ -163,7 +170,7 @@ fun AppNav(deps: AppDependencies) {
             }
             val effectiveFileArg = restoredFileArg?.takeIf { it.isNotBlank() } ?: fileArg
 
-            LaunchedEffect(effectiveFileArg, dirArg, extArg, sharedArg) {
+            LaunchedEffect(effectiveFileArg, dirArg, extArg, proposedFileNameArg, sharedArg) {
                 val sharedDraft = if (effectiveFileArg.isNullOrBlank() && sharedArg == SHARED_DRAFT_FLAG) {
                     deps.incomingShareManager.consumePendingEditorDraft()
                         ?: deps.sharedDraftRecoveryStore.peek()
@@ -180,7 +187,8 @@ fun AppNav(deps: AppDependencies) {
                     viewModel.load(
                         fileUri = parseNavUriArg(effectiveFileArg),
                         dirUri = parseNavUriArg(dirArg),
-                        newFileExtension = extArg ?: "txt"
+                        newFileExtension = extArg ?: "txt",
+                        proposedFileName = proposedFileNameArg
                     )
                 }
             }
@@ -280,6 +288,10 @@ fun AppNav(deps: AppDependencies) {
 
 private fun encodeUri(uri: Uri?): String {
     return Uri.encode(uri?.toString() ?: "")
+}
+
+private fun encodeArg(value: String): String {
+    return Uri.encode(value)
 }
 
 private fun parseNavUriArg(value: String?): Uri? {

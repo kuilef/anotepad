@@ -28,6 +28,7 @@
     <string name="action_overwrite">Écraser</string>
     <string name="action_undo">Annuler</string>
     <string name="action_redo">Rétablir</string>
+    <string name="action_change_name">Changer le nom</string>
     <string name="action_insert_date_time_template">Insérer un modèle date/heure</string>
     <string name="action_toggle_feed">Afficher le flux</string>
     <string name="action_toggle_list">Afficher la liste</string>
@@ -68,6 +69,7 @@
     <string name="label_open_notes_in_read_mode">Ouvrir les notes en mode lecture</string>
     <string name="label_open_notes_in_read_mode_hint">Ne pas afficher automatiquement le clavier à l’ouverture d’une note.</string>
     <string name="label_sync_title">Synchroniser le titre avec le nom du fichier</string>
+    <string name="label_ask_file_name_on_create">Demander le nom du fichier lors de la création d’une note</string>
     <string name="label_editor_title_new">Nouvelle note</string>
     <string name="label_unsaved">Non enregistré</string>
     <string name="label_saving">Enregistrement...</string>

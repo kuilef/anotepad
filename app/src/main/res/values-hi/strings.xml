@@ -28,6 +28,7 @@
     <string name="action_overwrite">ओवरराइट</string>
     <string name="action_undo">पूर्ववत करें</string>
     <string name="action_redo">दोहराएं</string>
+    <string name="action_change_name">नाम बदलें</string>
     <string name="action_insert_date_time_template">तारीख/समय टेम्पलेट डालें</string>
     <string name="action_toggle_feed">फीड दिखाएं</string>
     <string name="action_toggle_list">सूची दिखाएं</string>
@@ -68,6 +69,7 @@
     <string name="label_open_notes_in_read_mode">नोट रीड मोड में खोलें</string>
     <string name="label_open_notes_in_read_mode_hint">नोट खोलते समय कीबोर्ड अपने आप न दिखाएं।</string>
     <string name="label_sync_title">शीर्षक को फाइल नाम से सिंक करें</string>
+    <string name="label_ask_file_name_on_create">नोट बनाते समय फ़ाइल का नाम पूछें</string>
     <string name="label_editor_title_new">नया नोट</string>
     <string name="label_unsaved">सेव नहीं हुआ</string>
     <string name="label_saving">सेव हो रहा है...</string>

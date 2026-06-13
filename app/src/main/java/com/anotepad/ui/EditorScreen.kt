@@ -28,12 +28,14 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -107,6 +109,7 @@ fun EditorScreen(
     val discardChangesMessage = stringResource(id = R.string.label_editor_discard_changes_message)
     val leaveWithoutSavingLabel = stringResource(id = R.string.action_leave_without_saving)
     var showDiscardChangesDialog by remember { mutableStateOf(false) }
+    var showChangeNameDialog by remember { mutableStateOf(false) }
 
     fun triggerBack() {
         if (backInProgress) return
@@ -305,6 +308,17 @@ fun EditorScreen(
         )
     }
 
+    if (showChangeNameDialog) {
+        ChangeNameDialog(
+            initialName = buildNameEditInput(state.fileName),
+            onRename = { name ->
+                showChangeNameDialog = false
+                viewModel.changeName(name)
+            },
+            onDismiss = { showChangeNameDialog = false }
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
@@ -332,6 +346,17 @@ fun EditorScreen(
                             onRedo = ::performRedo,
                             modifier = Modifier.padding(end = 8.dp)
                         )
+                        if (!state.syncTitle) {
+                            IconButton(
+                                onClick = { showChangeNameDialog = true },
+                                enabled = !state.isSaving
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DriveFileRenameOutline,
+                                    contentDescription = stringResource(id = R.string.action_change_name)
+                                )
+                            }
+                        }
                         IconButton(
                             onClick = {
                                 val editText = editTextRef
@@ -431,6 +456,40 @@ fun EditorScreen(
             )
         }
     }
+}
+
+@Composable
+private fun ChangeNameDialog(
+    initialName: String,
+    onRename: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember(initialName) { mutableStateOf(initialName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(id = R.string.action_change_name)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                label = { Text(text = stringResource(id = R.string.hint_file_name)) }
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onRename(name) },
+                enabled = name.trim().isNotEmpty()
+            ) {
+                Text(text = stringResource(id = R.string.action_change_name))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.action_cancel))
+            }
+        }
+    )
 }
 
 @Composable

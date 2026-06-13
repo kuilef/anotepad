@@ -28,6 +28,7 @@
     <string name="action_overwrite">Überschreiben</string>
     <string name="action_undo">Rückgängig</string>
     <string name="action_redo">Wiederholen</string>
+    <string name="action_change_name">Namen ändern</string>
     <string name="action_insert_date_time_template">Datums-/Zeitvorlage einfügen</string>
     <string name="action_toggle_feed">Feed anzeigen</string>
     <string name="action_toggle_list">Liste anzeigen</string>
@@ -68,6 +69,7 @@
     <string name="label_open_notes_in_read_mode">Notizen im Lesemodus öffnen</string>
     <string name="label_open_notes_in_read_mode_hint">Tastatur beim Öffnen einer Notiz nicht automatisch anzeigen.</string>
     <string name="label_sync_title">Titel mit Dateiname synchronisieren</string>
+    <string name="label_ask_file_name_on_create">Beim Erstellen einer Notiz nach Dateinamen fragen</string>
     <string name="label_editor_title_new">Neue Notiz</string>
     <string name="label_unsaved">Nicht gespeichert</string>
     <string name="label_saving">Speichern...</string>

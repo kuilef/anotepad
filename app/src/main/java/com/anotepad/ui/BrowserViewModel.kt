@@ -38,6 +38,8 @@ data class BrowserState(
     val fileListFontSizeSp: Float = 14f,
     val fileSortOrder: FileSortOrder = FileSortOrder.NAME_DESC,
     val defaultFileExtension: String = "txt",
+    val syncTitle: Boolean = true,
+    val askFileNameOnCreate: Boolean = false,
     val viewMode: BrowserViewMode = BrowserViewMode.LIST,
     val feedItems: List<FeedItem> = emptyList(),
     val feedHasMore: Boolean = false,
@@ -76,6 +78,8 @@ class BrowserViewModel(
                         fileListFontSizeSp = prefs.browserFontSizeSp,
                         fileSortOrder = prefs.fileSortOrder,
                         defaultFileExtension = prefs.defaultFileExtension,
+                        syncTitle = prefs.syncTitle,
+                        askFileNameOnCreate = prefs.askFileNameOnCreate,
                         viewMode = prefs.browserViewMode,
                         showFolderAccessHint = !prefs.folderAccessHintShown,
                         showToolbarOnboarding = root != null && !prefs.toolbarOnboardingShown,
@@ -207,7 +211,7 @@ class BrowserViewModel(
             truncateNameToByteLimit(sanitized)
         } else {
             truncateFileNameToByteLimitPreservingExtension(
-                appendExtensionIfMissing(sanitized, node.name)
+                appendExtensionIfMissing(sanitized, node.name.substringAfterLast('.', ""))
             )
         }
         if (resolvedName == node.name) return
@@ -262,12 +266,6 @@ class BrowserViewModel(
             index++
         }
         return desiredName
-    }
-
-    private fun appendExtensionIfMissing(name: String, originalName: String): String {
-        if ('.' in name) return name
-        val ext = originalName.substringAfterLast('.', "")
-        return if (ext.isBlank()) name else "$name.$ext"
     }
 
     fun toggleViewMode() {

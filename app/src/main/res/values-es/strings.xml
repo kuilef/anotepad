@@ -28,6 +28,7 @@
     <string name="action_overwrite">Sobrescribir</string>
     <string name="action_undo">Deshacer</string>
     <string name="action_redo">Rehacer</string>
+    <string name="action_change_name">Cambiar nombre</string>
     <string name="action_insert_date_time_template">Insertar plantilla de fecha/hora</string>
     <string name="action_toggle_feed">Mostrar feed</string>
     <string name="action_toggle_list">Mostrar lista</string>
@@ -68,6 +69,7 @@
     <string name="label_open_notes_in_read_mode">Abrir notas en modo lectura</string>
     <string name="label_open_notes_in_read_mode_hint">No mostrar el teclado automáticamente al abrir una nota.</string>
     <string name="label_sync_title">Sincronizar título con nombre de archivo</string>
+    <string name="label_ask_file_name_on_create">Preguntar el nombre de archivo al crear una nota</string>
     <string name="label_editor_title_new">Nueva nota</string>
     <string name="label_unsaved">Sin guardar</string>
     <string name="label_saving">Guardando...</string>

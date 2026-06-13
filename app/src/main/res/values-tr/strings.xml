@@ -28,6 +28,7 @@
     <string name="action_overwrite">Üzerine yaz</string>
     <string name="action_undo">Geri al</string>
     <string name="action_redo">Yinele</string>
+    <string name="action_change_name">Adı değiştir</string>
     <string name="action_insert_date_time_template">Tarih/saat şablonu ekle</string>
     <string name="action_toggle_feed">Akışı göster</string>
     <string name="action_toggle_list">Listeyi göster</string>
@@ -68,6 +69,7 @@
     <string name="label_open_notes_in_read_mode">Notları okuma modunda aç</string>
     <string name="label_open_notes_in_read_mode_hint">Bir not açılırken klavyeyi otomatik gösterme.</string>
     <string name="label_sync_title">Başlığı dosya adıyla eşitle</string>
+    <string name="label_ask_file_name_on_create">Not oluştururken dosya adını sor</string>
     <string name="label_editor_title_new">Yeni not</string>
     <string name="label_unsaved">Kaydedilmedi</string>
     <string name="label_saving">Kaydediliyor...</string>

@@ -138,6 +138,49 @@ class EditorFileNameBuilderTest {
     }
 
     @Test
+    fun resolveInitialFileName_derivesFromFirstLineWhenSyncTitleIsDisabledAndNoProposedNameExists() {
+        val fileName = resolveInitialFileName(
+            text = "Shopping list\nMilk",
+            extension = ".txt",
+            proposedFileName = null,
+            syncTitle = false,
+            keepProposedFileNameUntilEdit = false,
+            sanitizeFileName = repository::sanitizeFileName
+        )
+
+        assertEquals("Shopping list.txt", fileName)
+    }
+
+    @Test
+    fun resolveInitialFileName_sanitizesProposedNameAndAppendsExtensionWhenSyncTitleIsDisabled() {
+        val fileName = resolveInitialFileName(
+            text = "Shopping list\nMilk",
+            extension = ".txt",
+            proposedFileName = "  Chapter 1: intro?  ",
+            syncTitle = false,
+            keepProposedFileNameUntilEdit = false,
+            sanitizeFileName = repository::sanitizeFileName
+        )
+
+        assertEquals("Chapter 1 intro.txt", fileName)
+    }
+
+    @Test
+    fun resolveInitialFileName_truncatesProposedNameAndPreservesExtension() {
+        val fileName = resolveInitialFileName(
+            text = "Shopping list\nMilk",
+            extension = ".txt",
+            proposedFileName = "${"a".repeat(400)}.txt",
+            syncTitle = false,
+            keepProposedFileNameUntilEdit = false,
+            sanitizeFileName = repository::sanitizeFileName
+        )
+
+        assertTrue(fileName.endsWith(".txt"))
+        assertTrue(fileName.toByteArray(Charsets.UTF_8).size <= MAX_FILE_NAME_BYTES)
+    }
+
+    @Test
     fun resolveInitialFileName_keepsProposedNameUntilFirstEditEvenWhenSyncTitleIsEnabled() {
         val fileName = resolveInitialFileName(
             text = "Shopping list\nMilk",
@@ -183,5 +226,16 @@ class EditorFileNameBuilderTest {
 
         assertTrue(fileName.toByteArray(Charsets.UTF_8).size <= MAX_FILE_NAME_BYTES)
         assertTrue(fileName.all { it == 'b' })
+    }
+
+    @Test
+    fun buildNameEditInput_removesTxtExtensionForSavedNotes() {
+        assertEquals("Meeting notes", buildNameEditInput("Meeting notes.txt"))
+    }
+
+    @Test
+    fun buildNameEditInput_keepsNamesWithoutTxtExtensionWhole() {
+        assertEquals("Meeting notes.md", buildNameEditInput("Meeting notes.md"))
+        assertEquals("README", buildNameEditInput("README"))
     }
 }

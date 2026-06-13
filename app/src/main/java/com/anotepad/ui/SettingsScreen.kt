@@ -183,6 +183,12 @@ fun SettingsScreen(
 
             SectionHeader(text = stringResource(id = R.string.label_settings_section_new_note))
             SettingRow(
+                title = stringResource(id = R.string.label_ask_file_name_on_create),
+                checked = !prefs.syncTitle && prefs.askFileNameOnCreate,
+                enabled = !prefs.syncTitle,
+                onToggle = viewModel::setAskFileNameOnCreate
+            )
+            SettingRow(
                 title = stringResource(id = R.string.label_auto_insert_template),
                 checked = prefs.autoInsertTemplateEnabled,
                 onToggle = viewModel::setAutoInsertTemplateEnabled
@@ -216,6 +222,7 @@ fun SettingsScreen(
 private fun SettingRow(
     title: String,
     checked: Boolean,
+    enabled: Boolean = true,
     onToggle: (Boolean) -> Unit
 ) {
     Row(
@@ -225,7 +232,11 @@ private fun SettingRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = title, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onToggle)
+        Switch(
+            checked = checked,
+            onCheckedChange = onToggle,
+            enabled = enabled
+        )
     }
 }
 

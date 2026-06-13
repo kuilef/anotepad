@@ -28,6 +28,7 @@
     <string name="action_overwrite">Ghi đè</string>
     <string name="action_undo">Hoàn tác</string>
     <string name="action_redo">Làm lại</string>
+    <string name="action_change_name">Đổi tên</string>
     <string name="action_insert_date_time_template">Chèn mẫu ngày/giờ</string>
     <string name="action_toggle_feed">Hiện bảng tin</string>
     <string name="action_toggle_list">Hiện danh sách</string>
@@ -68,6 +69,7 @@
     <string name="label_open_notes_in_read_mode">Mở ghi chú ở chế độ đọc</string>
     <string name="label_open_notes_in_read_mode_hint">Không tự động hiển thị bàn phím khi mở ghi chú.</string>
     <string name="label_sync_title">Đồng bộ tiêu đề với tên tệp</string>
+    <string name="label_ask_file_name_on_create">Hỏi tên tệp khi tạo ghi chú</string>
     <string name="label_editor_title_new">Ghi chú mới</string>
     <string name="label_unsaved">Chưa lưu</string>
     <string name="label_saving">Đang lưu...</string>

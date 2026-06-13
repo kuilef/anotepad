@@ -28,6 +28,7 @@
     <string name="action_overwrite">Timpa</string>
     <string name="action_undo">Urungkan</string>
     <string name="action_redo">Ulangi</string>
+    <string name="action_change_name">Ubah nama</string>
     <string name="action_insert_date_time_template">Sisipkan template tanggal/waktu</string>
     <string name="action_toggle_feed">Tampilkan feed</string>
     <string name="action_toggle_list">Tampilkan daftar</string>
@@ -68,6 +69,7 @@
     <string name="label_open_notes_in_read_mode">Buka catatan dalam mode baca</string>
     <string name="label_open_notes_in_read_mode_hint">Jangan tampilkan keyboard otomatis saat membuka catatan.</string>
     <string name="label_sync_title">Sinkronkan judul dengan nama file</string>
+    <string name="label_ask_file_name_on_create">Tanyakan nama file saat membuat catatan</string>
     <string name="label_editor_title_new">Catatan baru</string>
     <string name="label_unsaved">Belum disimpan</string>
     <string name="label_saving">Menyimpan...</string>

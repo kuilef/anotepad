@@ -28,6 +28,7 @@
     <string name="action_overwrite">ওভাররাইট</string>
     <string name="action_undo">পূর্বাবস্থায় ফেরান</string>
     <string name="action_redo">আবার করুন</string>
+    <string name="action_change_name">নাম পরিবর্তন করুন</string>
     <string name="action_insert_date_time_template">তারিখ/সময় টেমপ্লেট ঢোকান</string>
     <string name="action_toggle_feed">ফিড দেখান</string>
     <string name="action_toggle_list">তালিকা দেখান</string>
@@ -68,6 +69,7 @@
     <string name="label_open_notes_in_read_mode">নোট রিড মোডে খুলুন</string>
     <string name="label_open_notes_in_read_mode_hint">নোট খোলার সময় স্বয়ংক্রিয়ভাবে কীবোর্ড দেখাবেন না।</string>
     <string name="label_sync_title">শিরোনাম ফাইলনামের সাথে সিঙ্ক করুন</string>
+    <string name="label_ask_file_name_on_create">নোট তৈরি করার সময় ফাইলের নাম জিজ্ঞাসা করুন</string>
     <string name="label_editor_title_new">নতুন নোট</string>
     <string name="label_unsaved">সংরক্ষিত নয়</string>
     <string name="label_saving">সংরক্ষণ হচ্ছে...</string>

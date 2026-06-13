@@ -76,9 +76,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -102,13 +105,14 @@ fun BrowserScreen(
     viewModel: BrowserViewModel,
     onPickDirectory: () -> Unit,
     onOpenFile: (Uri, Uri) -> Unit,
-    onNewFile: (Uri, String) -> Unit,
+    onNewFile: (Uri, String, String?) -> Unit,
     onSearch: (Uri) -> Unit,
     onSettings: () -> Unit
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     var showNewFolderDialog by remember { mutableStateOf(false) }
+    var showNewFileNameDialog by remember { mutableStateOf(false) }
     var showFileActions by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -136,11 +140,18 @@ fun BrowserScreen(
         currentLabel = stringResource(id = R.string.label_current_folder),
         parentLabel = stringResource(id = R.string.label_parent_folder)
     )
-    val createNewFile: () -> Unit = {
+    fun openNewFile(proposedFileName: String?) {
         val extension = state.defaultFileExtension.ifBlank { "txt" }
         val dir = state.currentDirUri
         if (dir != null) {
-            onNewFile(dir, extension)
+            onNewFile(dir, extension, proposedFileName?.takeIf { it.isNotBlank() })
+        }
+    }
+    val createNewFile: () -> Unit = {
+        if (!state.syncTitle && state.askFileNameOnCreate) {
+            showNewFileNameDialog = true
+        } else {
+            openNewFile(null)
         }
     }
     val shareNode: (DocumentNode) -> Unit = { node ->
@@ -558,6 +569,19 @@ fun BrowserScreen(
         )
     }
 
+    if (showNewFileNameDialog) {
+        NewFileNameDialog(
+            onDismiss = {
+                showNewFileNameDialog = false
+                openNewFile(null)
+            },
+            onCreate = { name ->
+                showNewFileNameDialog = false
+                openNewFile(name.trim().takeIf { it.isNotBlank() })
+            }
+        )
+    }
+
     if (showFileActions && actionTarget != null) {
         if (actionTarget?.isDirectory == true) {
             FolderActionsDialog(
@@ -611,7 +635,7 @@ fun BrowserScreen(
                 onRename = {
                     showFileActions = false
                     renameInput = actionTarget?.name
-                        ?.let(::buildRenameInput)
+                        ?.let(::buildNameEditInput)
                         .orEmpty()
                     showRenameDialog = true
                 },
@@ -1034,6 +1058,45 @@ private fun NewFolderDialog(
 }
 
 @Composable
+private fun NewFileNameDialog(
+    onDismiss: () -> Unit,
+    onCreate: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(onClick = { onCreate(name) }) {
+                Text(text = stringResource(id = R.string.label_create_note))
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(text = stringResource(id = R.string.action_skip))
+            }
+        },
+        title = { Text(text = stringResource(id = R.string.action_new_file)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                label = { Text(text = stringResource(id = R.string.hint_file_name)) },
+                modifier = Modifier.focusRequester(focusRequester)
+            )
+        }
+    )
+}
+
+@Composable
 @OptIn(ExperimentalFoundationApi::class)
 private fun FeedList(
     items: List<FeedItem>,
@@ -1302,15 +1365,6 @@ private fun buildFeedAnnotatedText(text: String) = buildAnnotatedString {
     }
     if (rest.isNotEmpty()) {
         append(rest)
-    }
-}
-
-private fun buildRenameInput(name: String): String {
-    val lastDotIndex = name.lastIndexOf('.')
-    return if (lastDotIndex <= 0 || lastDotIndex == name.lastIndex) {
-        name
-    } else {
-        name.substring(0, lastDotIndex)
     }
 }
 

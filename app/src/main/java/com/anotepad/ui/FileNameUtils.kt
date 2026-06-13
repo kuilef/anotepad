@@ -24,9 +24,36 @@ internal fun resolveInitialFileName(
     sanitizeFileName: (String) -> String
 ): String {
     return if (!proposedFileName.isNullOrBlank() && (!syncTitle || keepProposedFileNameUntilEdit)) {
-        proposedFileName
+        resolveUserFileNameInput(proposedFileName, extension, sanitizeFileName)
+            ?: buildFileNameFromText(text, extension, sanitizeFileName)
     } else {
         buildFileNameFromText(text, extension, sanitizeFileName)
+    }
+}
+
+internal fun resolveUserFileNameInput(
+    input: String,
+    extension: String,
+    sanitizeFileName: (String) -> String
+): String? {
+    val sanitized = sanitizeFileName(input)
+    if (sanitized.isBlank()) return null
+    return truncateFileNameToByteLimitPreservingExtension(
+        appendExtensionIfMissing(sanitized, extension)
+    )
+}
+
+internal fun appendExtensionIfMissing(name: String, extension: String): String {
+    if ('.' in name) return name
+    val normalizedExtension = normalizeGeneratedExtension(extension, MAX_FILE_NAME_BYTES)
+    return "$name$normalizedExtension"
+}
+
+internal fun buildNameEditInput(name: String): String {
+    return if (name.endsWith(".txt", ignoreCase = true) && name.length > ".txt".length) {
+        name.dropLast(".txt".length)
+    } else {
+        name
     }
 }
 

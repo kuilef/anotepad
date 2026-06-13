@@ -28,6 +28,7 @@
     <string name="action_overwrite">Перезаписать</string>
     <string name="action_undo">Отменить</string>
     <string name="action_redo">Повторить</string>
+    <string name="action_change_name">Изменить имя</string>
     <string name="action_insert_date_time_template">Вставить шаблон даты/времени</string>
     <string name="action_toggle_feed">Показать ленту</string>
     <string name="action_toggle_list">Показать список</string>
@@ -68,6 +69,7 @@
     <string name="label_open_notes_in_read_mode">Открывать заметки в режиме чтения</string>
     <string name="label_open_notes_in_read_mode_hint">Не показывать клавиатуру автоматически при открытии заметки.</string>
     <string name="label_sync_title">Синхронизировать заголовок с именем файла</string>
+    <string name="label_ask_file_name_on_create">Спрашивать имя файла при создании заметки</string>
     <string name="label_editor_title_new">Новая заметка</string>
     <string name="label_unsaved">Не сохранено</string>
     <string name="label_saving">Сохранение...</string>

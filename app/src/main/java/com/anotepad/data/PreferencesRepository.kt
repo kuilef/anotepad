@@ -21,6 +21,7 @@ class PreferencesRepository(private val context: Context) {
         val AUTO_LINK_TEL = booleanPreferencesKey("auto_link_tel")
         val OPEN_NOTES_IN_READ_MODE = booleanPreferencesKey("open_notes_in_read_mode")
         val SYNC_TITLE = booleanPreferencesKey("sync_title")
+        val ASK_FILE_NAME_ON_CREATE = booleanPreferencesKey("ask_file_name_on_create")
         val AUTO_SAVE_DEBOUNCE = longPreferencesKey("autosave_debounce_ms")
         val AUTO_SAVE_ENABLED = booleanPreferencesKey("autosave_enabled")
         val BROWSER_FONT_SIZE_SP = floatPreferencesKey("browser_font_size_sp")
@@ -44,13 +45,15 @@ class PreferencesRepository(private val context: Context) {
         val defaultExt = "txt"
         val fileSortOrder = FileSortOrder.fromId(prefs[Keys.FILE_SORT_ORDER])
         val browserViewMode = BrowserViewMode.fromId(prefs[Keys.BROWSER_VIEW_MODE])
+        val syncTitle = prefs[Keys.SYNC_TITLE] ?: true
         AppPreferences(
             rootTreeUri = prefs[Keys.ROOT_URI],
             autoLinkWeb = prefs[Keys.AUTO_LINK_WEB] ?: true,
             autoLinkEmail = prefs[Keys.AUTO_LINK_EMAIL] ?: true,
             autoLinkTel = prefs[Keys.AUTO_LINK_TEL] ?: false,
             openNotesInReadMode = prefs[Keys.OPEN_NOTES_IN_READ_MODE] ?: false,
-            syncTitle = prefs[Keys.SYNC_TITLE] ?: true,
+            syncTitle = syncTitle,
+            askFileNameOnCreate = if (syncTitle) false else prefs[Keys.ASK_FILE_NAME_ON_CREATE] ?: false,
             autoSaveDebounceMs = prefs[Keys.AUTO_SAVE_DEBOUNCE] ?: 1200L,
             autoSaveEnabled = prefs[Keys.AUTO_SAVE_ENABLED] ?: true,
             browserFontSizeSp = prefs[Keys.BROWSER_FONT_SIZE_SP] ?: 14f,
@@ -98,7 +101,16 @@ class PreferencesRepository(private val context: Context) {
     }
 
     suspend fun setSyncTitle(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.SYNC_TITLE] = enabled }
+        context.dataStore.edit {
+            it[Keys.SYNC_TITLE] = enabled
+            if (enabled) {
+                it[Keys.ASK_FILE_NAME_ON_CREATE] = false
+            }
+        }
+    }
+
+    suspend fun setAskFileNameOnCreate(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.ASK_FILE_NAME_ON_CREATE] = enabled }
     }
 
     suspend fun setAutoSaveDebounce(ms: Long) {

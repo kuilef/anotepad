@@ -132,24 +132,43 @@ class EditorViewModel(
         restartAutosave()
     }
 
-    fun load(fileUri: Uri?, dirUri: Uri?, newFileExtension: String) {
+    fun load(
+        fileUri: Uri?,
+        dirUri: Uri?,
+        newFileExtension: String,
+        proposedFileName: String? = null
+    ) {
         viewModelScope.launch {
+            ensureTemplatePrefsLoaded()
             val resolvedDir = if (dirUri == null && fileUri != null) {
                 fileRepository.parentTreeUri(fileUri)
             } else {
                 dirUri
             }
+            val initialProposedFileName = if (
+                fileUri == null &&
+                !_state.value.syncTitle &&
+                !proposedFileName.isNullOrBlank()
+            ) {
+                resolveUserFileNameInput(
+                    input = proposedFileName,
+                    extension = newFileExtension.ifBlank { "txt" },
+                    sanitizeFileName = fileRepository::sanitizeFileName
+                )
+            } else {
+                null
+            }
             val sameTarget = if (fileUri == null) {
                 isLoaded && openedFileUri == null &&
                     _state.value.dirUri == resolvedDir &&
-                    _state.value.newFileExtension == newFileExtension
+                    _state.value.newFileExtension == newFileExtension &&
+                    _state.value.proposedFileName == initialProposedFileName
             } else {
                 isLoaded && openedFileUri == fileUri &&
                     _state.value.dirUri == resolvedDir
             }
             if (sameTarget) return@launch
 
-            ensureTemplatePrefsLoaded()
             isLoaded = false
             hasPendingSharedDraftRecovery = false
             activeSharedDraftRecovery = null
@@ -182,7 +201,7 @@ class EditorViewModel(
                 it.copy(
                     fileUri = fileUri,
                     dirUri = resolvedDir,
-                    fileName = fileName,
+                    fileName = if (fileUri == null) initialProposedFileName.orEmpty() else fileName,
                     text = initialText,
                     loadToken = loadCounter,
                     moveCursorToEndOnLoad = moveCursorToEndOnLoad,
@@ -192,7 +211,7 @@ class EditorViewModel(
                     canSave = false,
                     isReadOnly = textResult.truncated,
                     truncatedNoticeToken = nextTruncatedNoticeToken(textResult.truncated),
-                    proposedFileName = null,
+                    proposedFileName = initialProposedFileName,
                     keepProposedFileNameUntilEdit = false
                 )
             }
@@ -281,6 +300,44 @@ class EditorViewModel(
             } else if (manual && hasUnsavedChanges()) {
                 _saveFailureEvents.emit(Unit)
             }
+        }
+    }
+
+    fun changeName(name: String) {
+        viewModelScope.launch {
+            val current = _state.value
+            if (current.syncTitle) return@launch
+            val desiredName = resolveUserFileNameInput(
+                input = name,
+                extension = currentNameExtension(current),
+                sanitizeFileName = fileRepository::sanitizeFileName
+            ) ?: return@launch
+            if (current.fileUri == null) {
+                _state.update {
+                    it.copy(
+                        fileName = desiredName,
+                        proposedFileName = desiredName
+                    )
+                }
+                return@launch
+            }
+
+            val currentUri = current.fileUri
+            val dirUri = current.dirUri ?: fileRepository.parentTreeUri(currentUri) ?: return@launch
+            val currentName = current.fileName
+            val uniqueName = ensureUniqueName(dirUri, desiredName, currentName)
+            if (uniqueName == currentName) return@launch
+            val renamedUri = fileRepository.renameFile(currentUri, uniqueName) ?: return@launch
+            _state.update {
+                it.copy(
+                    fileUri = renamedUri,
+                    dirUri = dirUri,
+                    fileName = uniqueName,
+                    proposedFileName = null
+                )
+            }
+            lastKnownModified = fileRepository.getLastModified(renamedUri) ?: lastKnownModified
+            syncScheduler.scheduleDebounced()
         }
     }
 
@@ -579,6 +636,13 @@ class EditorViewModel(
 
     private fun buildNameFromText(text: String, extension: String): String {
         return buildFileNameFromText(text, extension, fileRepository::sanitizeFileName)
+    }
+
+    private fun currentNameExtension(state: EditorState): String {
+        val nameExtension = state.fileName
+            .substringAfterLast('.', missingDelimiterValue = "")
+            .takeIf { it.isNotBlank() }
+        return nameExtension ?: state.newFileExtension.ifBlank { "txt" }
     }
 
     private fun nextTruncatedNoticeToken(truncated: Boolean): Long? {
