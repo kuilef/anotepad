@@ -175,7 +175,12 @@ fun EditorScreen(
 
     LaunchedEffect(editTextRef, state.loadToken, state.editorPrefsLoaded, readLocked, state.isReadOnly) {
         if (state.editorPrefsLoaded && !readLocked && !state.isReadOnly) {
-            editTextRef?.let { focusAndShowKeyboard(it) }
+            editTextRef?.let {
+                focusAndShowKeyboard(
+                    editText = it,
+                    moveCursorToEnd = shouldMoveCursorToEndOnFocus(state)
+                )
+            }
         }
     }
 
@@ -442,7 +447,8 @@ fun EditorScreen(
                     editorFontSizeSp = state.editorFontSizeSp,
                     textColor = textColor,
                     backgroundColor = backgroundColor,
-                    readOnly = state.isReadOnly || readLocked,
+                    readOnly = shouldUseSelectableReadOnly(state),
+                    inputLocked = readLocked,
                     moveCursorToEndOnLoad = state.moveCursorToEndOnLoad,
                     loadToken = state.loadToken,
                     ignoreChanges = ignoreChanges,
@@ -583,9 +589,18 @@ private fun applyLinkify(editText: EditText, web: Boolean, email: Boolean, tel: 
     }
 }
 
-private fun focusAndShowKeyboard(editText: EditText) {
+private fun focusAndShowKeyboard(editText: EditText, moveCursorToEnd: Boolean = false) {
     editText.requestFocus()
+    editText.isCursorVisible = true
+    if (moveCursorToEnd) {
+        editText.setSelection(editText.text.length)
+    }
     editText.post {
+        editText.requestFocus()
+        editText.isCursorVisible = true
+        if (moveCursorToEnd) {
+            editText.setSelection(editText.text.length)
+        }
         val imm = editText.context
             .getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
         imm?.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)

@@ -65,6 +65,14 @@ internal fun shouldShowEnterEditModeAction(state: EditorState): Boolean {
     return shouldApplyEditorReadLock(state) && !state.isReadOnly
 }
 
+internal fun shouldMoveCursorToEndOnFocus(state: EditorState): Boolean {
+    return state.openNotesInReadMode && state.isEditUnlocked
+}
+
+internal fun shouldUseSelectableReadOnly(state: EditorState): Boolean {
+    return state.isReadOnly || shouldApplyEditorReadLock(state)
+}
+
 data class EditorSaveResult(
     val originalUri: Uri?,
     val currentUri: Uri?,

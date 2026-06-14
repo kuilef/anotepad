@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.anotepad.R
@@ -66,6 +67,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     private var touchStartedWithSelection = false
     private var editableKeyListener: KeyListener? = null
     private var readOnly = false
+    private var inputLocked = false
 
     init {
         val linkActionModeCallback = object : ActionMode.Callback {
@@ -123,30 +125,32 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         resetTouchTracking()
     }
 
-    fun setReadOnly(enabled: Boolean) {
+    fun setReadOnly(readOnlyEnabled: Boolean, inputLockedEnabled: Boolean = readOnlyEnabled) {
         if (editableKeyListener == null && keyListener != null) {
             editableKeyListener = keyListener
         }
-        if (readOnly == enabled) {
-            showSoftInputOnFocus = !enabled
-            isCursorVisible = !enabled
-            setTextIsSelectable(enabled)
+        val locked = readOnlyEnabled || inputLockedEnabled
+        if (readOnly == readOnlyEnabled && inputLocked == inputLockedEnabled) {
+            setTextIsSelectable(readOnlyEnabled)
+            showSoftInputOnFocus = !locked
+            isCursorVisible = !locked
             return
         }
-        readOnly = enabled
-        if (enabled) {
+        readOnly = readOnlyEnabled
+        inputLocked = inputLockedEnabled
+        if (locked) {
             editableKeyListener = keyListener ?: editableKeyListener
             keyListener = null
+            setTextIsSelectable(readOnlyEnabled)
             showSoftInputOnFocus = false
             isCursorVisible = false
-            setTextIsSelectable(true)
         } else {
+            setTextIsSelectable(false)
             if (keyListener == null) {
                 keyListener = editableKeyListener
             }
             showSoftInputOnFocus = true
             isCursorVisible = true
-            setTextIsSelectable(false)
         }
     }
 
@@ -438,6 +442,7 @@ fun AnotepadEditText(
     textColor: Int,
     backgroundColor: Int,
     readOnly: Boolean,
+    inputLocked: Boolean,
     moveCursorToEndOnLoad: Boolean,
     loadToken: Long,
     ignoreChanges: Boolean,
@@ -461,152 +466,154 @@ fun AnotepadEditText(
     val latestOnRedoRequested by rememberUpdatedState(onRedoRequested)
     val latestOnEditTextRefChange by rememberUpdatedState(onEditTextRefChange)
 
-    AndroidView(
-        modifier = modifier,
-        factory = { context ->
-            AnotepadEditorEditText(context).apply {
-                setText(text)
-                setBackgroundColor(backgroundColor)
-                setTextColor(textColor)
-                updateScrollIndicatorColor(textColor)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, editorFontSizeSp)
-                inputType = InputType.TYPE_CLASS_TEXT or
-                    InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                    InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
-                    InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
-                imeOptions = imeOptions or
-                    EditorInfo.IME_FLAG_NO_EXTRACT_UI or
-                    EditorInfo.IME_FLAG_NO_FULLSCREEN
-                gravity = Gravity.TOP or Gravity.START
-                setSingleLine(false)
-                setHorizontallyScrolling(false)
-                isNestedScrollingEnabled = false
-                isVerticalScrollBarEnabled = false
-                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-                setReadOnly(readOnly)
-                val density = context.resources.displayMetrics.density
-                val horizontalPaddingPx = (12f * density).roundToInt()
-                val topPaddingPx = (8f * density).roundToInt()
-                val bottomPaddingPx = (8f * density).roundToInt()
-                setPaddingRelative(
-                    horizontalPaddingPx,
-                    topPaddingPx,
-                    horizontalPaddingPx,
-                    bottomPaddingPx
-                )
-                scrollBarSize = (2f * density).roundToInt()
-                isScrollbarFadingEnabled = true
-                addTextChangedListener(object : TextWatcher {
-                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-                        if (
-                            latestIgnoreChanges ||
-                            latestIgnoreHistory ||
-                            this@apply.isChangeCallbacksSuppressed() ||
-                            this@apply.isHistoryCallbacksSuppressed()
-                        ) {
-                            pendingSnapshot = null
-                            return
+    key(readOnly, inputLocked) {
+        AndroidView(
+            modifier = modifier,
+            factory = { context ->
+                AnotepadEditorEditText(context).apply {
+                    setText(text)
+                    setBackgroundColor(backgroundColor)
+                    setTextColor(textColor)
+                    updateScrollIndicatorColor(textColor)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, editorFontSizeSp)
+                    inputType = InputType.TYPE_CLASS_TEXT or
+                        InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                        InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                        InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+                    imeOptions = imeOptions or
+                        EditorInfo.IME_FLAG_NO_EXTRACT_UI or
+                        EditorInfo.IME_FLAG_NO_FULLSCREEN
+                    gravity = Gravity.TOP or Gravity.START
+                    setSingleLine(false)
+                    setHorizontallyScrolling(false)
+                    isNestedScrollingEnabled = false
+                    isVerticalScrollBarEnabled = false
+                    overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                    setReadOnly(readOnly, inputLocked)
+                    val density = context.resources.displayMetrics.density
+                    val horizontalPaddingPx = (12f * density).roundToInt()
+                    val topPaddingPx = (8f * density).roundToInt()
+                    val bottomPaddingPx = (8f * density).roundToInt()
+                    setPaddingRelative(
+                        horizontalPaddingPx,
+                        topPaddingPx,
+                        horizontalPaddingPx,
+                        bottomPaddingPx
+                    )
+                    scrollBarSize = (2f * density).roundToInt()
+                    isScrollbarFadingEnabled = true
+                    addTextChangedListener(object : TextWatcher {
+                        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                            if (
+                                latestIgnoreChanges ||
+                                latestIgnoreHistory ||
+                                this@apply.isChangeCallbacksSuppressed() ||
+                                this@apply.isHistoryCallbacksSuppressed()
+                            ) {
+                                pendingSnapshot = null
+                                return
+                            }
+                            val currentText = s?.toString().orEmpty()
+                            val selectionStart = selectionStart.coerceAtLeast(0)
+                            val selectionEnd = selectionEnd.coerceAtLeast(0)
+                            pendingSnapshot = TextSnapshot(currentText, selectionStart, selectionEnd)
                         }
-                        val currentText = s?.toString().orEmpty()
-                        val selectionStart = selectionStart.coerceAtLeast(0)
-                        val selectionEnd = selectionEnd.coerceAtLeast(0)
-                        pendingSnapshot = TextSnapshot(currentText, selectionStart, selectionEnd)
-                    }
 
-                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
 
-                    override fun afterTextChanged(s: Editable?) {
-                        if (latestIgnoreChanges || this@apply.isChangeCallbacksSuppressed()) {
-                            pendingSnapshot = null
-                            return
-                        }
-                        if (!latestIgnoreHistory) {
-                            if (!this@apply.isHistoryCallbacksSuppressed()) {
-                                pendingSnapshot?.let { snapshot ->
-                                    val newText = s?.toString().orEmpty()
-                                    if (snapshot.text != newText) {
-                                        latestOnPushUndoSnapshot(snapshot)
+                        override fun afterTextChanged(s: Editable?) {
+                            if (latestIgnoreChanges || this@apply.isChangeCallbacksSuppressed()) {
+                                pendingSnapshot = null
+                                return
+                            }
+                            if (!latestIgnoreHistory) {
+                                if (!this@apply.isHistoryCallbacksSuppressed()) {
+                                    pendingSnapshot?.let { snapshot ->
+                                        val newText = s?.toString().orEmpty()
+                                        if (snapshot.text != newText) {
+                                            latestOnPushUndoSnapshot(snapshot)
+                                        }
                                     }
                                 }
                             }
+                            pendingSnapshot = null
+                            latestOnTextChanged(s?.toString().orEmpty())
+                            ensureCursorVisible(this@apply, allowPost = true)
                         }
-                        pendingSnapshot = null
-                        latestOnTextChanged(s?.toString().orEmpty())
-                        ensureCursorVisible(this@apply, allowPost = true)
-                    }
-                })
-                setOnKeyListener { _, keyCode, event ->
-                    if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-                    val isUndo = event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_Z && !event.isShiftPressed
-                    val isRedo = event.isCtrlPressed &&
-                        ((keyCode == KeyEvent.KEYCODE_Z && event.isShiftPressed) || keyCode == KeyEvent.KEYCODE_Y)
-                    when {
-                        isUndo -> {
-                            latestOnUndoRequested()
-                            true
-                        }
+                    })
+                    setOnKeyListener { _, keyCode, event ->
+                        if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                        val isUndo = event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_Z && !event.isShiftPressed
+                        val isRedo = event.isCtrlPressed &&
+                            ((keyCode == KeyEvent.KEYCODE_Z && event.isShiftPressed) || keyCode == KeyEvent.KEYCODE_Y)
+                        when {
+                            isUndo -> {
+                                latestOnUndoRequested()
+                                true
+                            }
 
-                        isRedo -> {
-                            latestOnRedoRequested()
-                            true
-                        }
+                            isRedo -> {
+                                latestOnRedoRequested()
+                                true
+                            }
 
-                        else -> false
+                            else -> false
+                        }
                     }
+                    latestOnEditTextRefChange(this)
                 }
-                latestOnEditTextRefChange(this)
-            }
-        },
-        update = { editText ->
-            if (editText.text.toString() != text) {
-                editText.stopFling()
-                latestOnIgnoreChangesChange(true)
-                editText.runWithoutHistoryAndChangeCallbacks {
-                    val selection = editText.selectionStart
-                    editText.setText(text)
-                    if (moveCursorToEndOnLoad && lastCursorToken != loadToken) {
-                        editText.setSelection(text.length)
-                        lastCursorToken = loadToken
-                    } else {
-                        val newSelection = selection.coerceAtMost(text.length)
-                        editText.setSelection(newSelection)
+            },
+            update = { editText ->
+                if (editText.text.toString() != text) {
+                    editText.stopFling()
+                    latestOnIgnoreChangesChange(true)
+                    editText.runWithoutHistoryAndChangeCallbacks {
+                        val selection = editText.selectionStart
+                        editText.setText(text)
+                        if (moveCursorToEndOnLoad && lastCursorToken != loadToken) {
+                            editText.setSelection(text.length)
+                            lastCursorToken = loadToken
+                        } else {
+                            val newSelection = selection.coerceAtMost(text.length)
+                            editText.setSelection(newSelection)
+                        }
                     }
+                    latestOnIgnoreChangesChange(false)
+                } else if (moveCursorToEndOnLoad && lastCursorToken != loadToken) {
+                    editText.setSelection(editText.text.length)
+                    lastCursorToken = loadToken
                 }
-                latestOnIgnoreChangesChange(false)
-            } else if (moveCursorToEndOnLoad && lastCursorToken != loadToken) {
-                editText.setSelection(editText.text.length)
-                lastCursorToken = loadToken
+                if (editText.currentTextColor != textColor) {
+                    editText.setTextColor(textColor)
+                }
+                editText.updateScrollIndicatorColor(textColor)
+                editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, editorFontSizeSp)
+                editText.setBackgroundColor(backgroundColor)
+                editText.setReadOnly(readOnly, inputLocked)
+                val density = editText.resources.displayMetrics.density
+                val horizontalPaddingPx = (12f * density).roundToInt()
+                val topPaddingPx = (8f * density).roundToInt()
+                val targetBottom = (8f * density).roundToInt()
+                if (
+                    editText.paddingStart != horizontalPaddingPx ||
+                    editText.paddingTop != topPaddingPx ||
+                    editText.paddingEnd != horizontalPaddingPx ||
+                    editText.paddingBottom != targetBottom
+                ) {
+                    editText.setPaddingRelative(
+                        horizontalPaddingPx,
+                        topPaddingPx,
+                        horizontalPaddingPx,
+                        targetBottom
+                    )
+                }
+                ensureCursorVisible(editText, allowPost = false)
+            },
+            onRelease = {
+                latestOnEditTextRefChange(null)
             }
-            if (editText.currentTextColor != textColor) {
-                editText.setTextColor(textColor)
-            }
-            editText.updateScrollIndicatorColor(textColor)
-            editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, editorFontSizeSp)
-            editText.setBackgroundColor(backgroundColor)
-            editText.setReadOnly(readOnly)
-            val density = editText.resources.displayMetrics.density
-            val horizontalPaddingPx = (12f * density).roundToInt()
-            val topPaddingPx = (8f * density).roundToInt()
-            val targetBottom = (8f * density).roundToInt()
-            if (
-                editText.paddingStart != horizontalPaddingPx ||
-                editText.paddingTop != topPaddingPx ||
-                editText.paddingEnd != horizontalPaddingPx ||
-                editText.paddingBottom != targetBottom
-            ) {
-                editText.setPaddingRelative(
-                    horizontalPaddingPx,
-                    topPaddingPx,
-                    horizontalPaddingPx,
-                    targetBottom
-                )
-            }
-            ensureCursorVisible(editText, allowPost = false)
-        },
-        onRelease = {
-            latestOnEditTextRefChange(null)
-        }
-    )
+        )
+    }
 }
 
 private fun ensureCursorVisible(editText: EditText, allowPost: Boolean) {
