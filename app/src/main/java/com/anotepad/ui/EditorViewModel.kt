@@ -53,8 +53,17 @@ data class EditorState(
     val isReadOnly: Boolean = false,
     val truncatedNoticeToken: Long? = null,
     val proposedFileName: String? = null,
-    val keepProposedFileNameUntilEdit: Boolean = false
+    val keepProposedFileNameUntilEdit: Boolean = false,
+    val isEditUnlocked: Boolean = false
 )
+
+internal fun shouldApplyEditorReadLock(state: EditorState): Boolean {
+    return state.openNotesInReadMode && !state.isEditUnlocked
+}
+
+internal fun shouldShowEnterEditModeAction(state: EditorState): Boolean {
+    return shouldApplyEditorReadLock(state) && !state.isReadOnly
+}
 
 data class EditorSaveResult(
     val originalUri: Uri?,
@@ -212,7 +221,8 @@ class EditorViewModel(
                     isReadOnly = textResult.truncated,
                     truncatedNoticeToken = nextTruncatedNoticeToken(textResult.truncated),
                     proposedFileName = initialProposedFileName,
-                    keepProposedFileNameUntilEdit = false
+                    keepProposedFileNameUntilEdit = false,
+                    isEditUnlocked = false
                 )
             }
             lastSavedText = if (fileUri == null) "" else initialText
@@ -250,7 +260,8 @@ class EditorViewModel(
                     isReadOnly = false,
                     truncatedNoticeToken = null,
                     proposedFileName = draft.fileName,
-                    keepProposedFileNameUntilEdit = true
+                    keepProposedFileNameUntilEdit = true,
+                    isEditUnlocked = false
                 )
             }
             lastSavedText = ""
@@ -270,6 +281,10 @@ class EditorViewModel(
         }
         textChanges.value = text
         updateCanSaveState()
+    }
+
+    fun enterEditMode() {
+        _state.update { it.copy(isEditUnlocked = true) }
     }
 
     fun queueTemplate(text: String) {

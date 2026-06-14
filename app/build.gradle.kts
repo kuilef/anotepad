@@ -22,8 +22,8 @@ android {
         applicationId = "com.anotepad"
         minSdk = 29
         targetSdk = 35
-        versionCode = 41
-        versionName = "4.1"
+        versionCode = 42
+        versionName = "4.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

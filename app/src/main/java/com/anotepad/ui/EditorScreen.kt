@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -85,6 +86,7 @@ fun EditorScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val pendingTemplate by viewModel.pendingTemplateFlow.collectAsState()
+    val readLocked = shouldApplyEditorReadLock(state)
     var editTextRef by remember { mutableStateOf<EditText?>(null) }
     var ignoreChanges by remember { mutableStateOf(false) }
     var ignoreHistory by remember { mutableStateOf(false) }
@@ -150,10 +152,10 @@ fun EditorScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(pendingTemplate, editTextRef, state.isReadOnly) {
+    LaunchedEffect(pendingTemplate, editTextRef, state.isReadOnly, readLocked) {
         val textToInsert = pendingTemplate
         if (!textToInsert.isNullOrEmpty()) {
-            if (state.isReadOnly) {
+            if (state.isReadOnly || readLocked) {
                 viewModel.consumeTemplate()
                 return@LaunchedEffect
             }
@@ -171,14 +173,14 @@ fun EditorScreen(
         }
     }
 
-    LaunchedEffect(editTextRef, state.loadToken, state.editorPrefsLoaded, state.openNotesInReadMode, state.isReadOnly) {
-        if (state.editorPrefsLoaded && !state.openNotesInReadMode && !state.isReadOnly) {
+    LaunchedEffect(editTextRef, state.loadToken, state.editorPrefsLoaded, readLocked, state.isReadOnly) {
+        if (state.editorPrefsLoaded && !readLocked && !state.isReadOnly) {
             editTextRef?.let { focusAndShowKeyboard(it) }
         }
     }
 
-    LaunchedEffect(editTextRef, state.isReadOnly) {
-        if (state.isReadOnly) {
+    LaunchedEffect(editTextRef, state.isReadOnly, readLocked) {
+        if (state.isReadOnly || readLocked) {
             editTextRef?.let {
                 hideKeyboard(it)
                 it.clearFocus()
@@ -346,7 +348,18 @@ fun EditorScreen(
                             onRedo = ::performRedo,
                             modifier = Modifier.padding(end = 8.dp)
                         )
-                        if (!state.syncTitle) {
+                        if (shouldShowEnterEditModeAction(state)) {
+                            IconButton(
+                                onClick = { viewModel.enterEditMode() },
+                                enabled = !state.isSaving
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.EditNote,
+                                    contentDescription = stringResource(id = R.string.action_enter_edit_mode)
+                                )
+                            }
+                        }
+                        if (!readLocked && !state.syncTitle) {
                             IconButton(
                                 onClick = { showChangeNameDialog = true },
                                 enabled = !state.isSaving
@@ -357,20 +370,22 @@ fun EditorScreen(
                                 )
                             }
                         }
-                        IconButton(
-                            onClick = {
-                                val editText = editTextRef
-                                val start = editText?.selectionStart ?: state.text.length
-                                val end = editText?.selectionEnd ?: state.text.length
-                                viewModel.rememberTemplateInsertionSelection(start, end)
-                                onOpenTemplatePicker()
-                            },
-                            enabled = !state.isReadOnly
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccessTime,
-                                contentDescription = stringResource(id = R.string.action_insert_date_time_template)
-                            )
+                        if (!readLocked) {
+                            IconButton(
+                                onClick = {
+                                    val editText = editTextRef
+                                    val start = editText?.selectionStart ?: state.text.length
+                                    val end = editText?.selectionEnd ?: state.text.length
+                                    viewModel.rememberTemplateInsertionSelection(start, end)
+                                    onOpenTemplatePicker()
+                                },
+                                enabled = !state.isReadOnly
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccessTime,
+                                    contentDescription = stringResource(id = R.string.action_insert_date_time_template)
+                                )
+                            }
                         }
                         IconButton(
                             onClick = { viewModel.saveNow(manual = true) },
@@ -427,7 +442,7 @@ fun EditorScreen(
                     editorFontSizeSp = state.editorFontSizeSp,
                     textColor = textColor,
                     backgroundColor = backgroundColor,
-                    readOnly = state.isReadOnly,
+                    readOnly = state.isReadOnly || readLocked,
                     moveCursorToEndOnLoad = state.moveCursorToEndOnLoad,
                     loadToken = state.loadToken,
                     ignoreChanges = ignoreChanges,

@@ -29,6 +29,7 @@
     <string name="action_undo">Desfazer</string>
     <string name="action_redo">Refazer</string>
     <string name="action_change_name">Alterar nome</string>
+    <string name="action_enter_edit_mode">Editar nota</string>
     <string name="action_insert_date_time_template">Inserir modelo de data/hora</string>
     <string name="action_toggle_feed">Mostrar feed</string>
     <string name="action_toggle_list">Mostrar lista</string>

@@ -29,6 +29,7 @@
     <string name="action_undo">Rückgängig</string>
     <string name="action_redo">Wiederholen</string>
     <string name="action_change_name">Namen ändern</string>
+    <string name="action_enter_edit_mode">Notiz bearbeiten</string>
     <string name="action_insert_date_time_template">Datums-/Zeitvorlage einfügen</string>
     <string name="action_toggle_feed">Feed anzeigen</string>
     <string name="action_toggle_list">Liste anzeigen</string>

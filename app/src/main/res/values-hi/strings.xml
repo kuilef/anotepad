@@ -29,6 +29,7 @@
     <string name="action_undo">पूर्ववत करें</string>
     <string name="action_redo">दोहराएं</string>
     <string name="action_change_name">नाम बदलें</string>
+    <string name="action_enter_edit_mode">नोट संपादित करें</string>
     <string name="action_insert_date_time_template">तारीख/समय टेम्पलेट डालें</string>
     <string name="action_toggle_feed">फीड दिखाएं</string>
     <string name="action_toggle_list">सूची दिखाएं</string>

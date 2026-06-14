@@ -29,6 +29,7 @@
     <string name="action_undo">Отменить</string>
     <string name="action_redo">Повторить</string>
     <string name="action_change_name">Изменить имя</string>
+    <string name="action_enter_edit_mode">Редактировать заметку</string>
     <string name="action_insert_date_time_template">Вставить шаблон даты/времени</string>
     <string name="action_toggle_feed">Показать ленту</string>
     <string name="action_toggle_list">Показать список</string>

@@ -29,6 +29,7 @@
     <string name="action_undo">Annuler</string>
     <string name="action_redo">Rétablir</string>
     <string name="action_change_name">Changer le nom</string>
+    <string name="action_enter_edit_mode">Modifier la note</string>
     <string name="action_insert_date_time_template">Insérer un modèle date/heure</string>
     <string name="action_toggle_feed">Afficher le flux</string>
     <string name="action_toggle_list">Afficher la liste</string>

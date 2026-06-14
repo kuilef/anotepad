@@ -29,6 +29,7 @@
     <string name="action_undo">Hoàn tác</string>
     <string name="action_redo">Làm lại</string>
     <string name="action_change_name">Đổi tên</string>
+    <string name="action_enter_edit_mode">Sửa ghi chú</string>
     <string name="action_insert_date_time_template">Chèn mẫu ngày/giờ</string>
     <string name="action_toggle_feed">Hiện bảng tin</string>
     <string name="action_toggle_list">Hiện danh sách</string>

@@ -29,6 +29,7 @@
     <string name="action_undo">পূর্বাবস্থায় ফেরান</string>
     <string name="action_redo">আবার করুন</string>
     <string name="action_change_name">নাম পরিবর্তন করুন</string>
+    <string name="action_enter_edit_mode">নোট সম্পাদনা করুন</string>
     <string name="action_insert_date_time_template">তারিখ/সময় টেমপ্লেট ঢোকান</string>
     <string name="action_toggle_feed">ফিড দেখান</string>
     <string name="action_toggle_list">তালিকা দেখান</string>
