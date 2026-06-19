@@ -61,6 +61,15 @@ internal fun completeBrowserRefresh(
     isLoadingMore = false
 )
 
+internal fun removeDeletedNode(
+    state: BrowserState,
+    sourceDirUri: Uri,
+    nodeUri: Uri
+): BrowserState {
+    if (state.currentDirUri != sourceDirUri) return state
+    return state.copy(entries = state.entries.filterNot { it.uri == nodeUri })
+}
+
 class BrowserViewModel(
     private val preferencesRepository: PreferencesRepository,
     private val fileRepository: FileRepository,
@@ -206,9 +215,20 @@ class BrowserViewModel(
     }
 
     fun deleteFile(node: DocumentNode) {
+        val sourceDirUri = _state.value.currentDirUri ?: return
         viewModelScope.launch {
-            fileRepository.deleteFile(node.uri)
-            refresh(force = true)
+            if (fileRepository.deleteFile(node.uri)) {
+                _state.update { current ->
+                    if (current.currentDirUri != sourceDirUri) {
+                        current
+                    } else {
+                        feedManager.removeNode(
+                            state = removeDeletedNode(current, sourceDirUri, node.uri),
+                            nodeUri = node.uri
+                        )
+                    }
+                }
+            }
         }
     }
 

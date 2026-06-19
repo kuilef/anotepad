@@ -26,4 +26,46 @@ class BrowserRefreshStateTest {
         assertFalse(result.isLoading)
         assertFalse(result.isLoadingMore)
     }
+
+    @Test
+    fun removeDeletedNode_removesEntryWhenSourceDirectoryIsStillCurrent() {
+        val dir = TestUri("root")
+        val deleted = DocumentNode(
+            name = "deleted.txt",
+            uri = TestUri("deleted"),
+            isDirectory = false
+        )
+
+        val result = removeDeletedNode(
+            state = BrowserState(
+                currentDirUri = dir,
+                entries = listOf(deleted)
+            ),
+            sourceDirUri = dir,
+            nodeUri = deleted.uri
+        )
+
+        assertEquals(emptyList<DocumentNode>(), result.entries)
+    }
+
+    @Test
+    fun removeDeletedNode_doesNotMutateAnotherDirectory() {
+        val current = DocumentNode(
+            name = "current.txt",
+            uri = TestUri("current"),
+            isDirectory = false
+        )
+
+        val state = BrowserState(
+            currentDirUri = TestUri("other"),
+            entries = listOf(current)
+        )
+        val result = removeDeletedNode(
+            state = state,
+            sourceDirUri = TestUri("root"),
+            nodeUri = TestUri("deleted")
+        )
+
+        assertEquals(state, result)
+    }
 }

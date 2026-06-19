@@ -41,6 +41,17 @@ class FeedManager(
         )
     }
 
+    fun removeNode(state: BrowserState, nodeUri: Uri): BrowserState {
+        feedGeneration += 1
+        feedFiles = feedFiles.filterNot { it.uri == nodeUri }
+        val items = state.feedItems.filterNot { it.node.uri == nodeUri }
+        return state.copy(
+            feedItems = items,
+            feedHasMore = items.size < feedFiles.size,
+            feedLoading = false
+        )
+    }
+
     fun ensureFeedLoaded(
         state: BrowserState,
         stateProvider: () -> BrowserState,
