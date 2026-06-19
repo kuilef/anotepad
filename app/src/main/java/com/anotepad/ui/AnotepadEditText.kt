@@ -95,8 +95,12 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
 
             override fun onDestroyActionMode(mode: ActionMode) = Unit
         }
-        if (LinkActionModeTarget.SELECTION in linkActionModeTargets) {
-            setCustomSelectionActionModeCallback(linkActionModeCallback)
+        linkActionModeTargets.forEach { target ->
+            when (target) {
+                LinkActionModeTarget.SELECTION -> {
+                    setCustomSelectionActionModeCallback(linkActionModeCallback)
+                }
+            }
         }
     }
 

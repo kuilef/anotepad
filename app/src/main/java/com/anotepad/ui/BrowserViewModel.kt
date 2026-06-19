@@ -252,7 +252,8 @@ class BrowserViewModel(
         viewModelScope.launch {
             try {
                 val deleted = fileRepository.deleteFile(node.uri)
-                if (deleted) {
+                val failureEvent = browserDeleteFailureEvent(deleted)
+                if (failureEvent == null) {
                     _state.update { current ->
                         if (current.currentDirUri != sourceDirUri) {
                             current
@@ -264,7 +265,7 @@ class BrowserViewModel(
                         }
                     }
                 } else {
-                    browserDeleteFailureEvent(deleted)?.let { _events.emit(it) }
+                    _events.emit(failureEvent)
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
