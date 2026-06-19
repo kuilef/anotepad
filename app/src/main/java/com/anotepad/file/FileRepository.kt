@@ -8,7 +8,8 @@ import java.util.Locale
 
 data class ChildBatch(
     val entries: List<DocumentNode>,
-    val done: Boolean
+    val done: Boolean,
+    val failed: Boolean = false
 )
 
 data class ReadTextResult(

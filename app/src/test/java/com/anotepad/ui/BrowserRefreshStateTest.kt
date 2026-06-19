@@ -29,6 +29,30 @@ class BrowserRefreshStateTest {
     }
 
     @Test
+    fun finishBrowserRefresh_preservesEntriesWhenListingFailed() {
+        val stale = DocumentNode(
+            name = "existing.txt",
+            uri = TestUri("existing"),
+            isDirectory = false
+        )
+        val state = BrowserState(
+            entries = listOf(stale),
+            isLoading = true,
+            isLoadingMore = true
+        )
+
+        val result = finishBrowserRefresh(
+            state = state,
+            entries = emptyList(),
+            failed = true
+        )
+
+        assertEquals(listOf(stale), result.entries)
+        assertFalse(result.isLoading)
+        assertFalse(result.isLoadingMore)
+    }
+
+    @Test
     fun removeDeletedNode_removesEntryWhenSourceDirectoryIsStillCurrent() {
         val dir = TestUri("root")
         val deleted = DocumentNode(

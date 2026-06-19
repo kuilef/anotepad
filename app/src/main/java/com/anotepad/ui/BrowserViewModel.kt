@@ -71,6 +71,15 @@ internal fun completeBrowserRefresh(
     isLoadingMore = false
 )
 
+internal fun finishBrowserRefresh(
+    state: BrowserState,
+    entries: List<DocumentNode>,
+    failed: Boolean
+): BrowserState {
+    if (!failed) return completeBrowserRefresh(state, entries)
+    return state.copy(isLoading = false, isLoadingMore = false)
+}
+
 internal fun removeDeletedNode(
     state: BrowserState,
     sourceDirUri: Uri,
@@ -184,6 +193,7 @@ class BrowserViewModel(
                 )
             }
             val collected = mutableListOf<DocumentNode>()
+            var listingFailed = false
             try {
                 fileRepository.listChildrenBatched(
                     dirUri,
@@ -192,6 +202,9 @@ class BrowserViewModel(
                     firstBatchSize = listFirstBatchSize,
                     useCache = !force
                 ).collect { batch: ChildBatch ->
+                    if (batch.failed) {
+                        listingFailed = true
+                    }
                     if (batch.entries.isNotEmpty()) {
                         collected.addAll(batch.entries)
                         _state.update {
@@ -202,10 +215,18 @@ class BrowserViewModel(
                             )
                         }
                     } else if (batch.done) {
-                        _state.update { completeBrowserRefresh(it, collected.toList()) }
+                        _state.update {
+                            finishBrowserRefresh(
+                                state = it,
+                                entries = collected.toList(),
+                                failed = batch.failed
+                            )
+                        }
                     }
                 }
-                updateFeedSource(collected)
+                if (!listingFailed) {
+                    updateFeedSource(collected)
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: SecurityException) {

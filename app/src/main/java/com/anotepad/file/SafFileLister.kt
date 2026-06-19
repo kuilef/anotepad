@@ -56,7 +56,7 @@ class SafFileLister(
         }
 
         val (treeUri, parentDocId) = resolveTreeAndDocumentId(dirTreeUri) ?: run {
-            emit(ChildBatch(emptyList(), true))
+            emit(ChildBatch(emptyList(), true, failed = true))
             return@flow
         }
         val safeBatchSize = batchSize.coerceAtLeast(1)
@@ -100,7 +100,7 @@ class SafFileLister(
         }
 
         if (!dirsQueryOk) {
-            emit(ChildBatch(emptyList(), true))
+            emit(ChildBatch(emptyList(), true, failed = true))
             return@flow
         }
 
@@ -108,7 +108,7 @@ class SafFileLister(
             batch.clear()
             val dirs = mutableListOf<DocumentNode>()
             val files = mutableListOf<DocumentNode>()
-            queryChildren(
+            val allQueryOk = queryChildren(
                 treeUri = treeUri,
                 parentDocId = parentDocId,
                 selection = null,
@@ -121,6 +121,10 @@ class SafFileLister(
                     files.add(node)
                 }
                 true
+            }
+            if (!allQueryOk) {
+                emit(ChildBatch(emptyList(), true, failed = true))
+                return@flow
             }
             val sortedDirs = NaturalOrderFileComparator.sort(dirs, sortOrder)
             val sortedFiles = NaturalOrderFileComparator.sort(files, sortOrder)
@@ -137,7 +141,7 @@ class SafFileLister(
 
         val selectionFiles = "$mimeTypeColumn != ?"
         val filesBuffer = mutableListOf<DocumentNode>()
-        queryChildren(
+        val filesQueryOk = queryChildren(
             treeUri = treeUri,
             parentDocId = parentDocId,
             selection = selectionFiles,
@@ -152,6 +156,10 @@ class SafFileLister(
             }
             filesBuffer.add(node)
             true
+        }
+        if (!filesQueryOk) {
+            emit(ChildBatch(emptyList(), true, failed = true))
+            return@flow
         }
 
         val sortedDirs = NaturalOrderFileComparator.sort(dirBuffer, sortOrder)
