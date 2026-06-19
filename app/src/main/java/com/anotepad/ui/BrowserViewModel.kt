@@ -52,6 +52,15 @@ data class BrowserState(
     val showFolderUnavailableDialog: Boolean = false
 )
 
+internal fun completeBrowserRefresh(
+    state: BrowserState,
+    entries: List<DocumentNode>
+): BrowserState = state.copy(
+    entries = entries,
+    isLoading = false,
+    isLoadingMore = false
+)
+
 class BrowserViewModel(
     private val preferencesRepository: PreferencesRepository,
     private val fileRepository: FileRepository,
@@ -172,7 +181,7 @@ class BrowserViewModel(
                             )
                         }
                     } else if (batch.done) {
-                        _state.update { it.copy(isLoading = false, isLoadingMore = false) }
+                        _state.update { completeBrowserRefresh(it, collected.toList()) }
                     }
                 }
                 updateFeedSource(collected)
