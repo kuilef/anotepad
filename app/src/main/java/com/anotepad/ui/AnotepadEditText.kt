@@ -41,12 +41,6 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-internal enum class LinkActionModeTarget {
-    SELECTION
-}
-
-internal val linkActionModeTargets = setOf(LinkActionModeTarget.SELECTION)
-
 class AnotepadEditorEditText(context: Context) : EditText(context) {
     private val viewConfiguration = ViewConfiguration.get(context)
     private val scroller = OverScroller(context)
@@ -95,13 +89,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
 
             override fun onDestroyActionMode(mode: ActionMode) = Unit
         }
-        linkActionModeTargets.forEach { target ->
-            when (target) {
-                LinkActionModeTarget.SELECTION -> {
-                    setCustomSelectionActionModeCallback(linkActionModeCallback)
-                }
-            }
-        }
+        setCustomSelectionActionModeCallback(linkActionModeCallback)
     }
 
     fun runWithoutHistoryAndChangeCallbacks(block: () -> Unit) {
