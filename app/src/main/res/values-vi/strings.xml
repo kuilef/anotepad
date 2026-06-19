@@ -127,6 +127,7 @@
     <string name="error_drive_picker_auth">Cần đăng nhập để dùng Drive Picker.</string>
     <string name="error_drive_picker_failed">Drive Picker thất bại.</string>
     <string name="error_no_share_target">Không có ứng dụng nào để chia sẻ mục này.</string>
+    <string name="error_delete_failed">Không thể xóa mục.</string>
     <string name="error_shared_text_empty">Văn bản được chia sẻ trống.</string>
     <string name="error_shared_note_save_failed">Không thể lưu văn bản được chia sẻ.</string>
     <string name="error_shared_folder_pick_cancelled">Văn bản được chia sẻ chưa được lưu vì chưa chọn thư mục.</string>

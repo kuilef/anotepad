@@ -127,6 +127,7 @@
     <string name="error_drive_picker_auth">Для Drive Picker нужно войти.</string>
     <string name="error_drive_picker_failed">Ошибка Drive Picker.</string>
     <string name="error_no_share_target">Нет приложения, через которое можно поделиться этим элементом.</string>
+    <string name="error_delete_failed">Не удалось удалить элемент.</string>
     <string name="error_shared_text_empty">Отправленный текст пуст.</string>
     <string name="error_shared_note_save_failed">Не удалось сохранить отправленный текст.</string>
     <string name="error_shared_folder_pick_cancelled">Отправленный текст не сохранен, потому что папка не выбрана.</string>

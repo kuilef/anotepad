@@ -127,6 +127,7 @@
     <string name="error_drive_picker_auth">Se requiere iniciar sesión para Drive Picker.</string>
     <string name="error_drive_picker_failed">Drive Picker falló.</string>
     <string name="error_no_share_target">No hay ninguna app disponible para compartir este elemento.</string>
+    <string name="error_delete_failed">No se pudo eliminar el elemento.</string>
     <string name="error_shared_text_empty">El texto compartido está vacío.</string>
     <string name="error_shared_note_save_failed">No se pudo guardar el texto compartido.</string>
     <string name="error_shared_folder_pick_cancelled">El texto compartido no se guardó porque no se seleccionó ninguna carpeta.</string>

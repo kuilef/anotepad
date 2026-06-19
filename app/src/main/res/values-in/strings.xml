@@ -127,6 +127,7 @@
     <string name="error_drive_picker_auth">Masuk diperlukan untuk Drive Picker.</string>
     <string name="error_drive_picker_failed">Drive Picker gagal.</string>
     <string name="error_no_share_target">Tidak ada app yang tersedia untuk membagikan item ini.</string>
+    <string name="error_delete_failed">Item tidak dapat dihapus.</string>
     <string name="error_shared_text_empty">Teks yang dibagikan kosong.</string>
     <string name="error_shared_note_save_failed">Tidak dapat menyimpan teks yang dibagikan.</string>
     <string name="error_shared_folder_pick_cancelled">Teks yang dibagikan tidak disimpan karena belum ada folder dipilih.</string>

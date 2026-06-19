@@ -111,6 +111,7 @@ fun BrowserScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
+    val deleteFailedMessage = stringResource(id = R.string.error_delete_failed)
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var showNewFileNameDialog by remember { mutableStateOf(false) }
     var showFileActions by remember { mutableStateOf(false) }
@@ -128,6 +129,16 @@ fun BrowserScreen(
     var settingsButtonRect by remember { mutableStateOf<Rect?>(null) }
     var newNoteFabRect by remember { mutableStateOf<Rect?>(null) }
     var onboardingStepIndex by remember { mutableStateOf(0) }
+
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                BrowserUiEvent.DeleteFailed -> {
+                    Toast.makeText(context, deleteFailedMessage, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     LaunchedEffect(state.viewMode, state.feedResetSignal) {
         if (state.viewMode == BrowserViewMode.FEED) {

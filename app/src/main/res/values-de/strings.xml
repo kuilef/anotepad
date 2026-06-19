@@ -127,6 +127,7 @@
     <string name="error_drive_picker_auth">Anmeldung für Drive Picker erforderlich.</string>
     <string name="error_drive_picker_failed">Drive Picker fehlgeschlagen.</string>
     <string name="error_no_share_target">Keine App zum Teilen dieses Elements verfügbar.</string>
+    <string name="error_delete_failed">Element konnte nicht gelöscht werden.</string>
     <string name="error_shared_text_empty">Geteilter Text ist leer.</string>
     <string name="error_shared_note_save_failed">Geteilter Text konnte nicht gespeichert werden.</string>
     <string name="error_shared_folder_pick_cancelled">Geteilter Text wurde nicht gespeichert, weil kein Ordner ausgewählt wurde.</string>

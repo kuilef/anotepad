@@ -13,9 +13,12 @@ import com.anotepad.file.FileRepository
 import com.anotepad.sync.SyncRepository
 import com.anotepad.sync.SyncState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
@@ -52,6 +55,13 @@ data class BrowserState(
     val showFolderUnavailableDialog: Boolean = false
 )
 
+sealed interface BrowserUiEvent {
+    data object DeleteFailed : BrowserUiEvent
+}
+
+internal fun browserDeleteFailureEvent(deleted: Boolean): BrowserUiEvent? =
+    if (deleted) null else BrowserUiEvent.DeleteFailed
+
 internal fun completeBrowserRefresh(
     state: BrowserState,
     entries: List<DocumentNode>
@@ -80,6 +90,8 @@ class BrowserViewModel(
     private val listFirstBatchSize = 10
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
+    private val _events = MutableSharedFlow<BrowserUiEvent>(extraBufferCapacity = 1)
+    val events: SharedFlow<BrowserUiEvent> = _events.asSharedFlow()
     private var refreshJob: Job? = null
     private var lastSyncedAtSeen: Long? = null
     private var lastRefreshDirUri: Uri? = null
@@ -217,17 +229,28 @@ class BrowserViewModel(
     fun deleteFile(node: DocumentNode) {
         val sourceDirUri = _state.value.currentDirUri ?: return
         viewModelScope.launch {
-            if (fileRepository.deleteFile(node.uri)) {
-                _state.update { current ->
-                    if (current.currentDirUri != sourceDirUri) {
-                        current
-                    } else {
-                        feedManager.removeNode(
-                            state = removeDeletedNode(current, sourceDirUri, node.uri),
-                            nodeUri = node.uri
-                        )
+            try {
+                val deleted = fileRepository.deleteFile(node.uri)
+                if (deleted) {
+                    _state.update { current ->
+                        if (current.currentDirUri != sourceDirUri) {
+                            current
+                        } else {
+                            feedManager.removeNode(
+                                state = removeDeletedNode(current, sourceDirUri, node.uri),
+                                nodeUri = node.uri
+                            )
+                        }
                     }
+                } else {
+                    browserDeleteFailureEvent(deleted)?.let { _events.emit(it) }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: SecurityException) {
+                _events.emit(BrowserUiEvent.DeleteFailed)
+            } catch (_: IllegalArgumentException) {
+                _events.emit(BrowserUiEvent.DeleteFailed)
             }
         }
     }

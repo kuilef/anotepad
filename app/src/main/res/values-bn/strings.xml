@@ -127,6 +127,7 @@
     <string name="error_drive_picker_auth">Drive Picker-এর জন্য সাইন ইন প্রয়োজন।</string>
     <string name="error_drive_picker_failed">Drive Picker ব্যর্থ হয়েছে।</string>
     <string name="error_no_share_target">এই আইটেম শেয়ার করার মতো কোনো অ্যাপ নেই।</string>
+    <string name="error_delete_failed">আইটেমটি মুছে ফেলা যায়নি।</string>
     <string name="error_shared_text_empty">শেয়ার করা টেক্সট খালি।</string>
     <string name="error_shared_note_save_failed">শেয়ার করা টেক্সট সংরক্ষণ করা যায়নি।</string>
     <string name="error_shared_folder_pick_cancelled">কোনো ফোল্ডার নির্বাচিত না হওয়ায় শেয়ার করা টেক্সট সংরক্ষণ করা হয়নি।</string>

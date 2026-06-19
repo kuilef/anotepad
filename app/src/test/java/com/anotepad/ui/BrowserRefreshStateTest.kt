@@ -4,6 +4,7 @@ import android.net.TestUri
 import com.anotepad.file.DocumentNode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class BrowserRefreshStateTest {
@@ -67,5 +68,11 @@ class BrowserRefreshStateTest {
         )
 
         assertEquals(state, result)
+    }
+
+    @Test
+    fun browserDeleteFailureEvent_returnsFailureOnlyWhenDeleteDidNotSucceed() {
+        assertEquals(BrowserUiEvent.DeleteFailed, browserDeleteFailureEvent(false))
+        assertNull(browserDeleteFailureEvent(true))
     }
 }

@@ -127,6 +127,7 @@
     <string name="error_drive_picker_auth">Connexion requise pour Drive Picker.</string>
     <string name="error_drive_picker_failed">Échec de Drive Picker.</string>
     <string name="error_no_share_target">Aucune app disponible pour partager cet élément.</string>
+    <string name="error_delete_failed">Impossible de supprimer l’élément.</string>
     <string name="error_shared_text_empty">Le texte partagé est vide.</string>
     <string name="error_shared_note_save_failed">Impossible d’enregistrer le texte partagé.</string>
     <string name="error_shared_folder_pick_cancelled">Le texte partagé n’a pas été enregistré car aucun dossier n’a été sélectionné.</string>
