@@ -63,7 +63,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     private var hasMultiplePointers = false
     private var deferCursorVisibilityUntilTouchEnds = false
     private var hasDeferredCursorVisibilityUpdate = false
-    private var restoreCursorAfterTouch = false
     private var touchStartedWithSelection = false
     private var editableKeyListener: KeyListener? = null
     private var readOnly = false
@@ -72,6 +71,7 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     init {
         val linkActionModeCallback = object : ActionMode.Callback {
             override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+                updateOpenLinkMenuItem(menu)
                 return true
             }
 
@@ -118,7 +118,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
 
     fun stopFling() {
         abortFling()
-        restoreCursorVisibilityAfterTouch()
         recycleVelocityTracker()
         resetTouchTracking()
     }
@@ -161,10 +160,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
                 if (!touchStartedWithSelection) {
                     deferCursorVisibilityUntilTouchEnds = true
                     hasDeferredCursorVisibilityUpdate = false
-                    restoreCursorAfterTouch = isCursorVisible
-                    if (restoreCursorAfterTouch) {
-                        isCursorVisible = false
-                    }
                 }
                 activePointerId = event.getPointerId(0)
                 initialTouchX = event.x
@@ -195,7 +190,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
                     maybeStartFling()
                 }
                 flushDeferredCursorVisibility()
-                restoreCursorVisibilityAfterTouch()
                 recycleVelocityTracker()
                 resetTouchTracking()
             }
@@ -203,7 +197,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
             MotionEvent.ACTION_CANCEL -> {
                 deferCursorVisibilityUntilTouchEnds = false
                 flushDeferredCursorVisibility()
-                restoreCursorVisibilityAfterTouch()
                 recycleVelocityTracker()
                 resetTouchTracking()
             }
@@ -239,7 +232,9 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
             hasDeferredCursorVisibilityUpdate = true
             return
         }
-        ensureCursorVisible(this, allowPost = false)
+        if (selStart == selEnd) {
+            ensureCursorVisible(this, allowPost = false)
+        }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -307,13 +302,9 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
     private fun flushDeferredCursorVisibility() {
         if (!hasDeferredCursorVisibilityUpdate) return
         hasDeferredCursorVisibilityUpdate = false
-        ensureCursorVisible(this, allowPost = false)
-    }
-
-    private fun restoreCursorVisibilityAfterTouch() {
-        if (!restoreCursorAfterTouch) return
-        isCursorVisible = true
-        restoreCursorAfterTouch = false
+        if (!hasTextSelection()) {
+            ensureCursorVisible(this, allowPost = false)
+        }
     }
 
     private fun drawScrollIndicator(canvas: Canvas) {
@@ -348,7 +339,6 @@ class AnotepadEditorEditText(context: Context) : EditText(context) {
         hasMultiplePointers = false
         deferCursorVisibilityUntilTouchEnds = false
         hasDeferredCursorVisibilityUpdate = false
-        restoreCursorAfterTouch = false
         touchStartedWithSelection = false
         initialTouchX = 0f
         initialTouchY = 0f
