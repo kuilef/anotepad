@@ -457,6 +457,7 @@ fun BrowserScreen(
                                                 hasMore = state.feedHasMore,
                                                 loading = state.feedLoading,
                                                 fontSizeSp = state.fileListFontSizeSp,
+                                                syncTitle = state.syncTitle,
                                                 initialIndex = state.feedScrollIndex,
                                                 initialOffset = state.feedScrollOffset,
                                                 resetSignal = state.feedResetSignal,
@@ -1114,6 +1115,7 @@ private fun FeedList(
     hasMore: Boolean,
     loading: Boolean,
     fontSizeSp: Float,
+    syncTitle: Boolean,
     initialIndex: Int,
     initialOffset: Int,
     resetSignal: Int,
@@ -1175,7 +1177,14 @@ private fun FeedList(
                             bottom = 8.dp
                         )
                 ) {
-                    Text(text = buildFeedAnnotatedText(item.text), style = textStyle)
+                    Text(
+                        text = buildFeedAnnotatedText(
+                            fileName = item.node.name,
+                            text = item.text,
+                            syncTitle = syncTitle
+                        ),
+                        style = textStyle
+                    )
                 }
                 Divider(
                     modifier = Modifier.fillMaxWidth()
@@ -1366,18 +1375,29 @@ private fun DestinationPickerDialog(
     )
 }
 
-private fun buildFeedAnnotatedText(text: String) = buildAnnotatedString {
+internal fun buildFeedAnnotatedText(fileName: String, text: String, syncTitle: Boolean) = buildAnnotatedString {
     val normalized = text.replace("\r\n", "\n")
-    val parts = normalized.split("\n", limit = 2)
-    val firstLine = parts.getOrElse(0) { "" }
-    val rest = if (parts.size > 1) "\n${parts[1]}" else ""
+    val title = if (syncTitle) {
+        normalized.substringBefore("\n")
+    } else {
+        feedDisplayTitle(fileName)
+    }
+    val rest = if (syncTitle) {
+        normalized.substringAfter("\n", missingDelimiterValue = "")
+    } else {
+        normalized
+    }
     withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-        append(firstLine)
+        append(title)
     }
     if (rest.isNotEmpty()) {
+        append("\n")
         append(rest)
     }
 }
+
+internal fun feedDisplayTitle(name: String): String =
+    if (name.endsWith(".txt", ignoreCase = true)) name.dropLast(4) else name
 
 private enum class FileAction {
     COPY,
