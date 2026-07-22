@@ -16,13 +16,13 @@ if (hasKeystoreProperties) {
 
 android {
     namespace = "com.anotepad"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.anotepad"
         minSdk = 29
-        targetSdk = 35
-        versionCode = 44
+        targetSdk = 36
+        versionCode = 45
         versionName = "4.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
